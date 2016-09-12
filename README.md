@@ -1,4 +1,4 @@
-![](http://www.blazingdb.com/images/Logo_Blazing.png)
+![](http://www.blazingdb.com/images/Logo_Blazing_verde.png)
 
 
 
