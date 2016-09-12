@@ -7,7 +7,7 @@ setup(
   author = 'BlazingDB Inc.',
   author_email = 'emilse@blazingdb.com',
   url = 'https://github.com/BlazingDB/python-connector', # use the URL to the github repo
-  download_url = 'https://github.com/BlazingDB/python-connector/releases/tag/1.0', # I'll explain this in a second
+  download_url = 'https://github.com/BlazingDB/python-connector/releases/tag/1.1', # I'll explain this in a second
   keywords = ['blazingdb', 'blazing connector', 'blazing'], # arbitrary keywords
   classifiers = [],
 )
