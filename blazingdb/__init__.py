@@ -13,7 +13,7 @@ class BlazingPyConnector:
 
     def __init__(self, host, username, password, database, **kwargs):
         self.host = host
-        self.port = kwargs.get('port', '8443')
+        self.port = kwargs.get('port', '8089')
         self.username = username
         self.password = password
         self.database = database
