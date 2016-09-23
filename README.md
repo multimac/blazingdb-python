@@ -36,9 +36,6 @@ See [BlazingDB docs] (https://blazingdb.readme.io/docs/quickstart-guide-to-blazi
 >>> con = bl.connect()
 >>> result = bl.run("create table my_new_table (field1 string(20), field2 long, field3 date, field4 double)",con)
 >>> print result.status
->>> result = bl.run("select * from my_new_table limit 10",con)
->>> for row in result.rows:
->>>     print row
 ```
 
 ## More SQL Docs
