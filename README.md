@@ -21,7 +21,7 @@ See [BlazingDB docs] (https://blazingdb.readme.io/docs/quickstart-guide-to-blazi
 
 ```py
 >>> from blazingdb import BlazingPyConnector
->>> bl = BlazingPyConnector('127.0.0.1','user@domain.com','password','database_name')
+>>> bl = BlazingPyConnector('127.0.0.1','user@domain.com','password','database_name',port=8089)
 >>> con = bl.connect()
 >>> result = bl.run("list tables",con)
 >>> print result.status
@@ -32,7 +32,7 @@ See [BlazingDB docs] (https://blazingdb.readme.io/docs/quickstart-guide-to-blazi
 
 ```py
 >>> from blazingdb import BlazingPyConnector
->>> bl = BlazingPyConnector('127.0.0.1','user@domain.com','password','database_name')
+>>> bl = BlazingPyConnector('127.0.0.1','user@domain.com','password','database_name',port=8089)
 >>> con = bl.connect()
 >>> result = bl.run("create table my_new_table (field1 string(20), field2 long, field3 date, field4 double)",con)
 >>> print result.status
