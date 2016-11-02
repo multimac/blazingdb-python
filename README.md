@@ -41,7 +41,7 @@ See [BlazingDB docs] (https://blazingdb.readme.io/docs/quickstart-guide-to-blazi
 >>> # Postgresql Connection
 >>> pg = postgres.connect(host='localhost',dbname='postgres',user='postgres',password='postgres')
 >>> migrator = BlazingETL(pg, bl)
->>> migrator.migrate (
+>>> migrator.migrate ( # Optional Parameters
 >>>     create_tables=False,                                           # Specify if it's needed to create the tables in the migration
 >>>     path='/datasets/',                                    		     # Specify where will the migration data files stored
 >>>     blazing_path='/opt/blazing/disk1/blazing/blazing-uploads/',    # Specify in case it's wanted to copy the data to BlazingDB uploads folder
