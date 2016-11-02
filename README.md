@@ -43,7 +43,7 @@ See [BlazingDB docs] (https://blazingdb.readme.io/docs/quickstart-guide-to-blazi
 >>> migrator = BlazingETL(pg, bl)
 >>> migrator.migrate (
 >>>     create_tables=False,                                            # Specify if it's needed to create the tables in the migration
->>>     path='/datasets/',                                    		# Specify where will the migration data files stored
+>>>     path='/datasets/',                                    		      # Specify where will the migration data files stored
 >>>     blazing_path='/opt/blazing/disk1/blazing/blazing-uploads/',     # Specify in case it's wanted to copy the data to BlazingDB uploads folder
 >>>     chunk_size=100000,                                              # Specify the size of the chunks of data to migrate
 >>>     export_data_from_origin=True,                                   # Turn to False in case you already have the and only need to load them into BlazingDb
