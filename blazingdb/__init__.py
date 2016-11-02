@@ -69,7 +69,7 @@ class BlazingETL:
         """ Supported Migration from Redshift and Postgresql to BlazingDB """
 
         create_tables = kwargs.get('create_tables', True);
-        path = kwargs.get('files_local_path', '/home/second/OneModel/');
+        path = kwargs.get('files_local_path', '/home/second/datasets/');
         blazing_path = kwargs.get('blazing_files_destination_path', '/opt/blazing/disk1/blazing/blazing-uploads/2/');
         chunk_size = kwargs.get('chunk_size', 100000);
         write_data_chunks = kwargs.get('export_data_from_origin', True);
