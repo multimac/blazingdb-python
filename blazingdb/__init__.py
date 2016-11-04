@@ -15,7 +15,7 @@ class BlazingETL:
         self.from_conn = from_connection_obj
         self.to_conn = to_connection_obj
 
-    def write_chunk_complete(cursor, path, table, file_ext):
+    def write_chunk_complete(self, cursor, path, table, file_ext):
         to_open = path+table+file_ext
         print to_open
         file = open(to_open, 'w')
@@ -26,7 +26,7 @@ class BlazingETL:
             print e
         file.close()
 
-    def write_chunk_part(cursor, path, table, file_ext, chunk_size, iterator):
+    def write_chunk_part(self, cursor, path, table, file_ext, chunk_size, iterator):
         to_open = path+table+'_'+str(iterator)+file_ext
         print to_open
         file = open(to_open, 'w')
@@ -38,7 +38,7 @@ class BlazingETL:
             print e
         file.close()
 
-    def copy_chunks(from_path, file, to_path):
+    def copy_chunks(self, from_path, file, to_path):
         print "copy chunks"
         try:
             shutil.copyfile(from_path + file, to_path + file)
@@ -47,13 +47,13 @@ class BlazingETL:
         except IOError as e:
             print('Error: %s' % e.strerror)
 
-    def load_data_stream(cursor, table, destination):
+    def load_datastream(self, cursor, table, destination, connection_id):
         print "load data stream"
         try:
             for row in cursor.fetchall():
                 print row
                 query = "load data stream '" + '|'.join(str(r) for r in row)+'\n' + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
-                result = destination.run(query)
+                result = destination.run(query, connection_id)
                 print result.status
                 print result.rows
         except Exception as e:
@@ -61,7 +61,7 @@ class BlazingETL:
 
     def migrate(self, **kwargs):
         """ Supported Migration from Redshift and Postgresql to BlazingDB """
-        print "Cuatro"
+
         create_tables = kwargs.get('create_tables', True);
         path = kwargs.get('files_local_path', '/home/second/datasets/');
         blazing_path = kwargs.get('blazing_files_destination_path', '/opt/blazing/disk1/blazing/blazing-uploads/2/');
@@ -71,8 +71,9 @@ class BlazingETL:
         load_data_into_blazing = kwargs.get('load_data_into_blazing', True);
         file_extension = kwargs.get('file_extension', '.dat');
         by_stream = kwargs.get('by_stream', True);
-        print "Cinco"
+
         bl_con = self.to_conn.connect()
+
         query = "select mytables.table_name from INFORMATION_SCHEMA.COLUMNS as i_columns left join information_schema.tables mytables on i_columns.table_name = mytables.table_name where mytables.table_schema = 'public' and mytables.table_type = 'BASE TABLE';"
         cursor = self.from_conn.cursor()
         result = cursor.execute(query)
@@ -129,7 +130,8 @@ class BlazingETL:
 
                 # Create Tables on Blazing
                 if(create_tables==True):
-                    result = self.to_conn.run('create table ' + table + ' (' + columns_desc + ')',bl_con)
+                    query = "create table " + table + " (" + columns_desc + ")"
+                    result = self.to_conn.run(query,bl_con)
                     print result.status
                     print result.rows
 
@@ -145,19 +147,19 @@ class BlazingETL:
                     """ MultiThread """
                     if(by_stream==True):
                         # Load data into Blazing
-                        thread = threading.Thread(target=load_data_stream, args=(cursor, table, self.to_conn))
+                        thread = threading.Thread(target=self.load_datastream, args=(cursor, table, self.to_conn, bl_con))
                         thread.start()
                         thread.join()
 
                     if(by_stream==False):
 
                         if(write_data_chunks==True):
-                            thread = threading.Thread(target=write_chunk_complete, args=(cursor, path, table, file_extension))
+                            thread = threading.Thread(target=self.write_chunk_complete, args=(cursor, path, table, file_extension))
                             thread.start()
                             thread.join()
 
                         if(copy_data_to_destination==True):
-                            thread2 = threading.Thread(target=copy_chunks, args=(path, table + file_extension, blazing_path))
+                            thread2 = threading.Thread(target=self.copy_chunks, args=(path, table + file_extension, blazing_path))
                             thread2.start()
                             thread2.join()
 
@@ -178,19 +180,19 @@ class BlazingETL:
                         """ MultiThread """
                         if(by_stream==True):
                             # Load data into Blazing
-                            thread = threading.Thread(target=load_data_stream, args=(cursor, table, self.to_conn))
+                            thread = threading.Thread(target=self.load_datastream, args=(cursor, table, self.to_conn, bl_con))
                             thread.start()
                             thread.join()
 
                         if(by_stream==False):
-
+                            
                             if(write_data_chunks==True):
-                                thread = threading.Thread(target=write_chunk_part, args=(cursor, path, table, file_extension, chunk_size, i))
+                                thread = threading.Thread(target=self.write_chunk_part, args=(cursor, path, table, file_extension, chunk_size, i))
                                 thread.start()
                                 thread.join()
 
                             if(copy_data_to_destination==True):
-                                thread2 = threading.Thread(target=copy_chunks, args=(path, table+'_'+str(i)+file_extension, blazing_path))
+                                thread2 = threading.Thread(target=self.copy_chunks, args=(path, table+'_'+str(i)+file_extension, blazing_path))
                                 thread2.start()
                                 thread2.join()
 
