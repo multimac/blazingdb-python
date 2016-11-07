@@ -30,7 +30,21 @@ See [BlazingDB docs] (https://blazingdb.readme.io/docs/quickstart-guide-to-blazi
 >>> print result.rows
 ```
 
-###### Migration
+###### File Importer
+```py
+>>> from blazingdb import BlazingPyConnector, BlazingImporter
+>>> bl = BlazingPyConnector('127.0.0.1','user@domain.com','password','database_name',port=8089)
+>>> importer = BlazingImporter(bl)
+>>> importer.file_import (
+>>>    files_path = '/directory/datasets/',                # Please complete this parameter to set the directory where the files to import are
+>>>    columns = 'A string(20), B long, C double, D date',     # (Optional) Only set this parameter if you don't have the columns in the file
+>>>    table = 'abc',                                          # (Optional) Only set this parameter if the table name is different from the file name
+>>>    find_files = True,                                      # True by default, change to false if you want to load an specific file and the folder has more than one with the configured extension
+>>>    files_extension = '.csv'                                # Please specify the extension of the files to be imported
+>>> )
+```
+
+###### DB Migration
 
 ```py
 >>> from blazingdb import BlazingPyConnector, BlazingETL

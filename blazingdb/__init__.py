@@ -6,6 +6,157 @@ import threading
 import shutil
 import sys
 from socket import *
+import glob, os
+import linecache
+
+class BlazingImporter:
+    """ Data Importer """
+
+    def __init__(self, bl_connection):
+        self.connection = bl_connection
+        self.id_connection = self.connection.connect()
+
+    def small_load_datastream(self, query):
+        """small load data stream"""
+        print query
+        try:
+            result = self.connection.run(query, self.id_connection)
+            #print result.status
+            #print result.rows
+        except Exception as e:
+            print('Error: %s' % e)
+
+    def get_columns(self, file):
+        """ Get Columns and Format Them """
+        # Get columns
+        columns = linecache.getline(file, 1)
+        columns = columns.replace("\n","")
+        # Get datatypes
+        datatypes = linecache.getline(file, 2)
+        datatypes = datatypes.replace("\n","")
+        # Columns and Datetypes Arrays
+        columns_arr = columns.split("|")
+        datatypes_arr = datatypes.split("|")
+        # Columns with Datatype Converted
+        columns_desc = []
+        # Loop by Datatypes
+        for i in range(len(datatypes_arr)):
+            type = datatypes_arr[i]
+            column = columns_arr[i]
+            # Convert DataTypes
+            blazing_type = 'datatype'
+            types = {
+                'integer':'long',
+                'character varying':'string',
+                'character':'string',
+                'varchar':'string',
+                'text':'string',
+                'time with time zone':'string',
+                'time without time zone':'string',
+                'timestamp with time zone':'string',
+                'timestamp without time zone':'string',
+                '"char"':'string',
+                'money':'double',
+                'real':'double',
+                'numeric':'double',
+                'float':'double',
+                'double precision':'double',
+                'bigint':'long',
+                'smallint':'long',
+                'bit':'long'
+            }
+            type_without_size = [] 
+            type_without_size = type.split("(")
+            try:
+                if(len(type_without_size)>=2):
+                    type_without_size[1] = "(" + type_without_size[1]
+                    blazing_type = types[type_without_size[0].lower()]
+                    blazing_type = blazing_type + type_without_size[1]
+                else:
+                    blazing_type = types[type.lower()]
+
+            except Exception as e:
+                        print "The column datatype cannot be converted to a BlazingDB supported datatype"
+            # Make the describe table line
+            columns_desc.append(column + ' ' + blazing_type)
+        # Join columns array by table
+        columns = ', '.join(columns_desc)
+        return columns
+    
+    def load_data(self, file, table):
+        """ Load Data """
+        with open(file, "r") as infile:
+            data = infile.read()
+            lines = data.splitlines()
+            for line_number in range(len(lines)):
+                if(line_number>1):
+                    query = "load data stream '" + lines[line_number] + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\\n'"
+                    print query
+                    # Load in Thread
+                    thread = threading.Thread(target=self.small_load_datastream, args=(query,))
+                    thread.start()
+                    thread.join()
+
+    def file_import(self, **kwargs):
+        """ File Importer To BlazingDB """
+        files_path = kwargs.get('files_path', '/home/second/datasets/');
+        columns = kwargs.get('columns', '');
+        table = kwargs.get('table', '');
+        find_files_in_path = kwargs.get('find_files', True);
+        file_ext = kwargs.get('files_extension', '.dat');
+
+        if(find_files_in_path==True):
+            # Find Files in Path
+            os.chdir(files_path)
+            for file in glob.glob("*"+file_ext):
+                print(file)
+                print(os.path.join(files_path, file))
+
+                # Get Table
+                if(table==''):
+                    table = file.replace(file_ext,"")
+                    print table
+                
+                columns = self.get_columns(file)
+                print columns
+
+                # Create table
+                query = 'create table ' + table + ' (' + columns + ')'
+                print query
+                try:
+                    print "blazing create table"
+                    #self.connection.run(query,self.id_connection)
+                except Exception as e:
+                    print e
+                
+                # Load Data into the table
+                self.load_data(file, table)
+                
+        else:
+            # Check if the file exist
+            if(os.path.isfile(files_path)):
+                print("File not found")
+            else:
+                print(file)
+                print "An only file"
+                if(table==''):
+                    table = file.replace(file_ext,"")
+                    print table
+
+                columns = self.get_columns(file)
+                print columns
+
+                # Create table
+                query = 'create table ' + table + ' (' + columns + ')'
+                print query
+                try:
+                    print "blazing load"
+                    #self.connection.run(query,self.id_connection)
+                except Exception as e:
+                    print e
+                
+                # Load Data into the table
+                self.load_data(file, table)
 
 class BlazingETL:
 
@@ -58,12 +209,13 @@ class BlazingETL:
                 print result.rows
         except Exception as e:
             print('Error: %s' % e)
-
+    
+    
     def migrate(self, **kwargs):
         """ Supported Migration from Redshift and Postgresql to BlazingDB """
 
         create_tables = kwargs.get('create_tables', True);
-        path = kwargs.get('files_local_path', '/home/second/datasets/');
+        files_path = kwargs.get('files_local_path', '/home/second/datasets/');
         blazing_path = kwargs.get('blazing_files_destination_path', '/opt/blazing/disk1/blazing/blazing-uploads/2/');
         chunk_size = kwargs.get('chunk_size', 100000);
         write_data_chunks = kwargs.get('export_data_from_origin', True);
