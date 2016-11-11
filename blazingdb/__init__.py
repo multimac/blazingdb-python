@@ -65,7 +65,7 @@ class BlazingImporter:
                 'smallint':'long',
                 'bit':'long'
             }
-            type_without_size = [] 
+            type_without_size = []
             type_without_size = type.split("(")
             try:
                 if(len(type_without_size)>=2):
@@ -82,7 +82,7 @@ class BlazingImporter:
         # Join columns array by table
         columns = ', '.join(columns_desc)
         return columns
-    
+
     def load_data(self, file, table):
         """ Load Data """
         with open(file, "r") as infile:
@@ -116,7 +116,7 @@ class BlazingImporter:
                 if(table==''):
                     table = file.replace(file_ext,"")
                     print table
-                
+
                 columns = self.get_columns(file)
                 print columns
 
@@ -128,10 +128,10 @@ class BlazingImporter:
                     #self.connection.run(query,self.id_connection)
                 except Exception as e:
                     print e
-                
+
                 # Load Data into the table
                 self.load_data(file, table)
-                
+
         else:
             # Check if the file exist
             if(os.path.isfile(files_path)):
@@ -154,7 +154,7 @@ class BlazingImporter:
                     #self.connection.run(query,self.id_connection)
                 except Exception as e:
                     print e
-                
+
                 # Load Data into the table
                 self.load_data(file, table)
 
@@ -202,15 +202,17 @@ class BlazingETL:
         print "load data stream"
         try:
             for row in cursor.fetchall():
-                print row
+                # print row
                 query = "load data stream '" + '|'.join(str(r) for r in row)+'\n' + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
                 result = destination.run(query, connection_id)
-                print result.status
-                print result.rows
+                # print result.status
+                # print result.rows
+            print "load data stream for table " + str(table) + " was successful"
         except Exception as e:
             print('Error: %s' % e)
-    
-    
+
+
+
     def migrate(self, **kwargs):
         """ Supported Migration from Redshift and Postgresql to BlazingDB """
 
@@ -306,12 +308,12 @@ class BlazingETL:
                     if(by_stream==False):
 
                         if(write_data_chunks==True):
-                            thread = threading.Thread(target=self.write_chunk_complete, args=(cursor, path, table, file_extension))
+                            thread = threading.Thread(target=self.write_chunk_complete, args=(cursor, files_path, table, file_extension))
                             thread.start()
                             thread.join()
 
                         if(copy_data_to_destination==True):
-                            thread2 = threading.Thread(target=self.copy_chunks, args=(path, table + file_extension, blazing_path))
+                            thread2 = threading.Thread(target=self.copy_chunks, args=(files_path, table + file_extension, blazing_path))
                             thread2.start()
                             thread2.join()
 
@@ -320,7 +322,7 @@ class BlazingETL:
                             if(copy_data_to_destination==True):
                                 result = self.to_conn.run("load data infile " + table + file_extension + " into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
                             else:
-                                result = self.to_conn.run("load data infile '" + path + table + file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
+                                result = self.to_conn.run("load data infile '" + files_path + table + file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
                             print result.status
 
                 else:
@@ -337,14 +339,14 @@ class BlazingETL:
                             thread.join()
 
                         if(by_stream==False):
-                            
+
                             if(write_data_chunks==True):
-                                thread = threading.Thread(target=self.write_chunk_part, args=(cursor, path, table, file_extension, chunk_size, i))
+                                thread = threading.Thread(target=self.write_chunk_part, args=(cursor, files_path, table, file_extension, chunk_size, i))
                                 thread.start()
                                 thread.join()
 
                             if(copy_data_to_destination==True):
-                                thread2 = threading.Thread(target=self.copy_chunks, args=(path, table+'_'+str(i)+file_extension, blazing_path))
+                                thread2 = threading.Thread(target=self.copy_chunks, args=(files_path, table+'_'+str(i)+file_extension, blazing_path))
                                 thread2.start()
                                 thread2.join()
 
@@ -353,7 +355,7 @@ class BlazingETL:
                                 if(copy_data_to_destination==True):
                                     result = self.to_conn.run("load data infile " + table+"_"+str(i)+file_extension + " into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
                                 else:
-                                    result = self.to_conn.run("load data infile '" + path + table +"_"+str(i)+ file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
+                                    result = self.to_conn.run("load data infile '" + files_path + table +"_"+str(i)+ file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
                                 print result.status
 
             # Print Exception
@@ -407,7 +409,7 @@ class BlazingPyConnector:
             r = requests.post(self.baseurl+'/blazing-jdbc/query', data={'username':self.username, 'token':connection, 'query':query}, verify=False)
             result_key = r.content
             r = requests.post(self.baseurl+'/blazing-jdbc/get-results', data={'username':self.username, 'token':connection, 'resultSetToken':result_key}, verify=False)
-            print r.content
+            # print r.content
             result = BlazingResult(r.content)
         else:
             result = BlazingResult('{"status":"fail","rows":"Username or Password incorrect"}')
