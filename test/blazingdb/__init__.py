@@ -197,6 +197,8 @@ class BlazingETL:
             print('Error: %s' % e)
         except IOError as e:
             print('Error: %s' % e.strerror)
+        except Exception as e:
+            print 'Error' + str(e)
 
     def load_datastream(self, cursor, table, destination, connection_id):
         print "load data stream"
@@ -306,12 +308,12 @@ class BlazingETL:
                     if(by_stream==False):
 
                         if(write_data_chunks==True):
-                            thread = threading.Thread(target=self.write_chunk_complete, args=(cursor, path, table, file_extension))
+                            thread = threading.Thread(target=self.write_chunk_complete, args=(cursor, files_path, table, file_extension))
                             thread.start()
                             thread.join()
 
                         if(copy_data_to_destination==True):
-                            thread2 = threading.Thread(target=self.copy_chunks, args=(path, table + file_extension, blazing_path))
+                            thread2 = threading.Thread(target=self.copy_chunks, args=(files_path, table + file_extension, blazing_path))
                             thread2.start()
                             thread2.join()
 
@@ -320,7 +322,7 @@ class BlazingETL:
                             if(copy_data_to_destination==True):
                                 result = self.to_conn.run("load data infile " + table + file_extension + " into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
                             else:
-                                result = self.to_conn.run("load data infile '" + path + table + file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
+                                result = self.to_conn.run("load data infile '" + files_path + table + file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
                             print result.status
 
                 else:
@@ -339,12 +341,12 @@ class BlazingETL:
                         if(by_stream==False):
                             
                             if(write_data_chunks==True):
-                                thread = threading.Thread(target=self.write_chunk_part, args=(cursor, path, table, file_extension, chunk_size, i))
+                                thread = threading.Thread(target=self.write_chunk_part, args=(cursor, files_path, table, file_extension, chunk_size, i))
                                 thread.start()
                                 thread.join()
 
                             if(copy_data_to_destination==True):
-                                thread2 = threading.Thread(target=self.copy_chunks, args=(path, table+'_'+str(i)+file_extension, blazing_path))
+                                thread2 = threading.Thread(target=self.copy_chunks, args=(files_path, table+'_'+str(i)+file_extension, blazing_path))
                                 thread2.start()
                                 thread2.join()
 
@@ -353,7 +355,7 @@ class BlazingETL:
                                 if(copy_data_to_destination==True):
                                     result = self.to_conn.run("load data infile " + table+"_"+str(i)+file_extension + " into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
                                 else:
-                                    result = self.to_conn.run("load data infile '" + path + table +"_"+str(i)+ file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
+                                    result = self.to_conn.run("load data infile '" + files_path + table +"_"+str(i)+ file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
                                 print result.status
 
             # Print Exception
