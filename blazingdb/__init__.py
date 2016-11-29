@@ -8,6 +8,7 @@ import sys
 from socket import *
 import glob, os
 import linecache
+import math
 
 class BlazingImporter:
     """ Data Importer """
@@ -200,19 +201,45 @@ class BlazingETL:
         except Exception as e:
             print 'Error' + str(e)
 
-    def load_datastream(self, cursor, table, destination, connection_id):
+    def load_datastream(self, cursor, table, destination, connection_id, iterations, chunk_size, large_file):
         print "load data stream"
-        try:
-            for row in cursor.fetchall():
-                print row
-                query = "load data stream '" + '|'.join(str(r) for r in row)+'\n' + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
+        #log = "log.txt"
+        #file = open(log, 'w')
+        #file.write("************* load data stream starts ************\n")
+        rows = []
+        if(large_file==False):
+            try:
+                for row in cursor.fetchall():
+                    #print row
+                    rows.append('|'.join(str(r) for r in row))
+                to_send = '\n'.join(rows)
+                query = "load data stream '" + to_send + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
                 result = destination.run(query, connection_id)
                 print result.status
                 print result.rows
-        except Exception as e:
-            print('Error: %s' % e)
-    
-    
+            except Exception as e:
+                print('Error: %s' % e)
+        if(large_file==True):
+            #file.write("******* Large File True, Iterations "+str(int(iterations))+", Chunk Size "+str(chunk_size)+" *********\n")
+            for lap in range(int(iterations)):
+                #file.write("\n******* Iteration N° "+str(lap)+" *********\n")
+            
+                try:
+                    for row in cursor.fetchmany(chunk_size):
+                        rows.append('|'.join(str(r) for r in row))
+                    to_send = '\n'.join(rows)
+                    query = "load data stream '" + str(to_send) + "' into table " + str(table) + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
+                    file.write(query)
+                    result = destination.run(query, connection_id)
+                    #file.write("*** Result Status *** "+str(result.status))
+                    #file.write("*** Result Rows *** "+str(result.rows))
+                    print result.status
+                    print result.rows
+                except Exception as e:
+                    #file.write("*** Error *** %s" % e)
+                    print('Error: %s' % e)
+            
+
     def migrate(self, **kwargs):
         """ Supported Migration from Redshift and Postgresql to BlazingDB """
 
@@ -228,7 +255,7 @@ class BlazingETL:
 
         bl_con = self.to_conn.connect()
 
-        query = "select mytables.table_name from INFORMATION_SCHEMA.COLUMNS as i_columns left join information_schema.tables mytables on i_columns.table_name = mytables.table_name where mytables.table_schema = 'public' and mytables.table_type = 'BASE TABLE';"
+        query = "select distinct mytables.table_name from INFORMATION_SCHEMA.COLUMNS as i_columns left join information_schema.tables mytables on i_columns.table_name = mytables.table_name where mytables.table_schema = 'public' and mytables.table_type = 'BASE TABLE';"
         cursor = self.from_conn.cursor()
         result = cursor.execute(query)
         status = cursor.statusmessage
@@ -272,7 +299,8 @@ class BlazingETL:
                         'double precision':'double',
                         'bigint':'long',
                         'smallint':'long',
-                        'bit':'long'
+                        'bit':'long',
+                        'date':'date'
                     }
                     blazing_type = types[col[1]]
 
@@ -295,13 +323,14 @@ class BlazingETL:
                 cursor = self.from_conn.cursor()
                 result = cursor.execute(query)
                 num_rows = cursor.statusmessage[7:]
-
+                iterations = 0
+                                
                 if(int(num_rows) <= int(chunk_size)):
 
                     """ MultiThread """
                     if(by_stream==True):
                         # Load data into Blazing
-                        thread = threading.Thread(target=self.load_datastream, args=(cursor, table, self.to_conn, bl_con))
+                        thread = threading.Thread(target=self.load_datastream, args=(cursor, table, self.to_conn, bl_con, iterations, chunk_size, False))
                         thread.start()
                         thread.join()
 
@@ -327,16 +356,16 @@ class BlazingETL:
 
                 else:
                     # Chunks Division
-                    iterations = int(num_rows) / chunk_size
+                    iterations = math.ceil(int(num_rows) / chunk_size)
+
+                    """ MultiThread """
+                    if(by_stream==True):
+                        # Load data into Blazing
+                        thread = threading.Thread(target=self.load_datastream, args=(cursor, table, self.to_conn, bl_con, iterations, chunk_size, True))
+                        thread.start()
+                        thread.join()
 
                     for i in range(int(iterations)):
-
-                        """ MultiThread """
-                        if(by_stream==True):
-                            # Load data into Blazing
-                            thread = threading.Thread(target=self.load_datastream, args=(cursor, table, self.to_conn, bl_con))
-                            thread.start()
-                            thread.join()
 
                         if(by_stream==False):
                             
