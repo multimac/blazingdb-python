@@ -409,7 +409,7 @@ class BlazingPyConnector:
         self.username = username
         self.password = password
         self.database = database
-        self.protocol = 'http' if (kwargs.get('https', True) == True) else 'http'
+        self.protocol = 'https' if (kwargs.get('https', True) == True) else 'http'
         self.context = kwargs.get('context', '/')
         self.baseurl = self.protocol+'://'+self.host+':'+self.port+self.context
         print "Base URL: " + self.baseurl
