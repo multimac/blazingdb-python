@@ -427,6 +427,7 @@ class BlazingPyConnector:
 
     def run(self, query, connection):
         print "Running query of length: " + str(len(query))
+        print "With first line: " + query.split('\n', 1)[0]
 
         if(connection != False and connection != 'fail'):
             r = requests.post(self.baseurl+'/blazing-jdbc/query', data={'username':self.username, 'token':connection, 'query':query}, verify=False)
