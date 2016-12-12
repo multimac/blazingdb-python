@@ -438,4 +438,3 @@ class BlazingPyConnector:
             result = BlazingResult('{"status":"fail","rows":"Username or Password incorrect"}')
 
         return result
-y
