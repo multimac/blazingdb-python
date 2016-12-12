@@ -252,10 +252,11 @@ class BlazingETL:
         load_data_into_blazing = kwargs.get('load_data_into_blazing', True);
         file_extension = kwargs.get('file_extension', '.dat');
         by_stream = kwargs.get('by_stream', True);
+        schema = kwargs.get('schema', 'public');
 
         bl_con = self.to_conn.connect()
 
-        query = "select distinct mytables.table_name from INFORMATION_SCHEMA.COLUMNS as i_columns left join information_schema.tables mytables on i_columns.table_name = mytables.table_name where mytables.table_schema = 'public' and mytables.table_type = 'BASE TABLE';"
+        query = "select distinct mytables.table_name from INFORMATION_SCHEMA.COLUMNS as i_columns left join information_schema.tables mytables on i_columns.table_name = mytables.table_name where mytables.table_schema = '" + schema + "' and mytables.table_type = 'BASE TABLE';"
         cursor = self.from_conn.cursor()
         result = cursor.execute(query)
         status = cursor.statusmessage
@@ -272,7 +273,7 @@ class BlazingETL:
         # Loop by tables
         for table in tables_names:
 
-            query = "select column_name, data_type, character_maximum_length from INFORMATION_SCHEMA.COLUMNS as i_columns left join information_schema.tables mytables on i_columns.table_name = mytables.table_name where mytables.table_schema = 'public' and mytables.table_type = 'BASE TABLE' and mytables.table_name = '" + table + "';"
+            query = "select column_name, data_type, character_maximum_length from INFORMATION_SCHEMA.COLUMNS as i_columns left join information_schema.tables mytables on i_columns.table_name = mytables.table_name where mytables.table_schema = '" + schema + "' and mytables.table_type = 'BASE TABLE' and mytables.table_name = '" + table + "';"
             cursor = self.from_conn.cursor()
             result = cursor.execute(query)
             status = cursor.statusmessage
