@@ -323,7 +323,7 @@ class BlazingETL:
                 query = "select * from "+table
                 cursor = self.from_conn.cursor()
                 result = cursor.execute(query)
-                num_rows = cursor.statusmessage[7:]
+                num_rows = cursor.rowcount
                 iterations = 0
                                 
                 if(int(num_rows) <= int(chunk_size)):
