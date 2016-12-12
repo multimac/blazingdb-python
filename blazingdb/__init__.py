@@ -229,7 +229,7 @@ class BlazingETL:
                         rows.append('|'.join(str(r) for r in row))
                     to_send = '\n'.join(rows)
                     query = "load data stream '" + str(to_send) + "' into table " + str(table) + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
-                    file.write(query)
+                    #file.write(query)
                     result = destination.run(query, connection_id)
                     #file.write("*** Result Status *** "+str(result.status))
                     #file.write("*** Result Rows *** "+str(result.rows))
@@ -301,7 +301,8 @@ class BlazingETL:
                         'bigint':'long',
                         'smallint':'long',
                         'bit':'long',
-                        'date':'date'
+                        'date':'date',
+                        'boolean':'long'
                     }
                     blazing_type = types[col[1]]
 
@@ -320,7 +321,7 @@ class BlazingETL:
 
                 # Get data in chunks by table ans save in files
                 # Get table content
-                query = "select * from "+table
+                query = "select * from "+schema+"."+table
                 cursor = self.from_conn.cursor()
                 result = cursor.execute(query)
                 num_rows = cursor.rowcount
