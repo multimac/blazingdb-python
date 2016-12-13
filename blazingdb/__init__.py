@@ -208,9 +208,9 @@ class BlazingETL:
         #log = "log.txt"
         #file = open(log, 'w')
         #file.write("************* load data stream starts ************\n")
-        rows = []
         if(large_file==False):
             try:
+                rows = []
                 for row in cursor.fetchall():
                     #print row
                     rows.append('|'.join(str(r) for r in row))
@@ -227,6 +227,7 @@ class BlazingETL:
                 #file.write("\n******* Iteration N° "+str(lap)+" *********\n")
             
                 try:
+                    rows = []
                     for row in cursor.fetchmany(chunk_size):
                         rows.append('|'.join(str(r) for r in row))
                     to_send = '\n'.join(rows)
