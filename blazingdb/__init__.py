@@ -171,18 +171,6 @@ class BlazingETL:
         if(raw_input("Do you want to continue (y/N)? ").lower() != 'y'):
             raise
 
-    def write_chunk_complete(self, cursor, path, table, file_ext):
-        to_open = path+table+file_ext
-        print to_open
-        file = open(to_open, 'w')
-        try:
-            for row in cursor.fetchall():
-                file.write('|'.join(str(r) for r in row)+'\n')
-        except:
-            self.print_exception()
-
-        file.close()
-
     def write_chunk_part(self, cursor, path, table, file_ext, chunk_size, iterator):
         to_open = path+table+'_'+str(iterator)+file_ext
         print to_open
@@ -203,44 +191,31 @@ class BlazingETL:
         except:
             self.print_exception()
 
-    def load_datastream(self, cursor, table, destination, connection_id, iterations, chunk_size, large_file):
+    def load_datastream(self, cursor, table, destination, connection_id, iterations, chunk_size, request_size):
         print "load data stream"
         #log = "log.txt"
         #file = open(log, 'w')
         #file.write("************* load data stream starts ************\n")
-        if(large_file==False):
+        for lap in range(iterations):
             try:
-                rows = []
-                for row in cursor.fetchall():
-                    #print row
-                    rows.append('|'.join(str(r) for r in row))
-                to_send = '\n'.join(rows)
-                query = "load data stream '" + to_send + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
-                result = destination.run(query, connection_id)
-                print result.status
-                print result.rows
-            except:
-                self.print_exception()
-        if(large_file==True):
-            #file.write("******* Large File True, Iterations "+str(int(iterations))+", Chunk Size "+str(chunk_size)+" *********\n")
-            for lap in range(int(iterations)):
-                #file.write("\n******* Iteration N° "+str(lap)+" *********\n")
-            
-                try:
+                for row in cursor.fetchmany(chunk_size):
                     rows = []
-                    for row in cursor.fetchmany(chunk_size):
-                        rows.append('|'.join(str(r) for r in row))
-                    to_send = '\n'.join(rows)
-                    query = "load data stream '" + str(to_send) + "' into table " + str(table) + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
-                    #file.write(query)
+                    row_size = 0
+                    #print rows
+
+                    while(row_size < request_size):
+                        row = '|'.join(str(r) for r in row)
+
+                        row_size += len(row)
+                        rows.append(row)
+                    
+                    query = "load data stream '" + '\n'.join(rows) + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
                     result = destination.run(query, connection_id)
-                    #file.write("*** Result Status *** "+str(result.status))
-                    #file.write("*** Result Rows *** "+str(result.rows))
+
                     print result.status
                     print result.rows
-                except:
-                    #file.write("*** Error *** %s" % e)
-                    self.print_exception()
+            except:
+                self.print_exception()
             
 
     def migrate(self, **kwargs):
@@ -250,6 +225,7 @@ class BlazingETL:
         files_path = kwargs.get('files_local_path', '/home/second/datasets/');
         blazing_path = kwargs.get('blazing_files_destination_path', '/opt/blazing/disk1/blazing/blazing-uploads/2/');
         chunk_size = kwargs.get('chunk_size', 100000);
+        request_size = kwargs.get('request_size', 1250000);
         write_data_chunks = kwargs.get('export_data_from_origin', True);
         copy_data_to_destination = kwargs.get('copy_data_to_blazing', False);
         load_data_into_blazing = kwargs.get('load_data_into_blazing', True);
@@ -328,57 +304,33 @@ class BlazingETL:
                 cursor = self.from_conn.cursor()
                 result = cursor.execute(query)
                 num_rows = cursor.rowcount
-                iterations = 0
                                 
-                if(int(num_rows) <= int(chunk_size)):
+                # Chunks Division
+                iterations = int(math.ceil(int(num_rows) / chunk_size))
 
-                    """ MultiThread """
-                    if(by_stream==True):
-                        # Load data into Blazing
-                        self.load_datastream(cursor, table, self.to_conn, bl_con, iterations, chunk_size, False)
+                """ MultiThread """
+                if(by_stream==True):
+                    # Load data into Blazing
+                    self.load_datastream(cursor, table, self.to_conn, bl_con, iterations, chunk_size, request_size)
+
+                for i in range(int(iterations)):
 
                     if(by_stream==False):
-
+                        
                         if(write_data_chunks==True):
-                            self.write_chunk_complete(cursor, files_path, table, file_extension)
+                            self.write_chunk_part(cursor, files_path, table, file_extension, chunk_size, i)
 
                         if(copy_data_to_destination==True):
-                            self.copy_chunks(files_path, table + file_extension, blazing_path)
+                            self.copy_chunks(files_path, table+'_'+str(i)+file_extension, blazing_path)
 
                         # Load Data Infile Blazing
                         if(load_data_into_blazing==True):
                             if(copy_data_to_destination==True):
-                                result = self.to_conn.run("load data infile " + table + file_extension + " into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
+                                result = self.to_conn.run("load data infile " + table+"_"+str(i)+file_extension + " into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
                             else:
-                                result = self.to_conn.run("load data infile '" + files_path + table + file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
+                                result = self.to_conn.run("load data infile '" + files_path + table +"_"+str(i)+ file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
+
                             print result.status
-
-                else:
-                    # Chunks Division
-                    iterations = math.ceil(int(num_rows) / chunk_size)
-
-                    """ MultiThread """
-                    if(by_stream==True):
-                        # Load data into Blazing
-                        self.load_datastream(cursor, table, self.to_conn, bl_con, iterations, chunk_size, True)
-
-                    for i in range(int(iterations)):
-
-                        if(by_stream==False):
-                            
-                            if(write_data_chunks==True):
-                                self.write_chunk_part(cursor, files_path, table, file_extension, chunk_size, i)
-
-                            if(copy_data_to_destination==True):
-                                self.copy_chunks(files_path, table+'_'+str(i)+file_extension, blazing_path)
-
-                            # Load Data Infile Blazing
-                            if(load_data_into_blazing==True):
-                                if(copy_data_to_destination==True):
-                                    result = self.to_conn.run("load data infile " + table+"_"+str(i)+file_extension + " into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
-                                else:
-                                    result = self.to_conn.run("load data infile '" + files_path + table +"_"+str(i)+ file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
-                                print result.status
 
             # Print Exception
             except:
