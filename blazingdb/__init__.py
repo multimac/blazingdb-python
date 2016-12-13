@@ -198,22 +198,29 @@ class BlazingETL:
         #file.write("************* load data stream starts ************\n")
         for lap in range(iterations):
             try:
+                rows = []
                 for row in cursor.fetchmany(chunk_size):
-                    rows = []
-                    row_size = 0
-                    #print rows
+                    rows.append('|'.join(str(r) for r in row))
+                
+                start = 0
+                while(start < len(rows)):
+                    next_batch = 1
+                    next_batch_size = len(rows[start + next_batch])
 
-                    while(row_size < request_size):
-                        row = '|'.join(str(r) for r in row)
+                    while (next_batch_size < request_size and start + next_batch < len(rows)):
+                        next_batch_size += len(rows[start + next_batch])
+                        next_batch += 1
 
-                        row_size += len(row)
-                        rows.append(row)
-                    
-                    query = "load data stream '" + '\n'.join(rows) + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
+                    end = start + next_batch
+                    request_rows = rows[start:end]
+
+                    query = "load data stream '" + '\n'.join(request_rows) + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
                     result = destination.run(query, connection_id)
 
+                    start += next_batch
                     print result.status
                     print result.rows
+
             except:
                 self.print_exception()
             
