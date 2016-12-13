@@ -295,19 +295,16 @@ class BlazingETL:
                     # Make the describe table line
                     columns.append({ 'name': col[0], 'type': blazing_type })
 
-                # join columns array by table
-                columns_desc = ', '.join(columns)
-
                 # Create Tables on Blazing
                 if(create_tables==True):
-                    query = "create table " + table + " (" + ', '.join(map(lambda c: c.name + ' ' + c.type, columns)) + ")"
+                    query = "create table " + table + " (" + ', '.join(map(lambda c: c['name'] + ' ' + c['type'], columns)) + ")"
                     result = self.to_conn.run(query,bl_con)
                     print result.status
                     print result.rows
 
                 # Get data in chunks by table ans save in files
                 # Get table content
-                query = "select " + ", ".join(map(lambda c: c.name, columns)) + " from " + schema + "." + table
+                query = "select " + ", ".join(map(lambda c: c['name'], columns)) + " from " + schema + "." + table
                 cursor = self.from_conn.cursor()
                 result = cursor.execute(query)
                 num_rows = cursor.rowcount
