@@ -319,11 +319,8 @@ class BlazingETL:
                 if(by_stream==True):
                     # Load data into Blazing
                     self.load_datastream(cursor, table, self.to_conn, bl_con, iterations, chunk_size, request_size)
-
-                for i in range(int(iterations)):
-
-                    if(by_stream==False):
-                        
+                else:
+                    for i in range(int(iterations)):
                         if(write_data_chunks==True):
                             self.write_chunk_part(cursor, files_path, table, file_extension, chunk_size, i)
 
