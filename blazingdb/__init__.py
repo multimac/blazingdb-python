@@ -171,6 +171,9 @@ class BlazingETL:
         if(raw_input("Do you want to continue (y/N)? ").lower() != 'y'):
             raise
 
+    def parse_row(self, row):
+        return '|'.join(str(r if r is not None else 'NULL') for r in row)
+
     def write_chunk_part(self, cursor, path, table, file_ext, chunk_size, iterator):
         to_open = path+table+'_'+str(iterator)+file_ext
         print to_open
@@ -178,7 +181,7 @@ class BlazingETL:
         try:
             for row in cursor.fetchmany(chunk_size):
                 #print row
-                file.write('|'.join(str(r) for r in row)+'\n')
+                file.write(self.parse_row(row) + '\n')
         except:
             self.print_exception()
             
@@ -200,7 +203,7 @@ class BlazingETL:
             try:
                 rows = []
                 for row in cursor.fetchmany(chunk_size):
-                    rows.append('|'.join(str(r) for r in row))
+                    rows.append(self.parse_row(row))
                 
                 start = 0
                 while(start < len(rows)):
@@ -231,6 +234,7 @@ class BlazingETL:
         create_tables = kwargs.get('create_tables', True);
         files_path = kwargs.get('files_local_path', '/home/second/datasets/');
         blazing_path = kwargs.get('blazing_files_destination_path', '/opt/blazing/disk1/blazing/blazing-uploads/2/');
+        blazing_env = kwargs.get('blazing_env', None);
         chunk_size = kwargs.get('chunk_size', 100000);
         request_size = kwargs.get('request_size', 1250000);
         write_data_chunks = kwargs.get('export_data_from_origin', True);
@@ -274,12 +278,12 @@ class BlazingETL:
                         'integer':'long',
                         'character varying':'string('+str(col[2])+')',
                         'character':'string('+str(col[2])+')',
-                        'text':'string('+str(col[2])+')',
-                        'time with time zone':'string('+str(col[2])+')',
-                        'time without time zone':'string('+str(col[2])+')',
-                        'timestamp with time zone':'string('+str(col[2])+')',
-                        'timestamp without time zone':'string('+str(col[2])+')',
                         '"char"':'string('+str(col[2])+')',
+                        'text':'string('+str(col[2])+')',
+                        'time with time zone':'string('+str(32)+')',
+                        'time without time zone':'string('+str(32)+')',
+                        'timestamp with time zone':'string('+str(32)+')',
+                        'timestamp without time zone':'string('+str(32)+')',
                         'money':'double',
                         'real':'double',
                         'numeric':'double',
@@ -322,14 +326,23 @@ class BlazingETL:
                             self.write_chunk_part(cursor, files_path, table, file_extension, chunk_size, i)
 
                         if(copy_data_to_destination==True):
-                            self.copy_chunks(files_path, table+'_'+str(i)+file_extension, blazing_path)
+                            filename = table+"_" + str(i) + file_extension
+                            if blazing_env is not None:
+                                filename = blazing_env + "/" + filename
+
+                            self.copy_chunks(files_path, filename, blazing_path)
 
                         # Load Data Infile Blazing
                         if(load_data_into_blazing==True):
+                            filename = table+"_" + str(i) + file_extension
+
                             if(copy_data_to_destination==True):
-                                result = self.to_conn.run("load data infile " + table+"_"+str(i)+file_extension + " into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
+                                if blazing_env is not None:
+                                    filename = blazing_env + "/" + filename
+
+                                result = self.to_conn.run("load data infile " + filename + " into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
                             else:
-                                result = self.to_conn.run("load data infile '" + files_path + table +"_"+str(i)+ file_extension + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
+                                result = self.to_conn.run("load data infile '" + files_path + filename + "' into table " + table + " fields terminated by '|' enclosed by '\"' lines terminated by '\n'",bl_con)
 
                             print result.status
 
