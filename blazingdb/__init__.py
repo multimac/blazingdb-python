@@ -294,7 +294,7 @@ class BlazingETL(object):
         load_data_into_blazing = options.get('load_data_into_blazing', True)
         delete_local_after_load = options.get('delete_local_after_load', False)
 
-        iterations = int(math.ceil(cursor.rowcount / chunk_size))
+        iterations = int(math.ceil(float(cursor.rowcount) / chunk_size))
 
         for i in range(iterations):
             filename = table + "_" + str(i) + file_ext
