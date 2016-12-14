@@ -179,6 +179,29 @@ class BlazingETL(object):
     def parse_row(self, row):
         return '|'.join(str(r if r is not None else 'NULL') for r in row)
 
+    def map_type(self, datatype, size, datetime_size=32):
+        types = {
+            'bigint': 'long',
+            'bit': 'long',
+            'boolean': 'long',
+            'integer': 'long',
+            'smallint': 'long',
+            'double precision': 'double',
+            'money': 'double',
+            'numeric': 'double',
+            'real': 'double',
+            'character': 'string(' + str(size) + ')',
+            'character varying': 'string(' + str(size) + ')',
+            'text': 'string(' + str(size) + ')',
+            'time with time zone': 'string(' + str(datetime_size) + ')',
+            'time without time zone': 'string(' + str(datetime_size) + ')',
+            'timestamp with time zone': 'string(' + str(datetime_size) + ')',
+            'timestamp without time zone': 'string(' + str(datetime_size) + ')',
+            'date': 'date'
+        }
+
+        return types[datatype]
+
     def write_chunk_part(self, cursor, chunk_size, filename):
         chunk_file = open(filename, "w")
         for row in cursor.fetchmany(chunk_size):
@@ -243,7 +266,7 @@ class BlazingETL(object):
         local_path = options.get('path', '/home/ubuntu/uploads/')
         file_ext = options.get('file_extension', '.dat')
 
-        copy_data_to_destination = options.get('copy_data_to_blazing', False)
+        copy_data_to_dest = options.get('copy_data_to_blazing', False)
         load_data_into_blazing = options.get('load_data_into_blazing', True)
         delete_local_after_load = options.get('delete_local_after_load', False)
 
@@ -257,7 +280,7 @@ class BlazingETL(object):
             self.write_chunk_part(cursor, chunk_size, local_path + filename)
 
             load_path = local_path + filename
-            if copy_data_to_destination:
+            if copy_data_to_dest:
                 self.copy_chunks(local_path, blazing_path, filename)
                 load_path = blazing_path + filename
 
@@ -270,29 +293,9 @@ class BlazingETL(object):
 
     def migrate_table(self, table, bl_conn, options):
         create_tables = options.get('create_tables', True)
-        schema = options.get('schema', 'public')
+        schema = options.get('from_schema', 'public')
 
         stream_data_into_blazing = options.get('stream_data_into_blazing', True)
-
-        types = lambda datatype, size: {
-            'bigint': 'long',
-            'bit': 'long',
-            'boolean': 'long',
-            'integer': 'long',
-            'smallint': 'long',
-            'double precision': 'double',
-            'money': 'double',
-            'numeric': 'double',
-            'real': 'double',
-            'character varying': 'string(' + str(size) + ')',
-            'character': 'string(' + str(size) + ')',
-            'text': 'string(' + str(size) + ')',
-            'time with time zone': 'string(32)',
-            'time without time zone': 'string(32)',
-            'timestamp with time zone': 'string(32)',
-            'timestamp without time zone': 'string(32)',
-            'date': 'date'
-        }[datatype]
 
         cursor = self.from_conn.cursor()
         cursor.execute(
@@ -301,7 +304,9 @@ class BlazingETL(object):
             "where table_schema = '" + schema + "' and table_name = '" + table + "'"
         )
 
-        columns = [{"name": col[0], "type": types(col[1], col[2])} for col in cursor.fetchall()]
+        columns = [
+            {"name": col[0], "type": self.map_type(col[1], col[2])} for col in cursor.fetchall()
+        ]
 
         # Create Tables on Blazing
         if create_tables:
@@ -324,7 +329,7 @@ class BlazingETL(object):
             self.migrate_table_chunks(cursor, table, self.to_conn, bl_conn, options)
 
     def do_migrate(self, options):
-        schema = options.get('schema', 'public')
+        schema = options.get('from_schema', 'public')
 
         cursor = self.from_conn.cursor()
         cursor.execute(
@@ -350,9 +355,6 @@ class BlazingETL(object):
             self.do_migrate(kwargs)
         except Exception:
             self.print_exception(False)
-
-        # Close ** From DB ** Connection
-        self.from_conn.close()
 
 class BlazingResult(object):
     def __init__(self, j):
