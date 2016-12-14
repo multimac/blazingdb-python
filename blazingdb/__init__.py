@@ -362,18 +362,20 @@ class BlazingETL(object):
 
     def do_migrate(self, options):
         schema = options.get('from_schema', 'public')
+        table_names = options.get('from_tables', None)
 
-        cursor = self.from_conn.cursor()
-        cursor.execute(
-            "select distinct table_name from information_schema.tables "
-            "where table_schema = '" + schema + "' and table_type = 'BASE TABLE'"
-        )
+        if table_names is None:
+            cursor = self.from_conn.cursor()
+            cursor.execute(
+                "select distinct table_name from information_schema.tables "
+                "where table_schema = '" + schema + "' and table_type = 'BASE TABLE'"
+            )
 
-        tables_names = [row[0] for row in cursor.fetchall()]
+            table_names = [row[0] for row in cursor.fetchall()]
 
         # Loop by tables
         bl_conn = self.to_conn.connect()
-        for table in tables_names:
+        for table in table_names:
             try:
                 self.migrate_table(self.to_conn, bl_conn, table, options)
             except Exception:
