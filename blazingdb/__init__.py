@@ -215,24 +215,39 @@ class BlazingETL(object):
     def delete_chunk(self, from_path, file):
         os.remove(from_path + file)
 
+    def create_table(self, dest, conn, table, columns):
+        col_map = lambda col: col["name"] + " " + col["type"]
+        sql_columns = ", ".join(map(col_map, columns))
+
+        print "Creating table '" + table + "' with columns "+ sql_columns
+
+        query = "create table " + table + " (" + sql_columns + ")"
+
+        dest.run(query, conn)
+
     def load_data(self, dest, conn, table, load_style, options):
         field_term = options.get('field_terminator', '|')
         field_wrapper = options.get('field_wrapper', '"')
         line_term = options.get('line_terminator', '\n')
 
-        dest.run((
+        result = dest.run((
             "load data " + load_style + " into table " + table + " "
             "fields terminated by '" + field_term + "' enclosed by '" + field_wrapper + "' "
             "lines terminated by '" + line_term + "'"
         ), conn)
 
+        print "Data load into '" + table + "' returned: " + json.dumps(result)
+
     def load_datastream(self, dest, conn, table, batch, options):
+        print "Loading data stream of " + len(batch) + " rows into table '" + table + "'"
+
         line_term = options.get('line_terminator', '\n')
         load_style = "stream '" + line_term.join(batch) + "'"
 
         self.load_data(dest, conn, table, load_style, options)
 
     def load_datainline(self, dest, conn, table, path, options):
+        print "Loading data inline '" + path + "' into table '" + table + "'"
         self.load_data(dest, conn, table, "infile " + path, options)
 
     def migrate_table_stream(self, cursor, table, dest, conn, options):
@@ -291,7 +306,9 @@ class BlazingETL(object):
                 self.delete_chunk(local_path, filename)
 
 
-    def migrate_table(self, table, bl_conn, options):
+    def migrate_table(self, dest, conn, table, options):
+        print "Migrating table '" + table + "'"
+
         create_tables = options.get('create_tables', True)
         schema = options.get('from_schema', 'public')
 
@@ -310,10 +327,7 @@ class BlazingETL(object):
 
         # Create Tables on Blazing
         if create_tables:
-            col_map = lambda col: col["name"] + " " + col["type"]
-            query = "create table " + table + " (" + ", ".join(map(col_map, columns)) + ")"
-
-            self.to_conn.run(query, bl_conn)
+            self.create_table(dest, conn, table, columns)
 
         # Get table content
         cursor = self.from_conn.cursor()
@@ -324,9 +338,9 @@ class BlazingETL(object):
 
         # Chunks Division
         if stream_data_into_blazing:
-            self.migrate_table_stream(cursor, table, self.to_conn, bl_conn, options)
+            self.migrate_table_stream(cursor, table, dest, conn, options)
         else:
-            self.migrate_table_chunks(cursor, table, self.to_conn, bl_conn, options)
+            self.migrate_table_chunks(cursor, table, dest, conn, options)
 
     def do_migrate(self, options):
         schema = options.get('from_schema', 'public')
@@ -343,7 +357,7 @@ class BlazingETL(object):
         bl_conn = self.to_conn.connect()
         for table in tables_names:
             try:
-                self.migrate_table(table, bl_conn, options)
+                self.migrate_table(self.to_conn, bl_conn, table, options)
             except Exception:
                 self.print_exception()
 
@@ -396,14 +410,11 @@ class BlazingPyConnector:
         return connection
 
     def run(self, query, connection):
-        print "Running query of length: " + str(len(query))
-        print "With first line: " + query.split('\n', 1)[0]
-
         if(connection != False and connection != 'fail'):
             r = requests.post(self.baseurl+'/blazing-jdbc/query', data={'username':self.username, 'token':connection, 'query':query}, verify=False)
             result_key = r.content
+
             r = requests.post(self.baseurl+'/blazing-jdbc/get-results', data={'username':self.username, 'token':connection, 'resultSetToken':result_key}, verify=False)
-            print r.content
             result = BlazingResult(r.content)
         else:
             result = BlazingResult('{"status":"fail","rows":"Username or Password incorrect"}')
