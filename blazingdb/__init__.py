@@ -248,7 +248,7 @@ class BlazingETL(object):
         print "Response: " + json.dumps(result.__dict__)
 
     def load_datastream(self, dest, conn, table, batch, options):
-        print "Loading data stream of " + len(batch) + " rows into table '" + table + "'"
+        print "Loading data stream of " + str(len(batch)) + " rows into table '" + table + "'"
 
         line_term = options.get('line_terminator', '\n')
         load_style = "stream '" + line_term.join(batch) + "'"
