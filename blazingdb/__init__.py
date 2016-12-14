@@ -192,18 +192,25 @@ class BlazingETL(object):
     def delete_chunk(self, from_path, file):
         os.remove(from_path + file)
 
-    def load_datastream(self, dest, conn, table, batch):
+    def load_data(self, dest, conn, table, load_style, options):
+        field_term = options.get('field_terminator', '|')
+        field_wrapper = options.get('field_wrapper', '"')
+        line_term = options.get('line_terminator', '\n')
+
         dest.run((
-            "load data stream '" + '\n'.join(batch) + "' "
-            "into table " + table + " fields terminated by '|' "
-            "enclosed by '\"' lines terminated by '\n'"
+            "load data " + load_style + " into table " + table + " "
+            "fields terminated by '" + field_term + "' enclosed by '" + field_wrapper + "' "
+            "lines terminated by '" + line_term + "'"
         ), conn)
 
-    def load_datainline(self, dest, conn, table, path):
-        dest.run((
-            "load data infile " + path + " into table " + table + " "
-            "fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
-        ), conn)
+    def load_datastream(self, dest, conn, table, batch, options):
+        line_term = options.get('line_terminator', '\n')
+        load_style = "stream '" + line_term.join(batch) + "'"
+
+        self.load_data(dest, conn, table, load_style, options)
+
+    def load_datainline(self, dest, conn, table, path, options):
+        self.load_data(dest, conn, table, "infile " + path, options)
 
     def migrate_table_stream(self, cursor, table, dest, conn, options):
         chunk_size = options.get('chunk_size', 100000)
@@ -225,7 +232,7 @@ class BlazingETL(object):
                 if not chunk:
                     chunk = cursor.fetchmany(chunk_size)
 
-            self.load_datastream(dest, conn, table, batch)
+            self.load_datastream(dest, conn, table, batch, options)
 
     def migrate_table_chunks(self, cursor, table, dest, conn, options):
         chunk_size = options.get('chunk_size', 100000)
@@ -255,7 +262,7 @@ class BlazingETL(object):
                 load_path = blazing_path + filename
 
             if load_data_into_blazing:
-                self.load_datainline(self.to_conn, conn, table, load_path)
+                self.load_datainline(self.to_conn, conn, table, load_path, options)
 
             if delete_local_after_load:
                 self.delete_chunk(local_path, filename)
