@@ -322,6 +322,8 @@ class BlazingETL(object):
         drop_existing = options.get('drop_existing_tables', False)
         schema = options.get('from_schema', 'public')
 
+        type_overrides = options.get('type_overrides', {}).get(table, {})
+
         stream_data_into_blazing = options.get('stream_data_into_blazing', True)
 
         cursor = self.from_conn.cursor()
@@ -331,9 +333,10 @@ class BlazingETL(object):
             "where table_schema = '" + schema + "' and table_name = '" + table + "'"
         )
 
-        columns = [
-            {"name": col[0], "type": self.map_type(col[1], col[2])} for col in cursor.fetchall()
-        ]
+        columns = []
+        for col in cursor.fetchall():
+            mapped_type = type_overrides.get(col[0], self.map_type(col[1], col[2]))
+            columns.append({"name": col[0], "type": mapped_type})
 
         # Create Tables on Blazing
         if drop_existing:
