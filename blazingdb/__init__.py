@@ -349,6 +349,8 @@ class BlazingETL(object):
             "from " + schema + "." + table
         )
 
+        print str(cursor.rowcount) + " rows retrieved from source database"
+
         # Chunks Division
         if stream_data_into_blazing:
             self.migrate_table_stream(cursor, table, dest, conn, options)
