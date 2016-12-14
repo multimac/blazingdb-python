@@ -219,11 +219,20 @@ class BlazingETL(object):
         col_map = lambda col: col["name"] + " " + col["type"]
         sql_columns = ", ".join(map(col_map, columns))
 
-        print "Creating table '" + table + "' with columns "+ sql_columns
+        print "Creating table '" + table + "' with columns '" + sql_columns + "'"
 
         query = "create table " + table + " (" + sql_columns + ")"
+        result = dest.run(query, conn)
 
-        dest.run(query, conn)
+        print "Response: " + json.dumps(result.__dict__)
+
+    def drop_table(self, dest, conn, table):
+        print "Dropping table '" + table + "'"
+
+        dest.run("delete from " + table, conn)
+
+        result = dest.run("drop table " + table, conn)
+        print "Response ('drop table'): " + json.dumps(result.__dict__)
 
     def load_data(self, dest, conn, table, load_style, options):
         field_term = options.get('field_terminator', '|')
@@ -236,7 +245,7 @@ class BlazingETL(object):
             "lines terminated by '" + line_term + "'"
         ), conn)
 
-        print "Data load into '" + table + "' returned: " + json.dumps(result)
+        print "Response: " + json.dumps(result.__dict__)
 
     def load_datastream(self, dest, conn, table, batch, options):
         print "Loading data stream of " + len(batch) + " rows into table '" + table + "'"
@@ -310,6 +319,7 @@ class BlazingETL(object):
         print "Migrating table '" + table + "'"
 
         create_tables = options.get('create_tables', True)
+        drop_existing = options.get('drop_existing_tables', False)
         schema = options.get('from_schema', 'public')
 
         stream_data_into_blazing = options.get('stream_data_into_blazing', True)
@@ -326,6 +336,9 @@ class BlazingETL(object):
         ]
 
         # Create Tables on Blazing
+        if drop_existing:
+            self.drop_table(dest, conn, table)
+
         if create_tables:
             self.create_table(dest, conn, table, columns)
 
