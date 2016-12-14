@@ -189,53 +189,82 @@ class BlazingETL(object):
     def copy_chunks(self, from_path, to_path, file):
         shutil.copyfile(from_path + file, to_path + file)
 
-    def load_datastream(self, cursor, table, dest, conn, request_size):
-        batch = []
-        batch_size = 0
+    def delete_chunk(self, from_path, file):
+        os.remove(from_path + file)
 
-        cursor_row = cursor.fetchone()
-        while cursor_row is not None:
-            row = self.parse_row(cursor.fetchone())
+    def load_datastream(self, dest, conn, table, batch):
+        dest.run((
+            "load data stream '" + '\n'.join(batch) + "' "
+            "into table " + table + " fields terminated by '|' "
+            "enclosed by '\"' lines terminated by '\n'"
+        ), conn)
 
-            batch.append(row)
-            batch_size += len(row)
+    def load_datainline(self, dest, conn, table, path):
+        dest.run((
+            "load data infile " + path + " into table " + table + " "
+            "fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
+        ), conn)
 
-            if batch_size > request_size:
-                query = (
-                    "load data stream '" + '\n'.join(batch) + "' "
-                    "into table " + table + " fields terminated by '|' "
-                    "enclosed by '\"' lines terminated by '\n'"
-                )
+    def migrate_table_stream(self, cursor, table, dest, conn, options):
+        chunk_size = options.get('chunk_size', 100000)
+        request_size = options.get('request_size', 1250000)
 
-                dest.run(query, conn)
+        chunk = cursor.fetchmany(chunk_size)
 
-                batch = []
-                batch_size = 0
+        while chunk:
+            batch = []
+            batch_size = 0
 
-        if len(batch) != 0:
-            query = (
-                "load data stream '" + '\n'.join(batch) + "' "
-                "into table " + table + " fields terminated by '|' "
-                "enclosed by '\"' lines terminated by '\n'"
-            )
+            # Populate a batch of rows to send to Blazing
+            while chunk and batch_size < request_size:
+                row = self.parse_row(chunk.pop(0))
 
-            dest.run(query, conn)
+                batch.append(row)
+                batch_size += len(row)
+
+                if not chunk:
+                    chunk = cursor.fetchmany(chunk_size)
+
+            self.load_datastream(dest, conn, table, batch)
+
+    def migrate_table_chunks(self, cursor, table, dest, conn, options):
+        chunk_size = options.get('chunk_size', 100000)
+
+        blazing_env = options.get('blazing_env', None)
+        blazing_path = options.get('blazing_path', '/blazing-sequential/blazing-uploads/')
+
+        local_path = options.get('path', '/home/ubuntu/uploads/')
+        file_ext = options.get('file_extension', '.dat')
+
+        copy_data_to_destination = options.get('copy_data_to_blazing', False)
+        load_data_into_blazing = options.get('load_data_into_blazing', True)
+        delete_local_after_load = options.get('delete_local_after_load', False)
+
+        iterations = int(math.ceil(cursor.rowcount / chunk_size))
+
+        for i in range(iterations):
+            filename = table + "_" + str(i) + file_ext
+            if blazing_env is not None:
+                filename = blazing_env + "/" + filename
+
+            self.write_chunk_part(cursor, chunk_size, local_path + filename)
+
+            load_path = local_path + filename
+            if copy_data_to_destination:
+                self.copy_chunks(local_path, blazing_path, filename)
+                load_path = blazing_path + filename
+
+            if load_data_into_blazing:
+                self.load_datainline(self.to_conn, conn, table, load_path)
+
+            if delete_local_after_load:
+                self.delete_chunk(local_path, filename)
 
 
     def migrate_table(self, table, bl_conn, options):
         create_tables = options.get('create_tables', True)
         schema = options.get('schema', 'public')
 
-        chunk_size = options.get('chunk_size', 100000)
-        request_size = options.get('request_size', 1250000)
-
-        blazing_env = options.get('blazing_env', None)
-        blazing_path = options.get('blazing_path', '/blazing-sequential/blazing-uploads/')
-        local_path = options.get('local_path', '/home/ubuntu/uploads/')
-        file_ext = options.get('file_ext', '.dat')
-
-        copy_data_to_destination = options.get('copy_data_to_blazing', False)
-        load_data_into_blazing = options.get('load_data_into_blazing', True)
         stream_data_into_blazing = options.get('stream_data_into_blazing', True)
 
         types = lambda datatype, size: {
@@ -281,32 +310,11 @@ class BlazingETL(object):
             "from " + schema + "." + table
         )
 
-        num_rows = cursor.rowcount
-
         # Chunks Division
         if stream_data_into_blazing:
-            self.load_datastream(cursor, table, self.to_conn, bl_conn, request_size)
+            self.migrate_table_stream(cursor, table, self.to_conn, bl_conn, options)
         else:
-            iterations = int(math.ceil(num_rows / chunk_size))
-            for i in range(iterations):
-                filename = table + "_" + str(i) + file_ext
-                if blazing_env is not None:
-                    filename = blazing_env + "/" + filename
-
-                self.write_chunk_part(cursor, chunk_size, local_path + filename)
-
-                path = local_path + filename
-                if copy_data_to_destination:
-                    self.copy_chunks(local_path, blazing_path, filename)
-                    path = blazing_path + filename
-
-                if load_data_into_blazing:
-                    query = (
-                        "load data infile " + path + " into table " + table + " "
-                        "fields terminated by '|' enclosed by '\"' lines terminated by '\n'"
-                    )
-
-                    self.to_conn.run(query, bl_conn)
+            self.migrate_table_chunks(cursor, table, self.to_conn, bl_conn, options)
 
     def do_migrate(self, options):
         schema = options.get('schema', 'public')
