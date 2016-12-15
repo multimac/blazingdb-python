@@ -203,7 +203,7 @@ class BlazingETL(object):
 
     def run_query(self, dest, conn, query, quiet=False):
         if self.dry_run:
-            print "> " + query
+            print "> " + query.encode('unicode_escape')
 
             return BlazingResult("""{
                 "status": "success",
@@ -295,9 +295,9 @@ class BlazingETL(object):
 
         self.load_data(dest, conn, table, load_style)
 
-    def load_datainline(self, dest, conn, table, path):
-        print "Loading data inline '" + path + "' into table '" + table + "'"
-        self.load_data(dest, conn, table, "infile " + path)
+    def load_datainfile(self, dest, conn, table, path):
+        print "Loading data infile '" + path + "' into table '" + table + "'"
+        self.load_data(dest, conn, table, "infile '" + path + "'")
 
     def migrate_table_stream(self, cursor, table, dest, conn):
         chunk = cursor.fetchmany(self.chunk_size)
@@ -332,7 +332,7 @@ class BlazingETL(object):
                 load_path = self.blazing_path + filename
 
             if self.load_data_into_blazing:
-                self.load_datainline(self.to_conn, conn, table, load_path)
+                self.load_datainfile(self.to_conn, conn, table, load_path)
 
             if self.delete_local_after_load:
                 self.delete_chunk(self.local_path, filename)
