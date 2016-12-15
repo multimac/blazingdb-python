@@ -263,6 +263,10 @@ class BlazingETL(object):
         return filename
 
     def write_chunk_part(self, cursor, filename):
+        if self.dry_run:
+            print "Writing chunk '" + filename + "'"
+            return
+
         chunk_file = open(filename, "w")
 
         for row in cursor.fetchmany(self.chunk_size):
@@ -271,9 +275,17 @@ class BlazingETL(object):
         chunk_file.close()
 
     def copy_chunks(self, from_path, to_path, file):
+        if self.dry_run:
+            print "Copying chunk '" + file + "' from '" + from_path + "' to '" + to_path + "'"
+            return
+
         shutil.copyfile(from_path + file, to_path + file)
 
     def delete_chunk(self, from_path, file):
+        if self.dry_run:
+            print "Deleting chunk '" + file + "' from '" + from_path + "'"
+            return
+
         os.remove(from_path + file)
 
     def create_table(self, dest, conn, table, columns):
