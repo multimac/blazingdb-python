@@ -222,10 +222,10 @@ class BlazingETL(object):
                 ]
             }""")
 
-        result = dest.run(query, conn)
+        result = dest.run(query, conn).__dict__
 
         if not quiet:
-            print "Response: " + json.dumps(result.__dict__)
+            print "Response: " + json.dumps(result)
 
         if result["status"] == "fail":
             raise BlazingQueryException(result)
