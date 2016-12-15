@@ -294,7 +294,6 @@ class BlazingETL(object):
         print "Loading data stream of " + str(len(batch)) + " rows into table '" + table + "'"
 
         load_style = "stream '" + self.line_term.join(batch) + "'"
-
         self.load_data(dest, conn, table, load_style)
 
     def load_datainfile(self, dest, conn, table, path):
@@ -304,7 +303,6 @@ class BlazingETL(object):
     def migrate_table_stream(self, cursor, table, dest, conn):
         chunk = cursor.fetchmany(self.chunk_size)
 
-        threads = []
         while chunk:
             batch = []
             batch_size = 0
@@ -319,18 +317,7 @@ class BlazingETL(object):
                 if not chunk:
                     chunk = cursor.fetchmany(self.chunk_size)
 
-            if not self.multithread:
-                self.load_datastream(dest, conn, table, batch)
-            else:
-                load_thread = threading.Thread(
-                    target=self.load_datastream, args=(dest, conn, table, batch)
-                )
-
-                load_thread.start()
-                threads.append(load_thread)
-
-        for thread in threads:
-            thread.join()
+            self.load_datastream(dest, conn, table, batch)
 
     def migrate_table_chunk_file(self, table, dest, conn, i):
         filename = self.get_filename(table, i)
@@ -349,23 +336,11 @@ class BlazingETL(object):
     def migrate_table_chunks(self, cursor, table, dest, conn):
         iterations = int(math.ceil(float(cursor.rowcount) / self.chunk_size))
 
-        threads = []
         for i in range(iterations):
             filename = self.get_filename(table, i)
+
             self.write_chunk_part(cursor, self.local_path + filename)
-
-            if not self.multithread:
-                self.migrate_table_chunk_file(table, dest, conn, i)
-            else:
-                load_thread = threading.Thread(
-                    target=self.migrate_table_chunk_file, args=(table, dest, conn, i)
-                )
-
-                load_thread.start()
-                threads.append(load_thread)
-
-        for thread in threads:
-            thread.join()
+            self.migrate_table_chunk_file(table, dest, conn, i)
 
     def migrate_table(self, dest, conn, table, options):
         print "Migrating table '" + table + "'"
