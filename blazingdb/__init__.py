@@ -159,6 +159,12 @@ class BlazingImporter:
                 # Load Data into the table
                 self.load_data(file, table)
 
+class BlazingQueryException(Exception):
+    def __init__(self, result, message=None):
+        super(BlazingQueryException, self).__init__(message)
+
+        self.result = result
+
 class BlazingETL(object):
     """ Migration Tool """
 
@@ -220,6 +226,9 @@ class BlazingETL(object):
 
         if not quiet:
             print "Response: " + json.dumps(result.__dict__)
+
+        if result["status"] == "fail":
+            raise BlazingQueryException(result)
 
         return result
 
@@ -293,12 +302,19 @@ class BlazingETL(object):
     def load_datastream(self, dest, conn, table, batch):
         print "Loading data stream of " + str(len(batch)) + " rows into table '" + table + "'"
 
-        load_style = "stream '" + self.line_term.join(batch) + "'"
-        self.load_data(dest, conn, table, load_style)
+        try:
+            load_style = "stream '" + self.line_term.join(batch) + "'"
+            self.load_data(dest, conn, table, load_style)
+        except BlazingQueryException:
+            pass
 
     def load_datainfile(self, dest, conn, table, path):
         print "Loading data infile '" + path + "' into table '" + table + "'"
-        self.load_data(dest, conn, table, "infile '" + path + "'")
+
+        try:
+            self.load_data(dest, conn, table, "infile '" + path + "'")
+        except BlazingQueryException:
+            pass
 
     def migrate_table_stream(self, cursor, dest, conn, table):
         chunk = cursor.fetchmany(self.chunk_size)
