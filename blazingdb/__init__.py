@@ -10,6 +10,7 @@ import linecache
 import math
 import traceback
 import tempfile
+import threading
 
 class BlazingImporter:
     """ Data Importer """
@@ -169,6 +170,7 @@ class BlazingETL(object):
 
         self.chunk_size = kwargs.get('chunk_size', 100000)
         self.request_size = kwargs.get('request_size', 1250000)
+        self.multithread = kwargs.get('multithread', False)
 
         self.create_tables = kwargs.get('create_tables', True)
         self.drop_existing = kwargs.get('drop_existing_tables', False)
@@ -302,6 +304,7 @@ class BlazingETL(object):
     def migrate_table_stream(self, cursor, table, dest, conn):
         chunk = cursor.fetchmany(self.chunk_size)
 
+        threads = []
         while chunk:
             batch = []
             batch_size = 0
@@ -316,27 +319,53 @@ class BlazingETL(object):
                 if not chunk:
                     chunk = cursor.fetchmany(self.chunk_size)
 
-            self.load_datastream(dest, conn, table, batch)
+            if not self.multithread:
+                self.load_datastream(dest, conn, table, batch)
+            else:
+                load_thread = threading.Thread(
+                    target=self.load_datastream, args=(dest, conn, table, batch)
+                )
+
+                load_thread.start()
+                threads.append(load_thread)
+
+        for thread in threads:
+            thread.join()
+
+    def migrate_table_chunk_file(self, table, dest, conn, i):
+        filename = self.get_filename(table, i)
+        load_path = self.local_path + filename
+
+        if self.copy_data_to_dest:
+            self.copy_chunks(self.local_path, self.blazing_path, filename)
+            load_path = self.blazing_path + filename
+
+        if self.load_data_into_blazing:
+            self.load_datainfile(self.to_conn, conn, table, load_path)
+
+        if self.delete_local_after_load:
+            self.delete_chunk(self.local_path, filename)
 
     def migrate_table_chunks(self, cursor, table, dest, conn):
         iterations = int(math.ceil(float(cursor.rowcount) / self.chunk_size))
 
+        threads = []
         for i in range(iterations):
             filename = self.get_filename(table, i)
-
             self.write_chunk_part(cursor, self.local_path + filename)
 
-            load_path = self.local_path + filename
-            if self.copy_data_to_dest:
-                self.copy_chunks(self.local_path, self.blazing_path, filename)
-                load_path = self.blazing_path + filename
+            if not self.multithread:
+                self.migrate_table_chunk_file(table, dest, conn, i)
+            else:
+                load_thread = threading.Thread(
+                    target=self.migrate_table_chunk_file, args=(table, dest, conn, i)
+                )
 
-            if self.load_data_into_blazing:
-                self.load_datainfile(self.to_conn, conn, table, load_path)
+                load_thread.start()
+                threads.append(load_thread)
 
-            if self.delete_local_after_load:
-                self.delete_chunk(self.local_path, filename)
-
+        for thread in threads:
+            thread.join()
 
     def migrate_table(self, dest, conn, table, options):
         print "Migrating table '" + table + "'"
@@ -391,13 +420,26 @@ class BlazingETL(object):
 
             table_names = [row[0] for row in cursor.fetchall()]
 
-        # Loop by tables
         bl_conn = self.to_conn.connect()
+
+        # Loop by tables
+        threads = []
         for table in table_names:
-            try:
-                self.migrate_table(self.to_conn, bl_conn, table, options)
-            except Exception:
-                self.print_exception()
+            if not self.multithread:
+                try:
+                    self.migrate_table(self.to_conn, bl_conn, table, options)
+                except Exception:
+                    self.print_exception()
+            else:
+                migrate_thread = threading.Thread(
+                    target=self.migrate_table, args=(self.to_conn, bl_conn, table, options)
+                )
+
+                migrate_thread.start()
+                threads.append(migrate_thread)
+
+        for thread in threads:
+            thread.join()
 
 
     def migrate(self, **kwargs):
