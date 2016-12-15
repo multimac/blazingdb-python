@@ -161,9 +161,31 @@ class BlazingImporter:
 class BlazingETL(object):
     """ Migration Tool """
 
-    def __init__(self, from_connection_obj, to_connection_obj):
-        self.from_conn = from_connection_obj
-        self.to_conn = to_connection_obj
+    def __init__(self, from_connection, to_connection, **kwargs):
+        self.dry_run = False
+
+        self.from_conn = from_connection
+        self.to_conn = to_connection
+
+        self.chunk_size = kwargs.get('chunk_size', 100000)
+        self.request_size = kwargs.get('request_size', 1250000)
+
+        self.create_tables = kwargs.get('create_tables', True)
+        self.drop_existing = kwargs.get('drop_existing_tables', False)
+
+        self.blazing_env = kwargs.get('blazing_env', None)
+        self.blazing_path = kwargs.get('blazing_path', '/blazing-sequential/blazing-uploads/')
+        self.local_path = kwargs.get('path', '/home/ubuntu/uploads/')
+        self.file_ext = kwargs.get('file_extension', '.dat')
+
+        self.copy_data_to_dest = kwargs.get('copy_data_to_blazing', False)
+        self.load_data_into_blazing = kwargs.get('load_data_into_blazing', True)
+        self.stream_data_into_blazing = kwargs.get('stream_data_into_blazing', True)
+        self.delete_local_after_load = kwargs.get('delete_local_after_load', False)
+
+        self.field_term = kwargs.get('field_terminator', '|')
+        self.field_wrapper = kwargs.get('field_wrapper', '"')
+        self.line_term = kwargs.get('line_terminator', '\n')
 
     def print_exception(self, pause=True):
         exc_info = sys.exc_info()
@@ -178,6 +200,26 @@ class BlazingETL(object):
 
     def parse_row(self, row):
         return '|'.join(str(r if r is not None else 'NULL') for r in row)
+
+    def run_query(self, dest, conn, query, quiet=False):
+        if self.dry_run:
+            print "> " + query
+
+            return BlazingResult("""{
+                "status": "success",
+                "rows": [
+                    ["time","0.0","rows","0"],
+                    ["message"], ["string"],
+                    ["'query dry run\"]
+                ]
+            }""")
+
+        result = dest.run(query, conn)
+
+        if not quiet:
+            print "Response: " + json.dumps(result.__dict__)
+
+        return result
 
     def map_type(self, datatype, size, datetime_size=32):
         types = {
@@ -202,9 +244,17 @@ class BlazingETL(object):
 
         return types[datatype]
 
-    def write_chunk_part(self, cursor, chunk_size, filename):
+    def get_filename(self, table, i):
+        filename = table + "_" + str(i) + self.file_ext
+        if self.blazing_env is not None:
+            filename = self.blazing_env + "/" + filename
+
+        return filename
+
+    def write_chunk_part(self, cursor, filename):
         chunk_file = open(filename, "w")
-        for row in cursor.fetchmany(chunk_size):
+
+        for row in cursor.fetchmany(self.chunk_size):
             chunk_file.write(self.parse_row(row) + '\n')
 
         chunk_file.close()
@@ -222,109 +272,77 @@ class BlazingETL(object):
         print "Creating table '" + table + "' with columns '" + sql_columns + "'"
 
         query = "create table " + table + " (" + sql_columns + ")"
-        result = dest.run(query, conn)
-
-        print "Response: " + json.dumps(result.__dict__)
+        self.run_query(dest, conn, query)
 
     def drop_table(self, dest, conn, table):
         print "Dropping table '" + table + "'"
 
-        dest.run("delete from " + table, conn)
+        self.run_query(dest, conn, "delete from " + table, True)
+        self.run_query(dest, conn, "drop table " + table)
 
-        result = dest.run("drop table " + table, conn)
-        print "Response ('drop table'): " + json.dumps(result.__dict__)
-
-    def load_data(self, dest, conn, table, load_style, options):
-        field_term = options.get('field_terminator', '|')
-        field_wrapper = options.get('field_wrapper', '"')
-        line_term = options.get('line_terminator', '\n')
-
-        result = dest.run((
+    def load_data(self, dest, conn, table, load_style):
+        self.run_query(dest, conn, (
             "load data " + load_style + " into table " + table + " "
-            "fields terminated by '" + field_term + "' enclosed by '" + field_wrapper + "' "
-            "lines terminated by '" + line_term + "'"
-        ), conn)
+            "fields terminated by '" + self.field_term + "' "
+            "enclosed by '" + self.field_wrapper + "' "
+            "lines terminated by '" + self.line_term + "'"
+        ))
 
-        print "Response: " + json.dumps(result.__dict__)
-
-    def load_datastream(self, dest, conn, table, batch, options):
+    def load_datastream(self, dest, conn, table, batch):
         print "Loading data stream of " + str(len(batch)) + " rows into table '" + table + "'"
 
-        line_term = options.get('line_terminator', '\n')
-        load_style = "stream '" + line_term.join(batch) + "'"
+        load_style = "stream '" + self.line_term.join(batch) + "'"
 
-        self.load_data(dest, conn, table, load_style, options)
+        self.load_data(dest, conn, table, load_style)
 
-    def load_datainline(self, dest, conn, table, path, options):
+    def load_datainline(self, dest, conn, table, path):
         print "Loading data inline '" + path + "' into table '" + table + "'"
-        self.load_data(dest, conn, table, "infile " + path, options)
+        self.load_data(dest, conn, table, "infile " + path)
 
-    def migrate_table_stream(self, cursor, table, dest, conn, options):
-        chunk_size = options.get('chunk_size', 100000)
-        request_size = options.get('request_size', 1250000)
-
-        chunk = cursor.fetchmany(chunk_size)
+    def migrate_table_stream(self, cursor, table, dest, conn):
+        chunk = cursor.fetchmany(self.chunk_size)
 
         while chunk:
             batch = []
             batch_size = 0
 
             # Populate a batch of rows to send to Blazing
-            while chunk and batch_size < request_size:
+            while chunk and batch_size < self.request_size:
                 row = self.parse_row(chunk.pop(0))
 
                 batch.append(row)
                 batch_size += len(row)
 
                 if not chunk:
-                    chunk = cursor.fetchmany(chunk_size)
+                    chunk = cursor.fetchmany(self.chunk_size)
 
-            self.load_datastream(dest, conn, table, batch, options)
+            self.load_datastream(dest, conn, table, batch)
 
-    def migrate_table_chunks(self, cursor, table, dest, conn, options):
-        chunk_size = options.get('chunk_size', 100000)
-
-        blazing_env = options.get('blazing_env', None)
-        blazing_path = options.get('blazing_path', '/blazing-sequential/blazing-uploads/')
-
-        local_path = options.get('path', '/home/ubuntu/uploads/')
-        file_ext = options.get('file_extension', '.dat')
-
-        copy_data_to_dest = options.get('copy_data_to_blazing', False)
-        load_data_into_blazing = options.get('load_data_into_blazing', True)
-        delete_local_after_load = options.get('delete_local_after_load', False)
-
-        iterations = int(math.ceil(float(cursor.rowcount) / chunk_size))
+    def migrate_table_chunks(self, cursor, table, dest, conn):
+        iterations = int(math.ceil(float(cursor.rowcount) / self.chunk_size))
 
         for i in range(iterations):
-            filename = table + "_" + str(i) + file_ext
-            if blazing_env is not None:
-                filename = blazing_env + "/" + filename
+            filename = self.get_filename(table, i)
 
-            self.write_chunk_part(cursor, chunk_size, local_path + filename)
+            self.write_chunk_part(cursor, self.local_path + filename)
 
-            load_path = local_path + filename
-            if copy_data_to_dest:
-                self.copy_chunks(local_path, blazing_path, filename)
-                load_path = blazing_path + filename
+            load_path = self.local_path + filename
+            if self.copy_data_to_dest:
+                self.copy_chunks(self.local_path, self.blazing_path, filename)
+                load_path = self.blazing_path + filename
 
-            if load_data_into_blazing:
-                self.load_datainline(self.to_conn, conn, table, load_path, options)
+            if self.load_data_into_blazing:
+                self.load_datainline(self.to_conn, conn, table, load_path)
 
-            if delete_local_after_load:
-                self.delete_chunk(local_path, filename)
+            if self.delete_local_after_load:
+                self.delete_chunk(self.local_path, filename)
 
 
     def migrate_table(self, dest, conn, table, options):
         print "Migrating table '" + table + "'"
 
-        create_tables = options.get('create_tables', True)
-        drop_existing = options.get('drop_existing_tables', False)
         schema = options.get('from_schema', 'public')
-
         type_overrides = options.get('type_overrides', {}).get(table, {})
-
-        stream_data_into_blazing = options.get('stream_data_into_blazing', True)
 
         cursor = self.from_conn.cursor()
         cursor.execute(
@@ -339,10 +357,10 @@ class BlazingETL(object):
             columns.append({"name": col[0], "type": mapped_type})
 
         # Create Tables on Blazing
-        if drop_existing:
+        if self.drop_existing:
             self.drop_table(dest, conn, table)
 
-        if create_tables:
+        if self.create_tables:
             self.create_table(dest, conn, table, columns)
 
         # Get table content
@@ -355,10 +373,10 @@ class BlazingETL(object):
         print str(cursor.rowcount) + " rows retrieved from source database"
 
         # Chunks Division
-        if stream_data_into_blazing:
-            self.migrate_table_stream(cursor, table, dest, conn, options)
+        if self.stream_data_into_blazing:
+            self.migrate_table_stream(cursor, table, dest, conn)
         else:
-            self.migrate_table_chunks(cursor, table, dest, conn, options)
+            self.migrate_table_chunks(cursor, table, dest, conn)
 
     def do_migrate(self, options):
         schema = options.get('from_schema', 'public')
@@ -385,10 +403,15 @@ class BlazingETL(object):
     def migrate(self, **kwargs):
         """ Supported Migration from Redshift and Postgresql to BlazingDB """
 
+        was_dry_run = self.dry_run
+        self.dry_run = kwargs.get('dry_run', was_dry_run)
+
         try:
             self.do_migrate(kwargs)
         except Exception:
             self.print_exception(False)
+
+        self.dry_run = was_dry_run
 
 class BlazingResult(object):
     def __init__(self, j):
