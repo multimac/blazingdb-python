@@ -300,7 +300,7 @@ class BlazingETL(object):
         print "Loading data infile '" + path + "' into table '" + table + "'"
         self.load_data(dest, conn, table, "infile '" + path + "'")
 
-    def migrate_table_stream(self, cursor, table, dest, conn):
+    def migrate_table_stream(self, cursor, dest, conn, table):
         chunk = cursor.fetchmany(self.chunk_size)
 
         while chunk:
@@ -319,7 +319,7 @@ class BlazingETL(object):
 
             self.load_datastream(dest, conn, table, batch)
 
-    def migrate_table_chunk_file(self, table, dest, conn, i):
+    def migrate_table_chunk_file(self, dest, conn, table, i):
         filename = self.get_filename(table, i)
         load_path = self.local_path + filename
 
@@ -333,14 +333,14 @@ class BlazingETL(object):
         if self.delete_local_after_load:
             self.delete_chunk(self.local_path, filename)
 
-    def migrate_table_chunks(self, cursor, table, dest, conn):
+    def migrate_table_chunks(self, cursor, dest, conn, table):
         iterations = int(math.ceil(float(cursor.rowcount) / self.chunk_size))
 
         for i in range(iterations):
             filename = self.get_filename(table, i)
 
             self.write_chunk_part(cursor, self.local_path + filename)
-            self.migrate_table_chunk_file(table, dest, conn, i)
+            self.migrate_table_chunk_file(dest, conn, table, i)
 
     def migrate_table(self, dest, conn, table, options):
         print "Migrating table '" + table + "'"
@@ -378,9 +378,9 @@ class BlazingETL(object):
 
         # Chunks Division
         if self.stream_data_into_blazing:
-            self.migrate_table_stream(cursor, table, dest, conn)
+            self.migrate_table_stream(cursor, dest, conn, table)
         else:
-            self.migrate_table_chunks(cursor, table, dest, conn)
+            self.migrate_table_chunks(cursor, dest, conn, table)
 
     def do_migrate(self, options):
         schema = options.get('from_schema', 'public')
