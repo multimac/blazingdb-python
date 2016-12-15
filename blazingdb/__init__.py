@@ -191,6 +191,7 @@ class BlazingETL(object):
         self.stream_data_into_blazing = kwargs.get('stream_data_into_blazing', True)
         self.delete_local_after_load = kwargs.get('delete_local_after_load', False)
 
+        self.default_transform = kwargs.get("default_transform", lambda r: r)
         self.field_term = kwargs.get('field_terminator', '|')
         self.field_wrapper = kwargs.get('field_wrapper', '"')
         self.line_term = kwargs.get('line_terminator', '\n')
@@ -206,8 +207,20 @@ class BlazingETL(object):
         if pause and raw_input("Do you want to continue (y/N)? ").lower() != 'y':
             raise exc_info[1], None, exc_info[2]
 
-    def parse_row(self, row):
-        return '|'.join(str(r if r is not None else 'NULL') for r in row)
+    def wrap_field(self, c):
+        return self.field_wrapper + c + self.field_wrapper
+
+    def parse_column(self, c, options):
+        c = options["trans"](c)
+        if c is None:
+            return "NULL"
+
+        return str(c) if not isinstance(c, str) else self.wrap_field(c)
+
+    def parse_row(self, row, columns):
+        parsed_row = [self.parse_column(r, columns[i]) for i, r in enumerate(row)]
+
+        return self.field_term.join(parsed_row)
 
     def run_query(self, dest, conn, query, quiet=False):
         if self.dry_run:
@@ -262,7 +275,7 @@ class BlazingETL(object):
 
         return filename
 
-    def write_chunk_part(self, cursor, filename):
+    def write_chunk_part(self, cursor, filename, columns):
         if self.dry_run:
             print "Writing chunk '" + filename + "'"
             return
@@ -270,7 +283,7 @@ class BlazingETL(object):
         chunk_file = open(filename, "w")
 
         for row in cursor.fetchmany(self.chunk_size):
-            chunk_file.write(self.parse_row(row) + '\n')
+            chunk_file.write(self.parse_row(row, columns) + self.line_term)
 
         chunk_file.close()
 
@@ -328,7 +341,7 @@ class BlazingETL(object):
         except BlazingQueryException:
             pass
 
-    def migrate_table_stream(self, cursor, dest, conn, table):
+    def migrate_table_stream(self, cursor, dest, conn, table, columns):
         chunk = cursor.fetchmany(self.chunk_size)
 
         while chunk:
@@ -337,7 +350,7 @@ class BlazingETL(object):
 
             # Populate a batch of rows to send to Blazing
             while chunk and batch_size < self.request_size:
-                row = self.parse_row(chunk.pop(0))
+                row = self.parse_row(chunk.pop(0), columns)
 
                 batch.append(row)
                 batch_size += len(row)
@@ -361,13 +374,13 @@ class BlazingETL(object):
         if self.delete_local_after_load:
             self.delete_chunk(self.local_path, filename)
 
-    def migrate_table_chunks(self, cursor, dest, conn, table):
+    def migrate_table_chunks(self, cursor, dest, conn, table, columns):
         iterations = int(math.ceil(float(cursor.rowcount) / self.chunk_size))
 
         for i in range(iterations):
             filename = self.get_filename(table, i)
 
-            self.write_chunk_part(cursor, self.local_path + filename)
+            self.write_chunk_part(cursor, self.local_path + filename, columns)
             self.migrate_table_chunk_file(dest, conn, table, i)
 
     def migrate_table(self, dest, conn, table, options):
@@ -385,8 +398,12 @@ class BlazingETL(object):
 
         columns = []
         for col in cursor.fetchall():
-            mapped_type = type_overrides.get(col[0], self.map_type(col[1], col[2]))
-            columns.append({"name": col[0], "type": mapped_type})
+            override = type_overrides.get(col[0], {})
+
+            mapped_type = override.get("type", self.map_type(col[1], col[2]))
+            transform = override.get("trans", self.default_transform)
+
+            columns.append({"name": col[0], "type": mapped_type, "trans": transform})
 
         # Create Tables on Blazing
         if self.drop_existing:
@@ -406,9 +423,9 @@ class BlazingETL(object):
 
         # Chunks Division
         if self.stream_data_into_blazing:
-            self.migrate_table_stream(cursor, dest, conn, table)
+            self.migrate_table_stream(cursor, dest, conn, table, columns)
         else:
-            self.migrate_table_chunks(cursor, dest, conn, table)
+            self.migrate_table_chunks(cursor, dest, conn, table, columns)
 
     def do_migrate(self, options):
         schema = options.get('from_schema', 'public')
