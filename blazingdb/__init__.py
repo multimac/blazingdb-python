@@ -468,6 +468,9 @@ class BlazingETL(object):
         was_dry_run = self.dry_run
         self.dry_run = kwargs.get('dry_run', was_dry_run)
 
+        if "from_tables" in kwargs and isinstance(kwargs["from_tables"], str):
+            kwargs["from_tables"] = [kwargs["from_tables"]]
+
         try:
             self.do_migrate(kwargs)
         except Exception:
