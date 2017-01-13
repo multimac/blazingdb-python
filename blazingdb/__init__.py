@@ -215,13 +215,13 @@ class BlazingETL(object):
 
         return logger
 
-    def print_exception(self, pause=True):
+    def print_exception(self, message, pause=True):
         exc_info = sys.exc_info()
 
         if exc_info[0] is None:
             return
 
-        self.logger.exception()
+        self.logger.exception(message)
 
         if pause and raw_input("Do you want to continue (y/N)? ").lower() != 'y':
             raise exc_info[1], None, exc_info[2]
@@ -372,7 +372,7 @@ class BlazingETL(object):
             load_style = "stream '" + self.line_term.join(batch) + "'"
             self.load_data(dest, conn, table, load_style)
         except BlazingQueryException:
-            self.print_exception(pause=False)
+            self.print_exception("Failed query while loading data stream", pause=False)
 
     def load_datainfile(self, dest, conn, table, path):
         self.logger.info("Loading data infile '%s' into table '%s'", path, table)
@@ -380,7 +380,7 @@ class BlazingETL(object):
         try:
             self.load_data(dest, conn, table, "infile '" + path + "'")
         except BlazingQueryException:
-            self.print_exception(pause=False)
+            self.print_exception("Failed query while loading data infile", pause=False)
 
     def retrieve_batches(self, cursor, columns):
         batch = []
@@ -503,7 +503,7 @@ class BlazingETL(object):
                 try:
                     self.migrate_table(self.to_conn, bl_conn, table, options)
                 except Exception:
-                    self.print_exception()
+                    self.print_exception("Exception caught while migrating a table")
             else:
                 migrate_thread = threading.Thread(
                     target=self.migrate_table, args=(self.to_conn, bl_conn, table, options)
@@ -526,7 +526,7 @@ class BlazingETL(object):
                 self.abort = True
                 self.logger.info("Keyboard interrupt caught, aborting remaining threads...")
             except Exception:
-                self.print_exception(pause=False)
+                self.print_exception("Exception caught while waiting on thread to exit", pause=False)
 
     def migrate(self, **kwargs):
         """ Supported Migration from Redshift and Postgresql to BlazingDB """
@@ -540,7 +540,7 @@ class BlazingETL(object):
         try:
             self.do_migrate(kwargs)
         except Exception:
-            self.print_exception(pause=False)
+            self.print_exception("Exception caught during migration", pause=False)
 
         self.dry_run = was_dry_run
 
