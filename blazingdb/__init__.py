@@ -176,8 +176,9 @@ class BlazingETL(object):
         self.from_conn = from_connection
         self.to_conn = to_connection
 
-        self.log_level = getattr(logging, kwargs.get('log_level', 'WARNING').upper())
+        self.join_timeout = kwargs.get('join_timeout', 10)
         self.log_file = kwargs.get('log_file', 'blazing.log')
+        self.log_level = getattr(logging, kwargs.get('log_level', 'WARNING').upper())
 
         self.chunk_size = kwargs.get('chunk_size', 100000)
         self.request_size = kwargs.get('request_size', 1250000)
