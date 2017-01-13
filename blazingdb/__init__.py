@@ -170,6 +170,7 @@ class BlazingETL(object):
     """ Migration Tool """
 
     def __init__(self, from_connection, to_connection, **kwargs):
+        self.abort = False
         self.dry_run = False
 
         self.from_conn = from_connection
@@ -243,6 +244,9 @@ class BlazingETL(object):
     def run_query(self, dest, conn, query, quiet=False):
         self.logger.debug("Performing query of length %d", len(query))
 
+        if self.abort:
+            return None
+
         if self.dry_run:
             self.logger.info(query.encode('unicode_escape'))
 
@@ -304,6 +308,9 @@ class BlazingETL(object):
         return filename
 
     def write_chunk_part(self, cursor, filename, columns):
+        if self.abort:
+            return
+
         if self.dry_run:
             self.logger.info("Writing chunk '%s'", filename)
             return
@@ -316,6 +323,9 @@ class BlazingETL(object):
         chunk_file.close()
 
     def copy_chunks(self, from_path, to_path, file):
+        if self.abort:
+            return
+
         if self.dry_run:
             self.logger.info("Copying chunk '%s' from '%s' to '%s'", file, from_path, to_path)
             return
@@ -323,6 +333,9 @@ class BlazingETL(object):
         shutil.copyfile(from_path + file, to_path + file)
 
     def delete_chunk(self, from_path, file):
+        if self.abort:
+            return
+
         if self.dry_run:
             self.logger.info("Deleting chunk '%s' from '%s'", file, from_path)
             return
@@ -419,6 +432,9 @@ class BlazingETL(object):
             self.migrate_table_chunk_file(dest, conn, table, i)
 
     def migrate_table(self, dest, conn, table, options):
+        if self.abort:
+            return
+
         self.logger.info("Migrating table '%s'", table)
 
         schema = options.get('from_schema', 'public')
@@ -477,6 +493,9 @@ class BlazingETL(object):
 
         bl_conn = self.to_conn.connect()
 
+        # Unset abort flag
+        self.abort = False
+
         # Loop by tables
         threads = []
         for table in table_names:
@@ -494,8 +513,20 @@ class BlazingETL(object):
                 threads.append(migrate_thread)
 
         for thread in threads:
-            thread.join()
+            self.join_with_interrupt(thread)
 
+        # Unset abort flag
+        self.abort = False
+
+    def join_with_interrupt(self, thread):
+        while thread.isAlive():
+            try:
+                thread.join(self.join_timeout)
+            except KeyboardInterrupt:
+                self.abort = True
+                self.logger.info("Keyboard interrupt caught, aborting remaining threads...")
+            except Exception:
+                self.print_exception(pause=False)
 
     def migrate(self, **kwargs):
         """ Supported Migration from Redshift and Postgresql to BlazingDB """
@@ -509,7 +540,7 @@ class BlazingETL(object):
         try:
             self.do_migrate(kwargs)
         except Exception:
-            self.print_exception(False)
+            self.print_exception(pause=False)
 
         self.dry_run = was_dry_run
 
