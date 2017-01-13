@@ -7,6 +7,7 @@ import sys
 from socket import *
 import glob, os
 import linecache
+import logging
 import math
 import traceback
 import tempfile
@@ -174,6 +175,9 @@ class BlazingETL(object):
         self.from_conn = from_connection
         self.to_conn = to_connection
 
+        self.log_level = getattr(logging, kwargs.get('log_level', 'WARNING').upper())
+        self.log_file = kwargs.get('log_file', 'blazing.log')
+
         self.chunk_size = kwargs.get('chunk_size', 100000)
         self.request_size = kwargs.get('request_size', 1250000)
         self.multithread = kwargs.get('multithread', False)
@@ -196,13 +200,27 @@ class BlazingETL(object):
         self.field_wrapper = kwargs.get('field_wrapper', '"')
         self.line_term = kwargs.get('line_terminator', '\n')
 
+        self.logger = self.create_logger()
+
+    def create_logger(self):
+        logger = logging.getLogger(__name__)
+        logger.setLevel(self.log_level)
+
+        console_handler = logging.StreamHandler(sys.stdout)
+        file_handler = logging.FileHandler(self.log_file)
+
+        logger.addHandler(console_handler)
+        logger.addHandler(file_handler)
+
+        return logger
+
     def print_exception(self, pause=True):
         exc_info = sys.exc_info()
 
         if exc_info[0] is None:
             return
 
-        print traceback.format_exc()
+        self.logger.exception()
 
         if pause and raw_input("Do you want to continue (y/N)? ").lower() != 'y':
             raise exc_info[1], None, exc_info[2]
@@ -224,7 +242,7 @@ class BlazingETL(object):
 
     def run_query(self, dest, conn, query, quiet=False):
         if self.dry_run:
-            print "> " + query.encode('unicode_escape')
+            self.logger.info(query.encode('unicode_escape'))
 
             return BlazingResult("""{
                 "status": "success",
@@ -238,9 +256,10 @@ class BlazingETL(object):
         result = dest.run(query, conn).__dict__
 
         if not quiet:
-            print "Response: " + json.dumps(result)
+            self.logger.info("Response: " + json.dumps(result))
 
         if result["status"] == "fail":
+            self.logger.error("Query failed, see log level INFO for more information")
             raise BlazingQueryException(result)
 
         return result
@@ -266,7 +285,14 @@ class BlazingETL(object):
             'date': 'date'
         }
 
-        return types[datatype]
+        mapped_type = types[datatype]
+
+        if not size:
+            self.logger.debug("Mapping type %s to %s", datatype, mapped_type)
+        else:
+            self.logger.debug("Mapping type %s (size %i) to %s", datatype, size, mapped_type)
+
+        return mapped_type
 
     def get_filename(self, table, i):
         filename = table + "_" + str(i) + self.file_ext
@@ -277,7 +303,7 @@ class BlazingETL(object):
 
     def write_chunk_part(self, cursor, filename, columns):
         if self.dry_run:
-            print "Writing chunk '" + filename + "'"
+            self.logger.info("Writing chunk '%s'", filename)
             return
 
         chunk_file = open(filename, "w")
@@ -289,14 +315,14 @@ class BlazingETL(object):
 
     def copy_chunks(self, from_path, to_path, file):
         if self.dry_run:
-            print "Copying chunk '" + file + "' from '" + from_path + "' to '" + to_path + "'"
+            self.logger.info("Copying chunk '%s' from '%s' to '%s'", file, from_path, to_path)
             return
 
         shutil.copyfile(from_path + file, to_path + file)
 
     def delete_chunk(self, from_path, file):
         if self.dry_run:
-            print "Deleting chunk '" + file + "' from '" + from_path + "'"
+            self.logger.info("Deleting chunk '%s' from '%s'", file, from_path)
             return
 
         os.remove(from_path + file)
@@ -305,13 +331,13 @@ class BlazingETL(object):
         col_map = lambda col: col["name"] + " " + col["type"]
         sql_columns = ", ".join(map(col_map, columns))
 
-        print "Creating table '" + table + "' with columns '" + sql_columns + "'"
+        self.logger.info("Creating table '%s' with columns '%s'", table, sql_columns)
 
         query = "create table " + table + " (" + sql_columns + ")"
         self.run_query(dest, conn, query)
 
     def drop_table(self, dest, conn, table):
-        print "Dropping table '" + table + "'"
+        self.logger.info("Dropping table '%s'", table)
 
         self.run_query(dest, conn, "delete from " + table, True)
         self.run_query(dest, conn, "drop table " + table)
@@ -325,21 +351,21 @@ class BlazingETL(object):
         ))
 
     def load_datastream(self, dest, conn, table, batch):
-        print "Loading data stream of " + str(len(batch)) + " rows into table '" + table + "'"
+        self.logger.info("Loading data stream of %i rows into table '%s'", len(batch), table)
 
         try:
             load_style = "stream '" + self.line_term.join(batch) + "'"
             self.load_data(dest, conn, table, load_style)
         except BlazingQueryException:
-            pass
+            self.print_exception(pause=False)
 
     def load_datainfile(self, dest, conn, table, path):
-        print "Loading data infile '" + path + "' into table '" + table + "'"
+        self.logger.info("Loading data infile '%s' into table '%s'", path, table)
 
         try:
             self.load_data(dest, conn, table, "infile '" + path + "'")
         except BlazingQueryException:
-            pass
+            self.print_exception(pause=False)
 
     def migrate_table_stream(self, cursor, dest, conn, table, columns):
         chunk = cursor.fetchmany(self.chunk_size)
@@ -384,7 +410,7 @@ class BlazingETL(object):
             self.migrate_table_chunk_file(dest, conn, table, i)
 
     def migrate_table(self, dest, conn, table, options):
-        print "Migrating table '" + table + "'"
+        self.logger.info("Migrating table '%s'", table)
 
         schema = options.get('from_schema', 'public')
         type_overrides = options.get('type_overrides', {}).get(table, {})
@@ -419,7 +445,7 @@ class BlazingETL(object):
             "from " + schema + "." + table
         )
 
-        print str(cursor.rowcount) + " rows retrieved from source database"
+        self.logger.info("%i rows retrieved from source database", cursor.rowcount)
 
         # Chunks Division
         if self.stream_data_into_blazing:
