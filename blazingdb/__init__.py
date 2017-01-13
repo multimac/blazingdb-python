@@ -241,6 +241,8 @@ class BlazingETL(object):
         return self.field_term.join(parsed_row)
 
     def run_query(self, dest, conn, query, quiet=False):
+        self.logger.debug("Performing query of length %d", len(query))
+
         if self.dry_run:
             self.logger.info(query.encode('unicode_escape'))
 
@@ -367,23 +369,30 @@ class BlazingETL(object):
         except BlazingQueryException:
             self.print_exception(pause=False)
 
-    def migrate_table_stream(self, cursor, dest, conn, table, columns):
+    def retrieve_batches(self, cursor, columns):
+        batch = []
+        batch_size = 0
+
         chunk = cursor.fetchmany(self.chunk_size)
-
         while chunk:
-            batch = []
-            batch_size = 0
+            row = self.parse_row(chunk.pop(0), columns)
+            if batch_size + len(row) > self.request_size:
+                yield batch
 
-            # Populate a batch of rows to send to Blazing
-            while chunk and batch_size < self.request_size:
-                row = self.parse_row(chunk.pop(0), columns)
+                batch = []
+                batch_size = 0
 
-                batch.append(row)
-                batch_size += len(row)
+            batch.append(row)
+            batch_size += len(row)
 
-                if not chunk:
-                    chunk = cursor.fetchmany(self.chunk_size)
+            if not chunk:
+                chunk = cursor.fetchmany(self.chunk_size)
 
+        if batch:
+            yield batch
+
+    def migrate_table_stream(self, cursor, dest, conn, table, columns):
+        for batch in self.retrieve_batches(cursor, columns):
             self.load_datastream(dest, conn, table, batch)
 
     def migrate_table_chunk_file(self, dest, conn, table, i):
