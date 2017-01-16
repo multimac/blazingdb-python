@@ -216,6 +216,10 @@ class BlazingETL(object):
 
         return logger
 
+    def print_args(self, args):
+        for k in args:
+            self.logger.debug("> %s: %s", k, args[k])
+
     def print_exception(self, message, pause=True):
         exc_info = sys.exc_info()
 
@@ -533,6 +537,10 @@ class BlazingETL(object):
 
     def migrate(self, **kwargs):
         """ Supported Migration from Redshift and Postgresql to BlazingDB """
+
+        if kwargs:
+            self.logger.debug("Using options...")
+            self.print_args(kwargs)
 
         was_dry_run = self.dry_run
         self.dry_run = kwargs.get('dry_run', was_dry_run)
