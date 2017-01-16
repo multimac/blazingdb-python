@@ -498,6 +498,8 @@ class BlazingETL(object):
         self.abort = False
 
         # Loop by tables
+        self.logger.info("Tables to migrate: %s", ",".join(table_names))
+
         threads = []
         for table in table_names:
             if not self.multithread:
