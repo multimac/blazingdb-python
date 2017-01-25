@@ -461,11 +461,12 @@ class BlazingETL(object):
             columns.append({"name": col[0], "type": mapped_type, "trans": transform})
 
         # Create Tables on Blazing
+        target_table = schema + "_" + table
         if self.drop_existing:
-            self.drop_table(dest, conn, table)
+            self.drop_table(dest, conn, target_table)
 
         if self.create_tables:
-            self.create_table(dest, conn, table, columns)
+            self.create_table(dest, conn, target_table, columns)
 
         # Get table content
         cursor = self.from_conn.cursor()
@@ -478,9 +479,9 @@ class BlazingETL(object):
 
         # Chunks Division
         if self.stream_data_into_blazing:
-            self.migrate_table_stream(cursor, dest, conn, table, columns)
+            self.migrate_table_stream(cursor, dest, conn, target_table, columns)
         else:
-            self.migrate_table_chunks(cursor, dest, conn, table, columns)
+            self.migrate_table_chunks(cursor, dest, conn, target_table, columns)
 
     def do_migrate(self, options):
         schema = options.get('from_schema', 'public')
