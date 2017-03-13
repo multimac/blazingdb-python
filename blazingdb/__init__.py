@@ -442,7 +442,9 @@ class BlazingETL(object):
         self.logger.info("Migrating table '%s'", table)
 
         schema = options.get('from_schema', 'public')
+
         type_overrides = options.get('type_overrides', {}).get(table, {})
+        type_transforms = options.get("type_transforms", {})
 
         cursor = self.from_conn.cursor()
         cursor.execute(
@@ -456,7 +458,9 @@ class BlazingETL(object):
             override = type_overrides.get(col[0], {})
 
             mapped_type = override.get("type", self.map_type(col[1], col[2]))
-            transform = override.get("trans", self.default_transform)
+
+            transform = type_transforms.get(mapped_type, self.default_transform)
+            transform = override.get("trans", transform)
 
             columns.append({"name": col[0], "type": mapped_type, "trans": transform})
 
