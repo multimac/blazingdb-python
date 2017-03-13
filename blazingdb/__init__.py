@@ -197,7 +197,7 @@ class BlazingETL(object):
         self.stream_data_into_blazing = kwargs.get('stream_data_into_blazing', True)
         self.delete_local_after_load = kwargs.get('delete_local_after_load', False)
 
-        self.default_transform = kwargs.get("default_transform", lambda r: r)
+        self.default_transform = kwargs.get("default_transform", lambda v: v)
         self.field_term = kwargs.get('field_terminator', '|')
         self.field_wrapper = kwargs.get('field_wrapper', '"')
         self.line_term = kwargs.get('line_terminator', '\n')
@@ -443,8 +443,8 @@ class BlazingETL(object):
 
         schema = options.get('from_schema', 'public')
 
-        type_overrides = options.get('type_overrides', {}).get(table, {})
-        type_transforms = options.get("type_transforms", {})
+        column_overrides = options.get('column_overrides', {}).get(table, {})
+        type_overrides = options.get("type_overrides", {})
 
         cursor = self.from_conn.cursor()
         cursor.execute(
@@ -455,14 +455,17 @@ class BlazingETL(object):
 
         columns = []
         for col in cursor.fetchall():
-            override = type_overrides.get(col[0], {})
+            override = type_overrides.get(col[1], {})
+            override = column_overrides.get(col[0], override)
 
-            mapped_type = override.get("type", self.map_type(col[1], col[2]))
+            mapped_type = override.get("type", lambda s: self.map_type(col[1], s))
+            transform = override.get("trans", self.default_transform)
 
-            transform = type_transforms.get(mapped_type, self.default_transform)
-            transform = override.get("trans", transform)
-
-            columns.append({"name": col[0], "type": mapped_type, "trans": transform})
+            columns.append({
+                "name": col[0],
+                "type": mapped_type(col[2]),
+                "trans": transform
+            })
 
         # Create Tables on Blazing
         target_table = schema + "_" + table
