@@ -11,10 +11,10 @@ from blazingdb import exceptions
 class Connector(object):
     """ Handles connecting and querying BlazingDB instances """
 
-    def __init__(self, host, username, password, database, **kwargs):
+    def __init__(self, host, database, user, password, **kwargs):
         self.logger = logging.getLogger(__name__)
 
-        self.username = username
+        self.user = user
         self.password = password
         self.database = database
         self.token = None
@@ -44,7 +44,7 @@ class Connector(object):
 
     def _perform_register(self):
         """ Performs a register request against Blazing, logging the user in """
-        data = {"username": self.username, "password": self.password}
+        data = {"username": self.user, "password": self.password}
         return self._perform_request("register", data).content
 
     def is_connected(self):

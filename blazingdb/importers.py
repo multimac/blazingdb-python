@@ -36,8 +36,7 @@ class StreamProcessor(object):
 
         byte_count = 0
         while True:
-            row_size = len(
-                self._process_row(self.last_row).encode(self.encoding))
+            row_size = len(self._process_row(self.last_row).encode(self.encoding))
             if byte_count + row_size > size:
                 break
 
@@ -75,12 +74,14 @@ class BlazingImporter(object):  # pylint: disable=too-few-public-methods
 
     def _perform_request(self, method, table):
         """ Runs a query to load the data into Blazing using the given method """
-        self.connector.query(" ".join([
+        query = " ".join([
             str.format("load data {0} into table {1}", method, table),
             str.format("fields terminated by '{0}'", self.field_terminator),
             str.format("enclosed by '{0}'", self.field_wrapper),
             str.format("lines terminated by '{0}'", self.line_terminator)
-        ]))
+        ])
+
+        self.connector.query(query, auto_connect=True)
 
     @abc.abstractmethod
     def load(self, table, stream):
@@ -96,9 +97,7 @@ class StreamImporter(BlazingImporter):  # pylint: disable=too-few-public-methods
         self.logger = logging.getLogger(__name__)
 
         self.processor_args = kwargs
-
         self.chunk_size = kwargs.get("chunk_size", 1048576)
-        self.file_extension = kwargs.get("file_extension", "dat")
 
     def _stream_chunk(self, data, table):
         """ Streams a chunk of data into Blazing """
