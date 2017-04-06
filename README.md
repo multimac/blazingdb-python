@@ -15,7 +15,9 @@ connector = blazingdb.Connector(
     host="localhost",
     database="blazing",
     user="blazing",
-    password="password"
+    password="password",
+    https=True,
+    port=8443
 )
 
 # This can be skipped, and will be performed on the first query if it is
