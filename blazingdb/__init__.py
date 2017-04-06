@@ -11,12 +11,13 @@ from blazingdb import exceptions
 class Connector(object):
     """ Handles connecting and querying BlazingDB instances """
 
-    def __init__(self, host, database, user, password, **kwargs):
+    def __init__(self, host, user, password, **kwargs):
         self.logger = logging.getLogger(__name__)
 
         self.user = user
         self.password = password
-        self.database = database
+
+        self.database = kwargs.get("database")
         self.token = None
 
         protocol = "https" if (kwargs.get("https", True)) else "http"
@@ -62,13 +63,16 @@ class Connector(object):
         if token == "fail":
             raise exceptions.ConnectionFailedException()
 
+        self.token = token
+
+        if self.database is None:
+            return
+
         try:
             self._perform_query(str.format("USE DATABASE {0}", self.database))
         except requests.exceptions.RequestException as ex:
             self.logger.exception("Failed using specified database for connection")
             raise exceptions.RequestException(ex)
-
-        self.token = token
 
     def query(self, query, auto_connect=False):
         """ Performs a query against Blazing """
