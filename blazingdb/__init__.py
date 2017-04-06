@@ -40,7 +40,7 @@ class Connector(object):
 
     def _perform_query(self, query):
         """ Performs a query against Blazing """
-        data = {"username": self.user, "query": query, "token": self.token}
+        data = {"username": self.user, "query": query.lower(), "token": self.token}
         return self._perform_request("query", data).content
 
     def _perform_register(self):
