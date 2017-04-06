@@ -8,6 +8,10 @@ Contains classes for connecting to, and importing data from, BlazingDB.
 
 The Connector handles connecting to and running queries against BlazingDB.
 
+**NOTE:** Currently there is a bug with BlazingDB where connection tokens are reset
+after each successful query. Either call .connect() before each .query(), or pass
+'auto_connect=True' into .query().
+
 ```python
 import blazingdb
 
@@ -20,7 +24,7 @@ connector = blazingdb.Connector(
     port=8443
 )
 
-# This can be skipped, and will be performed on the first query if it is
+# This can be skipped if you pass 'auto_connect=True' to .query()
 connector.connect()
 
 # Perform a query against BlazingDB

@@ -36,7 +36,13 @@ class Connector(object):
     def _perform_get_results(self, token):
         """ Performs a request to retrieves the results for the given request token """
         data = {"resultSetToken": token, "token": self.token}
-        return self._perform_request("get-results", data).json()
+        result = self._perform_request("get-results", data).json()
+
+        # Currently /get-results invalidates the connection, so this is just to notify
+        # the user to reconnect. TODO: Remove when fixed in BlazingDB
+        self.token = None
+
+        return result
 
     def _perform_query(self, query):
         """ Performs a query against Blazing """
