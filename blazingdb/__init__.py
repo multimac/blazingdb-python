@@ -49,7 +49,7 @@ class Connector(object):
 
     def is_connected(self):
         """ Determines if the connection is connected to Blazing """
-        return self.token is None
+        return self.token is not None
 
     def connect(self):
         """ Initialises the connection to Blazing """
