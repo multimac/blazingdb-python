@@ -80,9 +80,17 @@ class Connector(object):
 
         try:
             token = self._perform_query(query)
-            return self._perform_get_results(token)
         except requests.exceptions.RequestException as ex:
             self.logger.exception("Failed to perform the given query")
+            raise exceptions.RequestException(ex)
+
+        if token == "fail":
+            raise exceptions.QueryException(query)
+
+        try:
+            return self._perform_get_results(token)
+        except requests.exceptions.RequestException as ex:
+            self.logger.exception("Could not retrieve results for the given query")
             raise exceptions.RequestException(ex)
 
 

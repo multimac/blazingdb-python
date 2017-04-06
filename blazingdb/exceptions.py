@@ -15,6 +15,14 @@ class NotConnectedException(BlazingException):
     pass
 
 
+class QueryException(BlazingException):
+    """ Thrown when something goes wrong attempting to query BlazingDB """
+
+    def __init__(self, query):
+        super(QueryException, self).__init__()
+        self.query = query
+
+
 class RequestException(BlazingException):
     """ Thrown when there is an exception caught from the requests module"""
 
