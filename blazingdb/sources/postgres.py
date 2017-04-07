@@ -23,11 +23,8 @@ class PostgresSource(sources.BaseSource):
         """ Retrieves a list of the tables in this source """
         cursor = self.connection.cursor()
         cursor.execute(" ".join([
-            str.format(
-                "SELECT DISTINCT table_name FROM information_schema.tables"),
-            str.format(
-                "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'",
-                self.schema)
+            "SELECT DISTINCT table_name FROM information_schema.tables",
+            "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
         ]))
 
         return [row[0] for row in cursor.fetchall()]
@@ -36,9 +33,9 @@ class PostgresSource(sources.BaseSource):
         """ Retrieves a list of columns for the given table from the source """
         cursor = self.connection.cursor()
         cursor.execute(" ".join([
-            str.format("SELECT column_name, data_type, character_maximum_length"),
-            str.format("FROM information_schema.columns"),
-            str.format("WHERE table_schema = '{0}' AND table_name = '{1}'", self.schema, table)
+            "SELECT column_name, data_type, character_maximum_length",
+            "FROM information_schema.columns",
+            "WHERE table_schema = '{0}' AND table_name = '{1}'".format(self.schema, table)
         ]))
 
         columns = []
@@ -54,8 +51,8 @@ class PostgresSource(sources.BaseSource):
 
         cursor = self.connection.cursor()
         cursor.execute(" ".join([
-            str.format("SELECT {0}", ",".join(column.name for column in columns)),
-            str.format("FROM {0}.{1}", self.schema, table)
+            "SELECT {0}".format(",".join(column.name for column in columns)),
+            "FROM {0}.{1}".format(self.schema, table)
         ]))
 
         while True:

@@ -23,11 +23,11 @@ class Connector(object):
         protocol = "https" if (kwargs.get("https", True)) else "http"
         port = kwargs.get("port", 8080 if protocol == "http" else 8443)
 
-        self.baseurl = str.format("{0}://{1}:{2}", protocol, host, port)
+        self.baseurl = "{0}://{1}:{2}".format(protocol, host, port)
 
     def _build_url(self, path):
         """ Builds a url to access the given path in Blazing """
-        return str.format("{0}/blazing-jdbc/{1}", self.baseurl, path)
+        return "{0}/blazing-jdbc/{1}".format(self.baseurl, path)
 
     def _perform_request(self, path, data):
         """ Performs a request against the given path in Blazing """
@@ -75,7 +75,7 @@ class Connector(object):
             return
 
         try:
-            self._perform_query(str.format("USE DATABASE {0}", self.database))
+            self._perform_query("USE DATABASE {0}".format(self.database))
         except requests.exceptions.RequestException as ex:
             self.logger.exception("Failed using specified database for connection")
             raise exceptions.RequestException(ex)
@@ -107,9 +107,10 @@ class Connector(object):
 class Migrator(object):  # pylint: disable=too-few-public-methods
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, importer, source):
+    def __init__(self, connector, source, importer):
         self.logger = logging.getLogger(__name__)
 
+        self.connector = connector
         self.importer = importer
         self.source = source
 
@@ -126,7 +127,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
 
         for table in tables:
             stream = self.source.retrieve(table)
-            self.importer.load(table, stream)
+            self.importer.load(self.connector, table, stream)
 
 
 __all__ = ["exceptions", "importers", "sources"]
