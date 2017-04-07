@@ -131,7 +131,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
                 stage.begin_import(self.source, self.importer, self.connector, table)
 
             stream = self.source.retrieve(table)
-            self.importer.load(self.connector, table, stream)
+            self.importer.load(self.connector, stream, table)
 
             for stage in self.pipeline:
                 stage.end_import(self.source, self.importer, self.connector, table)
