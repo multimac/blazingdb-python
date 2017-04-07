@@ -59,17 +59,6 @@ connector = blazingdb.Connector(
     password="password"
 )
 
-# Create the importer to use when loading data into BlazingDB
-importer = importers.ChunkingImporter(
-    "/path/to/blazing/uploads"
-)
-
-# Create any pipeline stages to use when processing tables into Blazing
-stages = [
-    pipeline.DropTableStage(),
-    pipeline.CreateTableStage()
-]
-
 # Create the source to use when retrieving data to load into BlazingDB
 source = postgres.PostgresSource(
     psycopg2.connect(
@@ -81,8 +70,20 @@ source = postgres.PostgresSource(
     schema="default"
 )
 
+# Create any pipeline stages to use when processing tables into Blazing
+stages = [
+    pipeline.DropTableStage(),
+    pipeline.CreateTableStage()
+]
+
+# Create the importer to use when loading data into BlazingDB
+importer = importers.ChunkingImporter(
+    "/path/to/blazing/uploads"
+)
+
+# Create the migrator using all the pieces above
 migrator = blazingdb.Migrator(
-    connector, source, pipeline, importer
+    connector, source, stages, importer
 )
 
 # Import all tables into BlazingDB
