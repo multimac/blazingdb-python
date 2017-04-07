@@ -73,25 +73,45 @@ class PostgresSource(sources.BaseSource):
                 yield mapped_row
 
 
+def default_transform(value):
+    """ Default transform for unknown data types """
+    return value
+
+
+def date_transform(value):
+    """ Datatype transform for date data types """
+    return value.strftime("%Y-%m-%d")
+
+
+DATATYPE_MAP = {
+    'bit': 'long', 'boolean': 'long', 'smallint': 'long',
+    'integer': 'long', 'bigint': 'long',
+
+    'double precision': 'double', 'money': 'double',
+    'numeric': 'double', 'real': 'double',
+
+    'character': 'string({0})',
+    'character varying': 'string({0})',
+    'text': 'string({0})',
+
+    'date': 'date',
+    'time with time zone': 'date',
+    'time without time zone': 'date',
+    'timestamp with time zone': 'date',
+    'timestamp without time zone': 'date'
+}
+DATATYPE_TRANSFORMS = {
+    'date': date_transform,
+    'time with time zone': date_transform,
+    'time without time zone': date_transform,
+    'timestamp with time zone': date_transform,
+    'timestamp without time zone': date_transform
+}
+
+
 def convert_datatype(datatype, size):
     """ Converts a PostgreSQL data type into a BlazingDB data type """
-    return {
-        'bit': 'long', 'boolean': 'long', 'smallint': 'long',
-        'integer': 'long', 'bigint': 'long',
-
-        'double precision': 'double', 'money': 'double',
-        'numeric': 'double', 'real': 'double',
-
-        'character': 'string({0})',
-        'character varying': 'string({0})',
-        'text': 'string({0})',
-
-        'date': 'date',
-        'time with time zone': 'date',
-        'time without time zone': 'date',
-        'timestamp with time zone': 'date',
-        'timestamp without time zone': 'date'
-    }.get(datatype).format(size)
+    return DATATYPE_MAP.get(datatype).format(size)
 
 
 def transform_value(datatype, value):
@@ -99,10 +119,4 @@ def transform_value(datatype, value):
     if value is None:
         return value
 
-    return {
-        'date': lambda v: v.strftime('%Y-%m-%d'),
-        'time with time zone': lambda v: v.strftime('%Y-%m-%d'),
-        'time without time zone': lambda v: v.strftime('%Y-%m-%d'),
-        'timestamp with time zone': lambda v: v.strftime('%Y-%m-%d'),
-        'timestamp without time zone': lambda v: v.strftime('%Y-%m-%d')
-    }.get(datatype, lambda v: v)(value)
+    return DATATYPE_TRANSFORMS.get(datatype, default_transform)(value)
