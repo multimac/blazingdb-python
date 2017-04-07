@@ -125,6 +125,7 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         self.target_path = target_path
 
         self.chunk_size = kwargs.get("chunk_size", 1048576)
+        self.encoding = kwargs.get("encoding", "utf-8")
         self.file_extension = kwargs.get("file_extension", "dat")
 
     def _get_file_path(self, table, chunk):
@@ -136,7 +137,7 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         """ Loads a chunk of data into Blazing """
         chunk_filename = self._get_file_path(table, i)
 
-        with open(chunk_filename, "w", encoding="utf-8") as chunk_file:
+        with open(chunk_filename, "w", encoding=self.encoding) as chunk_file:
             for line in data:
                 chunk_file.write(line)
 

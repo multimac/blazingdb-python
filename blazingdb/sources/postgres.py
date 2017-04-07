@@ -51,7 +51,7 @@ class PostgresSource(sources.BaseSource):
 
         cursor = self.connection.cursor()
         cursor.execute(" ".join([
-            "SELECT {0}".format(",".join(column.name for column in columns)),
+            "SELECT {0}".format(",".join(column["name"] for column in columns)),
             "FROM {0}.{1}".format(self.schema, table)
         ]))
 
