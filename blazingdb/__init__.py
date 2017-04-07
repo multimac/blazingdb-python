@@ -127,3 +127,6 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         for table in tables:
             stream = self.source.retrieve(table)
             self.importer.load(table, stream)
+
+
+__all__ = ["exceptions", "importers", "sources"]
