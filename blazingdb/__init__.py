@@ -31,12 +31,18 @@ class Connector(object):
 
     def _perform_request(self, path, data):
         """ Performs a request against the given path in Blazing """
-        return requests.post(self._build_url(path), data, verify=False)
+        url = self._build_url(path)
+
+        self.logger.debug("Performing request to BlazingDB (%s): %s", url, data)
+
+        return requests.post(url, data, verify=False)
 
     def _perform_get_results(self, token):
         """ Performs a request to retrieves the results for the given request token """
         data = {"resultSetToken": token, "token": self.token}
         result = self._perform_request("get-results", data).json()
+
+        self.logger.debug("Discarding invalid login token...")
 
         # Currently /get-results invalidates the connection, so this is just to notify
         # the user to reconnect. TODO: Remove when fixed in BlazingDB
@@ -70,6 +76,7 @@ class Connector(object):
             raise exceptions.ConnectionFailedException()
 
         self.token = token
+        self.logger.debug("Retrieved login token %s", self.token)
 
         if self.database is None:
             return
@@ -127,10 +134,13 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
             tables = [tables]
 
         for table in tables:
+            self.logger.info("Importing table %s...", table)
+
             for stage in self.pipeline:
                 stage.begin_import(self.source, self.importer, self.connector, table)
 
             stream = self.source.retrieve(table)
+
             self.importer.load(self.connector, stream, table)
 
             for stage in self.pipeline:

@@ -27,7 +27,11 @@ class PostgresSource(sources.BaseSource):
             "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
         ]))
 
-        return [row[0] for row in cursor.fetchall()]
+        tables = [row[0] for row in cursor.fetchall()]
+
+        self.logger.debug("Retrieved %s tables from Postgres", len(tables))
+
+        return tables
 
     def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
@@ -42,6 +46,8 @@ class PostgresSource(sources.BaseSource):
         for row in cursor.fetchall():
             datatype = convert_datatype(row[1], row[2])
             columns.append({"name": row[0], "type": datatype})
+
+        self.logger.debug("Retrieved %s columns for table %s from Postgres", len(columns), table)
 
         return columns
 
@@ -59,6 +65,8 @@ class PostgresSource(sources.BaseSource):
             chunk = cursor.fetchmany(self.fetch_count)
             if not chunk:
                 break
+
+            self.logger.debug("Retrieved chunk of %s rows from Postgres", len(chunk))
 
             for row in chunk:
                 mapped_row = []

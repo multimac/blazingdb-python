@@ -34,21 +34,29 @@ class StreamProcessor(object):
         if self.last_row is None:
             self.last_row = next(self.stream)
 
+        self.logger.debug("Reading %s bytes from the stream", size)
+
         byte_count = 0
+        row_count = 0
         while True:
             processed_row = self._process_row(self.last_row)
             raw_row = processed_row.encode(self.encoding)
 
             if byte_count + len(raw_row) > size:
+                self.logger.debug("Read %s (%s bytes) rows from the stream", row_count, byte_count)
                 break
 
             yield self.last_row
 
             self.last_row = next(self.stream)
+
             byte_count += len(raw_row)
+            row_count += 1
 
     def _read_rows(self, count):
         """ Reads the given number of rows from the stream """
+        self.logger.debug("Reading %s rows from the stream", count)
+
         if self.last_row is not None:
             stream_slice = itertools.islice(self.stream, count - 1)
             return itertools.chain([self.last_row], stream_slice)
@@ -83,6 +91,7 @@ class BlazingImporter(object):  # pylint: disable=too-few-public-methods
             "lines terminated by '{0}'".format(self.line_terminator)
         ])
 
+        self.logger.info("Importing rows into Blazing...")
         connector.query(query, auto_connect=True)
 
     @abc.abstractmethod
@@ -96,8 +105,6 @@ class StreamImporter(BlazingImporter):  # pylint: disable=too-few-public-methods
 
     def __init__(self, **kwargs):
         super(StreamImporter, self).__init__(**kwargs)
-        self.logger = logging.getLogger(__name__)
-
         self.processor_args = kwargs
         self.chunk_size = kwargs.get("chunk_size", 1048576)
 
@@ -140,10 +147,12 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
     def _load_chunk(self, connector, data, table, i):
         """ Loads a chunk of data into Blazing """
         chunk_filename = self._get_file_path(table, i)
+        chunk_data = "".join(data)
+
+        self.logger.info("Writing chunk file (%s bytes): %s", len(chunk_data), chunk_filename)
 
         with open(chunk_filename, "w", encoding=self.encoding) as chunk_file:
-            for line in data:
-                chunk_file.write(line)
+            chunk_file.write(chunk_data)
 
         method = "infile {0}".format(chunk_filename)
         self._perform_request(connector, method, table)
