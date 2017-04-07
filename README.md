@@ -42,19 +42,27 @@ via an Importer (see below for information on `Sources` and `Importers`)
 import blazingdb
 import pysycopg2
 
-from blazingdb import importers
+from blazingdb import importers, pipeline
 from blazingdb.sources import postgres
+
+# Create the connector to use when loading data into BlazingDB
+connector = blazingdb.Connector(
+    host="localhost",
+    database="blazing",
+    user="blazing",
+    password="password"
+)
 
 # Create the importer to use when loading data into BlazingDB
 importer = importers.ChunkingImporter(
-    blazingdb.Connector(
-        host="localhost",
-        database="blazing",
-        user="blazing",
-        password="password"
-    ),
     "/path/to/blazing/uploads"
 )
+
+# Create any pipeline stages to use when processing tables into Blazing
+stages = [
+    pipeline.DropTableStage(),
+    pipeline.CreateTableStage()
+]
 
 # Create the source to use when retrieving data to load into BlazingDB
 source = postgres.PostgresSource(
@@ -67,7 +75,9 @@ source = postgres.PostgresSource(
     schema="default"
 )
 
-migrator = blazingdb.Migrator(importer, source)
+migrator = blazingdb.Migrator(
+    connector, source, pipeline, importer
+)
 
 # Import all tables into BlazingDB
 migrator.migrate()
@@ -92,13 +102,6 @@ import datetime
 from blazingdb import importers
 
 importer = importers.StreamingImporter(
-    blazingdb.Connector(
-        host="localhost",
-        database="blazing",
-        user="blazing",
-        password="password"
-    ),
-
     # Configure the size of each request in bytes
     chunk_size=1048576
 
@@ -115,13 +118,30 @@ importer = importers.StreamingImporter(
     line_terminator="\n"
 )
 
+connector = blazingdb.Connector(
+    host="localhost",
+    database="blazing",
+    user="blazing",
+    password="password"
+)
+
 # Importers can load any arbitrary iterable which returns arrays
-importer.load("table", [
+importer.load(connector, "table", [
     ["a", 123, "2017-4-1"],
     ["b", 456, "1970-1-1"],
     ["z", 789, "1999-12-31"]
 ])
 ```
+
+---
+
+## Pipeline Stages
+
+Pipeline stages are used to affect BlazingDB before/after tables have been imported.
+
+At the moment, the following pipeline stages exist:
+- CreateTableStage - Creates tables in BlazingDB before data is imported into them
+- DropTableStage - Drops existing tables in BlazingDB before data is imported into them
 
 ---
 
