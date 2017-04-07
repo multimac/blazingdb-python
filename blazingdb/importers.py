@@ -36,12 +36,16 @@ class StreamProcessor(object):
 
         byte_count = 0
         while True:
-            row_size = len(self._process_row(self.last_row).encode(self.encoding))
-            if byte_count + row_size > size:
+            processed_row = self._process_row(self.last_row)
+            raw_row = processed_row.encode(self.encoding)
+
+            if byte_count + len(raw_row) > size:
                 break
 
             yield self.last_row
+
             self.last_row = next(self.stream)
+            byte_count += len(raw_row)
 
     def _read_rows(self, count):
         """ Reads the given number of rows from the stream """
