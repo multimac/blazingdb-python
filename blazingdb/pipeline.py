@@ -29,7 +29,7 @@ class CreateTableStage(BaseStage):
         columns = ", ".join(column_data)
 
         try:
-            connector.query("CREATE TABLE {0} ({1})".format(table, columns))
+            connector.query("CREATE TABLE {0} ({1})".format(table, columns), auto_connect=True)
         except exceptions.QueryException:
             pass
 
