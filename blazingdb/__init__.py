@@ -107,11 +107,12 @@ class Connector(object):
 class Migrator(object):  # pylint: disable=too-few-public-methods
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, connector, source, importer):
+    def __init__(self, connector, source, pipeline, importer):
         self.logger = logging.getLogger(__name__)
 
         self.connector = connector
         self.importer = importer
+        self.pipeline = pipeline
         self.source = source
 
     def migrate(self, tables=None):
@@ -126,8 +127,14 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
             tables = [tables]
 
         for table in tables:
+            for stage in self.pipeline:
+                stage.begin_import(self.source, self.importer, self.connector, table)
+
             stream = self.source.retrieve(table)
             self.importer.load(self.connector, table, stream)
 
+            for stage in self.pipeline:
+                stage.end_import(self.source, self.importer, self.connector, table)
 
-__all__ = ["exceptions", "importers", "sources"]
+
+__all__ = ["exceptions", "importers", "pipeline", "sources"]
