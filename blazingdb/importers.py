@@ -128,9 +128,9 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         self.processor_args = kwargs
         self.target_path = target_path
 
-        self.chunk_size = kwargs.get("chunk_size", 1048576)
         self.encoding = kwargs.get("encoding", "utf-8")
         self.file_extension = kwargs.get("file_extension", "dat")
+        self.row_count = kwargs.get("row_count", 1000000)
 
     def _get_file_path(self, table, chunk):
         """ Generates a path for a given chunk of a table """
@@ -154,7 +154,7 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
 
         counter = 0
         while True:
-            chunk_data = processor.read_bytes(self.chunk_size)
+            chunk_data = processor.read_rows(self.row_count)
             if not chunk_data:
                 break
 
