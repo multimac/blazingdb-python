@@ -1,4 +1,6 @@
-""" Defines the exceptions thrown by the BlazingDB module """
+"""
+Defines the exceptions thrown by the BlazingDB module
+"""
 
 
 class BlazingException(Exception):
