@@ -23,7 +23,7 @@ class CreateTableStage(BaseStage):
 
     def begin_import(self, source, importer, connector, table):
         column_data = [
-            "{0} {1}".format(column.name, column.type)
+            "{0} {1}".format(column["name"], column["type"])
             for column in source.get_columns(table)
         ]
         columns = ", ".join(column_data)
