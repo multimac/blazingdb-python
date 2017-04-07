@@ -63,7 +63,7 @@ class PostgresSource(sources.BaseSource):
             for row in chunk:
                 mapped_row = []
                 for i, value in enumerate(row):
-                    datatype = columns[i].type
+                    datatype = columns[i]["type"]
                     transformed = transform_value(datatype, value)
                     mapped_row.append(transformed)
 
