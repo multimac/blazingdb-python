@@ -17,10 +17,16 @@ import blazingdb
 
 connector = blazingdb.Connector(
     host="localhost",
-    database="blazing",
     user="blazing",
     password="password",
+
+    # Configure the database to automatically connect to
+    database=None,
+
+    # Configure whether to use HTTPS when connecting
     https=True,
+
+    # Configure the port to connect to BlazingDB over
     port=8443
 )
 
