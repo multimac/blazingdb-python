@@ -40,7 +40,7 @@ via an Importer (see below for information on `Sources` and `Importers`)
 
 ```python
 import blazingdb
-import pysycopg2
+import psycopg2
 
 from blazingdb import importers, pipeline
 from blazingdb.sources import postgres
