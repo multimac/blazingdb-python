@@ -167,31 +167,41 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
 
     DEFAULT_CHUNK_ROWS = 100000
 
-    def __init__(self, target_path, **kwargs):
+    def __init__(self, upload_folder, **kwargs):
         super(ChunkingImporter, self).__init__(**kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.processor_args = kwargs
 
-        self.target_path = target_path
+        self.upload_folder = upload_folder
         self.user_folder = kwargs.get("user_folder", None)
 
         self.encoding = kwargs.get("encoding", "utf-8")
         self.file_extension = kwargs.get("file_extension", "dat")
         self.row_count = kwargs.get("row_count", self.DEFAULT_CHUNK_ROWS)
 
+    def _get_filename(self, table, chunk):
+        filename = "{0}_{1}".format(table, chunk)
+        if self.file_extension is None:
+            return filename
+
+        return "{0}.{1}".format(filename, self.file_extension)
+
     def _get_file_path(self, table, chunk):
         """ Generates a path for a given chunk of a table to be used for writing chunks """
-        file_path = self._get_import_path(table, chunk)
+        filename = self._get_filename(table, chunk)
         if self.user_folder is None:
-            return file_path
+            return path.join(self.upload_folder, filename)
 
-        return path.join(self.user_folder, file_path)
+        return path.join(self.upload_folder, self.user_folder, filename)
 
     def _get_import_path(self, table, chunk):
         """ Generates a path for a given chunk of a table to be used in a query """
-        filename = "{0}_{1}.{2}".format(table, chunk, self.file_extension)
-        return path.join(self.target_path, filename)
+        filename = self._get_filename(table, chunk)
+        if self.user_folder is None:
+            return path.join(self.user_folder, filename)
+
+        return path.join(self.upload_folder, self.user_folder, filename)
 
     def _load_chunk(self, connector, data, table, i):
         """ Loads a chunk of data into Blazing """
