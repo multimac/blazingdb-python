@@ -69,7 +69,7 @@ class DropTableStage(BaseStage):
     def begin_import(self, source, importer, connector, data):
         table = data["dest_table"]
 
-        self.logger.info("Dropping table %s (only_delete %s)", table, self.only_delete)
+        self.logger.info("Dropping table %s (only_delete: %s)", table, self.only_delete)
 
         try:
             connector.query("DELETE FROM {0}".format(table), auto_connect=True)
