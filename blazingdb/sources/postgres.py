@@ -80,23 +80,7 @@ class PostgresSource(sources.BaseSource):
             self.logger.debug("Retrieved chunk of %s rows from Postgres", len(chunk))
 
             for row in chunk:
-                mapped_row = []
-                for i, value in enumerate(row):
-                    datatype = columns[i]["type"]
-                    transformed = transform_value(datatype, value)
-                    mapped_row.append(transformed)
-
-                yield mapped_row
-
-
-def default_transform(value):
-    """ Default transform for unknown data types """
-    return value
-
-
-def date_transform(value):
-    """ Datatype transform for date data types """
-    return value.strftime("%Y-%m-%d")
+                yield row
 
 
 DATATYPE_MAP = {
@@ -116,23 +100,8 @@ DATATYPE_MAP = {
     'timestamp with time zone': 'date',
     'timestamp without time zone': 'date'
 }
-DATATYPE_TRANSFORMS = {
-    'date': date_transform,
-    'time with time zone': date_transform,
-    'time without time zone': date_transform,
-    'timestamp with time zone': date_transform,
-    'timestamp without time zone': date_transform
-}
 
 
 def convert_datatype(datatype, size):
     """ Converts a PostgreSQL data type into a BlazingDB data type """
     return DATATYPE_MAP.get(datatype).format(size)
-
-
-def transform_value(datatype, value):
-    """ Transforms a value from PostgreSQL into one BlazingDB can understand """
-    if value is None:
-        return value
-
-    return DATATYPE_TRANSFORMS.get(datatype, default_transform)(value)

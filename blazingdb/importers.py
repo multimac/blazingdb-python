@@ -24,9 +24,25 @@ class StreamProcessor(object):
         self.field_wrapper = kwargs.get("field_wrapper", "\"")
         self.line_terminator = kwargs.get("line_terminator", "\n")
 
+    def _wrap_field(self, c):
+        return self.field_wrapper + c + self.field_wrapper
+
+    def _process_column(self, column):
+        if column is None:
+            return "NULL"
+        elif isinstance(column, str):
+            return self._wrap_field(column)
+
+        try:
+            return column.strftime("%Y-%m-%d")
+        except AttributeError:
+            pass
+
+        return str(column)
+
     def _process_row(self, row):
         """ Processes a row of data into it a string to be loaded into Blazing """
-        fields = ["{0}{1}{0}".format(self.field_wrapper, f) for f in row]
+        fields = map(self._process_column, row)
         return self.field_terminator.join(fields) + self.line_terminator
 
     def _load_row(self):
