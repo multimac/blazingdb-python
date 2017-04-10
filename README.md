@@ -78,7 +78,7 @@ stages = [
 
 # Create the importer to use when loading data into BlazingDB
 importer = importers.ChunkingImporter(
-    "/path/to/blazing/uploads", user_folder="user/data"
+    "/path/to/blazing/uploads", "user_folder", "data"
 )
 
 # Create the migrator using all the pieces above

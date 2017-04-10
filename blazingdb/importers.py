@@ -167,14 +167,14 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
 
     DEFAULT_CHUNK_ROWS = 100000
 
-    def __init__(self, upload_folder, **kwargs):
+    def __init__(self, upload_folder, user, user_folder, **kwargs):
         super(ChunkingImporter, self).__init__(**kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.processor_args = kwargs
 
-        self.upload_folder = upload_folder
-        self.user_folder = kwargs.get("user_folder", None)
+        self.upload_folder = path.join(upload_folder, user)
+        self.user_folder = user_folder
 
         self.encoding = kwargs.get("encoding", "utf-8")
         self.file_extension = kwargs.get("file_extension", "dat")
@@ -189,17 +189,14 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
 
     def _get_file_path(self, table, chunk):
         """ Generates a path for a given chunk of a table to be used for writing chunks """
-        filename = self._get_filename(table, chunk)
-        if self.user_folder is None:
-            return path.join(self.upload_folder, filename)
-
-        return path.join(self.upload_folder, self.user_folder, filename)
+        import_path = self._get_import_path(table, chunk)
+        return path.join(self.upload_folder, import_path)
 
     def _get_import_path(self, table, chunk):
         """ Generates a path for a given chunk of a table to be used in a query """
         filename = self._get_filename(table, chunk)
         if self.user_folder is None:
-            return path.join(self.upload_folder, filename)
+            return filename
 
         return path.join(self.user_folder, filename)
 
