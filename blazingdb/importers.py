@@ -30,7 +30,7 @@ class StreamProcessor(object):
         return self.field_terminator.join(fields) + self.line_terminator
 
     def _load_row(self):
-        if stream is None:
+        if self.stream is None:
             return
 
         try:
