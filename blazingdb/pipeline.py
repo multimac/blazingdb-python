@@ -44,7 +44,7 @@ class CreateTableStage(BaseStage):
                 "this means the table has already been created"
             ])
 
-            self.logger.debug(message)
+            self.logger.exception(message)
 
 
 class DropTableStage(BaseStage):
@@ -72,7 +72,7 @@ class DropTableStage(BaseStage):
                 "this means the table has already been dropped"
             ])
 
-            self.logger.debug(message)
+            self.logger.exception(message)
 
 
 class LimitImportStage(BaseStage):
