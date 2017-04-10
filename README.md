@@ -78,7 +78,7 @@ stages = [
 
 # Create the importer to use when loading data into BlazingDB
 importer = importers.ChunkingImporter(
-    "/path/to/blazing/uploads"
+    "/path/to/blazing/uploads", user_folder="user/data"
 )
 
 # Create the migrator using all the pieces above
@@ -148,6 +148,9 @@ Pipeline stages are used to affect BlazingDB before/after tables have been impor
 At the moment, the following pipeline stages exist:
 - `CreateTableStage` - Creates tables in BlazingDB before data is imported into them
 - `DropTableStage` - Drops existing tables in BlazingDB before data is imported into them
+- `LimitImportStage` - Only imports the given number of rows, ignoring any remaining
+- `PrefixTableStage` - Prefixes the destination table with the given prefix
+- `TruncateTableStage` - Truncates data a table in BlazingDB (may be required for DropTableStage)
 
 ---
 
@@ -170,7 +173,7 @@ source = postgres.PostgresSource(
     schema="default",
 
     # Configure the number of rows to retrieve at a time
-    fetch_count=10000
+    fetch_count=50000
 )
 
 # Retrieve list of tables
