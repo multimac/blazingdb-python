@@ -102,13 +102,22 @@ class Connector(object):
             raise exceptions.RequestException(ex)
 
         if token == "fail":
-            raise exceptions.QueryException(query)
+            raise exceptions.QueryException(query, None)
 
         try:
-            return self._perform_get_results(token)
+            result = self._perform_get_results(token)
         except requests.exceptions.RequestException as ex:
             self.logger.exception("Could not retrieve results for the given query")
             raise exceptions.RequestException(ex)
+        except ValueError as ex:
+            self.logger.exception("Could not parse response as JSON")
+            raise exceptions.QueryException(query, None)
+
+        if result["status"] == "fail":
+            self.logger.error("Query returned a status of fail")
+            raise exceptions.QueryException(query, result)
+
+        return result
 
 
 class Migrator(object):  # pylint: disable=too-few-public-methods

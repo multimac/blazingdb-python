@@ -20,9 +20,11 @@ class NotConnectedException(BlazingException):
 class QueryException(BlazingException):
     """ Thrown when something goes wrong attempting to query BlazingDB """
 
-    def __init__(self, query):
+    def __init__(self, query, response):
         super(QueryException, self).__init__()
+
         self.query = query
+        self.response = response
 
 
 class RequestException(BlazingException):
