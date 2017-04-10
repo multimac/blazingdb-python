@@ -132,6 +132,6 @@ class TruncateTableStage(BaseStage):
 
             self.logger.debug(" ".join([
                 "QueryException caught when truncating table %s, ignoring as it most likely",
-                "means the table doesn't exist"
+                "means the table is already empty"
             ]), table)
             self.logger.debug(ex.response)
