@@ -29,24 +29,29 @@ class StreamProcessor(object):
         fields = ["{0}{1}{0}".format(self.field_wrapper, f) for f in row]
         return self.field_terminator.join(fields) + self.line_terminator
 
+    def _load_row(self):
+        if stream is None:
+            return
+
+        try:
+            self.last_row = next(self.stream)
+        except StopIteration:
+            self.last_row = None
+            self.stream = None
+
     def _build_batch(self, stop_check):
         if self.last_row is None:
-            try:
-                self.last_row = next(self.stream)
-            except StopIteration:
-                return []
+            self._load_row()
 
         batch = []
-        while True:
+        while self.last_row is not None:
             if stop_check(self.last_row):
-                return batch
+                break
 
             batch.append(self.last_row)
+            self._load_row()
 
-            try:
-                self.last_row = next(self.stream)
-            except StopIteration:
-                return batch
+        return batch
 
     def _read_bytes(self, size):
         """ Reads rows from the stream until the next row would exceed the given size (in bytes) """
