@@ -26,6 +26,9 @@ class QueryException(BlazingException):
         self.query = query
         self.response = response
 
+    def __str__(self):
+        return "query='{0}', response='{1}'".format(self.query, self.response)
+
 
 class RequestException(BlazingException):
     """ Thrown when there is an exception caught from the requests module"""
@@ -33,3 +36,6 @@ class RequestException(BlazingException):
     def __init__(self, exception):
         super(RequestException, self).__init__()
         self.inner_exception = exception
+
+    def __str__(self):
+        return "inner_exception='{0}'".format(self.inner_exception)
