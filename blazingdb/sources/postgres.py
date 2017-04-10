@@ -74,8 +74,8 @@ class PostgresSource(sources.BaseSource):
 
         while True:
             chunk = cursor.fetchmany(self.fetch_count)
-            if not chunk:
-                break
+            if len(chunk) == 0:
+                raise StopIteration
 
             self.logger.debug("Retrieved chunk of %s rows from Postgres", len(chunk))
 
