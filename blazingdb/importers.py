@@ -172,20 +172,32 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         self.logger = logging.getLogger(__name__)
 
         self.processor_args = kwargs
+
         self.target_path = target_path
+        self.user_folder = kwargs.get("user_folder", None)
 
         self.encoding = kwargs.get("encoding", "utf-8")
         self.file_extension = kwargs.get("file_extension", "dat")
         self.row_count = kwargs.get("row_count", self.DEFAULT_CHUNK_ROWS)
 
     def _get_file_path(self, table, chunk):
-        """ Generates a path for a given chunk of a table """
+        """ Generates a path for a given chunk of a table to be used for writing chunks """
+        file_path = self._get_import_path(table, chunk)
+        if self.user_folder is None:
+            return file_path
+
+        return path.join(self.user_folder, file_path)
+
+    def _get_import_path(self, table, chunk):
+        """ Generates a path for a given chunk of a table to be used in a query """
         filename = "{0}_{1}.{2}".format(table, chunk, self.file_extension)
         return path.join(self.target_path, filename)
 
     def _load_chunk(self, connector, data, table, i):
         """ Loads a chunk of data into Blazing """
         chunk_filename = self._get_file_path(table, i)
+        query_filename = self._get_import_path(table, i)
+
         chunk_data = "".join(data)
 
         self.logger.info("Writing chunk file (%s byte(s)): %s", len(chunk_data), chunk_filename)
@@ -193,7 +205,7 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         with open(chunk_filename, "w", encoding=self.encoding) as chunk_file:
             chunk_file.write(chunk_data)
 
-        method = "infile {0}".format(chunk_filename)
+        method = "infile {0}".format(query_filename)
         self._perform_request(connector, method, table)
 
     def load(self, connector, data):
