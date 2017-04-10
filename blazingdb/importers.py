@@ -10,6 +10,12 @@ import logging
 from os import path
 
 
+DEFAULT_FILE_ENCODING = "utf-8"
+DEFAULT_FIELD_TERMINATOR = "|"
+DEFAULT_FIELD_WRAPPER = "\""
+DEFAULT_LINE_TERMINATOR = "\n"
+
+
 class StreamProcessor(object):
     """ Processes a stream of data into rows BlazingDB can import """
 
@@ -19,10 +25,10 @@ class StreamProcessor(object):
         self.last_row = None
         self.stream = stream
 
-        self.encoding = kwargs.get("encoding", "utf-8")
-        self.field_terminator = kwargs.get("field_terminator", "|")
-        self.field_wrapper = kwargs.get("field_wrapper", "\"")
-        self.line_terminator = kwargs.get("line_terminator", "\n")
+        self.encoding = kwargs.get("encoding", DEFAULT_FILE_ENCODING)
+        self.field_terminator = kwargs.get("field_terminator", DEFAULT_FIELD_TERMINATOR)
+        self.field_wrapper = kwargs.get("field_wrapper", DEFAULT_FIELD_WRAPPER)
+        self.line_terminator = kwargs.get("line_terminator", DEFAULT_LINE_TERMINATOR)
 
     def _wrap_field(self, c):
         return self.field_wrapper + c + self.field_wrapper
@@ -129,9 +135,9 @@ class BlazingImporter(object):  # pylint: disable=too-few-public-methods
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(__name__)
 
-        self.field_terminator = kwargs.get("field_terminator", "|")
-        self.field_wrapper = kwargs.get("field_wrapper", "\"")
-        self.line_terminator = kwargs.get("line_terminator", "\n")
+        self.field_terminator = kwargs.get("field_terminator", DEFAULT_FIELD_TERMINATOR)
+        self.field_wrapper = kwargs.get("field_wrapper", DEFAULT_FIELD_WRAPPER)
+        self.line_terminator = kwargs.get("line_terminator", DEFAULT_LINE_TERMINATOR)
 
     def _perform_request(self, connector, method, table):
         """ Runs a query to load the data into Blazing using the given method """
@@ -182,6 +188,7 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
     """ Handles the loading of data into Blazing using flat files """
 
     DEFAULT_CHUNK_ROWS = 100000
+    DEFAULT_FILE_EXTENSION = "dat"
 
     def __init__(self, upload_folder, user, user_folder, **kwargs):
         super(ChunkingImporter, self).__init__(**kwargs)
@@ -192,8 +199,8 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         self.upload_folder = path.join(upload_folder, user)
         self.user_folder = user_folder
 
-        self.encoding = kwargs.get("encoding", "utf-8")
-        self.file_extension = kwargs.get("file_extension", "dat")
+        self.encoding = kwargs.get("encoding", DEFAULT_FILE_ENCODING)
+        self.file_extension = kwargs.get("file_extension", DEFAULT_FILE_EXTENSION)
         self.row_count = kwargs.get("row_count", self.DEFAULT_CHUNK_ROWS)
 
     def _get_filename(self, table, chunk):
