@@ -95,11 +95,11 @@ class StreamProcessor(object):
 
     def read_bytes(self, size):
         """ Reads rows from the stream until the next row would exceed the given size (in bytes) """
-        return map(self._process_row, self._read_bytes(size))
+        return list(map(self._process_row, self._read_bytes(size)))
 
     def read_rows(self, count):
         """ Reads the given number of rows from the stream """
-        return map(self._process_row, self._read_rows(count))
+        return list(map(self._process_row, self._read_rows(count)))
 
 
 class BlazingImporter(object):  # pylint: disable=too-few-public-methods
