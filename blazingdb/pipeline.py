@@ -22,7 +22,7 @@ class CreateTableStage(BaseStage):
 
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(__name__)
-        self.quiet = kwargs.get("quiet", True)
+        self.quiet = kwargs.get("quiet", False)
 
     def _create_table(self, connector, table, column_data):
         columns = ", ".join([
@@ -57,7 +57,7 @@ class DropTableStage(BaseStage):
 
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(__name__)
-        self.quiet = kwargs.get("quiet", True)
+        self.quiet = kwargs.get("quiet", False)
 
     def _drop_table(self, connector, table):
         connector.query("DROP TABLE {0}".format(table), auto_connect=True)
@@ -114,7 +114,7 @@ class TruncateTableStage(BaseStage):
 
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(__name__)
-        self.quiet = kwargs.get("quiet", True)
+        self.quiet = kwargs.get("quiet", False)
 
     def _truncate_table(self, connector, table):
         connector.query("DELETE FROM {0}".format(table), auto_connect=True)
