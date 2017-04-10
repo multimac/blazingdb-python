@@ -29,39 +29,69 @@ class StreamProcessor(object):
         fields = ["{0}{1}{0}".format(self.field_wrapper, f) for f in row]
         return self.field_terminator.join(fields) + self.line_terminator
 
+    def _build_batch(self, stop_check):
+        if self.last_row is None:
+            try:
+                self.last_row = next(self.stream)
+            except StopIteration:
+                return []
+
+        batch = []
+        while True:
+            if stop_check(self.last_row):
+                return batch
+
+            batch.append(self.last_row)
+
+            try:
+                self.last_row = next(self.stream)
+            except StopIteration:
+                return batch
+
     def _read_bytes(self, size):
         """ Reads rows from the stream until the next row would exceed the given size (in bytes) """
-        if self.last_row is None:
-            self.last_row = next(self.stream)
-
         self.logger.debug("Reading %s bytes from the stream", size)
 
         byte_count = 0
         row_count = 0
-        while True:
+        def stop_check(row):
+            nonlocal byte_count, row_count
+
             processed_row = self._process_row(self.last_row)
             raw_row = processed_row.encode(self.encoding)
 
             if byte_count + len(raw_row) > size:
-                self.logger.debug("Read %s (%s bytes) rows from the stream", row_count, byte_count)
-                break
-
-            yield self.last_row
-
-            self.last_row = next(self.stream)
+                return True
 
             byte_count += len(raw_row)
             row_count += 1
+            return False
+
+        batch = self._build_batch(stop_check)
+
+        self.logger.debug("Read %s (%s bytes) rows from the stream", row_count, byte_count)
+
+        return batch
 
     def _read_rows(self, count):
         """ Reads the given number of rows from the stream """
         self.logger.debug("Reading %s rows from the stream", count)
 
-        if self.last_row is not None:
-            stream_slice = itertools.islice(self.stream, count - 1)
-            return itertools.chain([self.last_row], stream_slice)
+        row_count = 0
+        def stop_check(row):
+            nonlocal row_count
 
-        return itertools.islice(self.stream, count)
+            if row_count >= count:
+                return True
+
+            row_count += 1
+            return False
+
+        batch = self._build_batch(stop_check)
+
+        self.logger.debug("Read %s rows from the stream", row_count)
+
+        return batch
 
     def read_bytes(self, size):
         """ Reads rows from the stream until the next row would exceed the given size (in bytes) """
@@ -121,7 +151,7 @@ class StreamImporter(BlazingImporter):  # pylint: disable=too-few-public-methods
 
         while True:
             chunk_data = processor.read_bytes(self.chunk_size)
-            if not chunk_data:
+            if len(chunk_data) == 0:
                 break
 
             self._stream_chunk(connector, chunk_data, table)
@@ -168,7 +198,7 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         counter = 0
         while True:
             chunk_data = processor.read_rows(self.row_count)
-            if not chunk_data:
+            if len(chunk_data) == 0:
                 break
 
             self._load_chunk(connector, chunk_data, table, counter)
