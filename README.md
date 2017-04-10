@@ -146,8 +146,8 @@ importer.load(connector, "table", [
 Pipeline stages are used to affect BlazingDB before/after tables have been imported.
 
 At the moment, the following pipeline stages exist:
-- CreateTableStage - Creates tables in BlazingDB before data is imported into them
-- DropTableStage - Drops existing tables in BlazingDB before data is imported into them
+- `CreateTableStage` - Creates tables in BlazingDB before data is imported into them
+- `DropTableStage` - Drops existing tables in BlazingDB before data is imported into them
 
 ---
 
