@@ -55,7 +55,7 @@ class StreamProcessor(object):
 
     def _read_bytes(self, size):
         """ Reads rows from the stream until the next row would exceed the given size (in bytes) """
-        self.logger.debug("Reading %s bytes from the stream", size)
+        self.logger.debug("Reading %s byte(s) from the stream", size)
 
         byte_count = 0
         row_count = 0
@@ -74,13 +74,13 @@ class StreamProcessor(object):
 
         batch = self._build_batch(stop_check)
 
-        self.logger.debug("Read %s (%s bytes) rows from the stream", row_count, byte_count)
+        self.logger.debug("Read %s (%s byte(s)) row(s) from the stream", row_count, byte_count)
 
         return batch
 
     def _read_rows(self, count):
         """ Reads the given number of rows from the stream """
-        self.logger.debug("Reading %s rows from the stream", count)
+        self.logger.debug("Reading %s row(s) from the stream", count)
 
         row_count = 0
         def stop_check(row):
@@ -94,7 +94,7 @@ class StreamProcessor(object):
 
         batch = self._build_batch(stop_check)
 
-        self.logger.debug("Read %s rows from the stream", row_count)
+        self.logger.debug("Read %s row(s) from the stream", row_count)
 
         return batch
 
@@ -188,7 +188,7 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         chunk_filename = self._get_file_path(table, i)
         chunk_data = "".join(data)
 
-        self.logger.info("Writing chunk file (%s bytes): %s", len(chunk_data), chunk_filename)
+        self.logger.info("Writing chunk file (%s byte(s)): %s", len(chunk_data), chunk_filename)
 
         with open(chunk_filename, "w", encoding=self.encoding) as chunk_file:
             chunk_file.write(chunk_data)
