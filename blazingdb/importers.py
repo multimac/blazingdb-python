@@ -103,10 +103,12 @@ class BlazingImporter(object):  # pylint: disable=too-few-public-methods
 class StreamImporter(BlazingImporter):  # pylint: disable=too-few-public-methods
     """ Handles the loading of data into Blazing using a stream """
 
+    DEFAULT_CHUNK_SIZE = 1048576
+
     def __init__(self, **kwargs):
         super(StreamImporter, self).__init__(**kwargs)
         self.processor_args = kwargs
-        self.chunk_size = kwargs.get("chunk_size", 1048576)
+        self.chunk_size = kwargs.get("chunk_size", self.DEFAULT_CHUNK_SIZE)
 
     def _stream_chunk(self, connector, data, table):
         """ Streams a chunk of data into Blazing """
@@ -128,6 +130,8 @@ class StreamImporter(BlazingImporter):  # pylint: disable=too-few-public-methods
 class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-methods
     """ Handles the loading of data into Blazing using flat files """
 
+    DEFAULT_CHUNK_ROWS = 100000
+
     def __init__(self, target_path, **kwargs):
         super(ChunkingImporter, self).__init__(**kwargs)
         self.logger = logging.getLogger(__name__)
@@ -137,7 +141,7 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
 
         self.encoding = kwargs.get("encoding", "utf-8")
         self.file_extension = kwargs.get("file_extension", "dat")
-        self.row_count = kwargs.get("row_count", 1000000)
+        self.row_count = kwargs.get("row_count", self.DEFAULT_CHUNK_ROWS)
 
     def _get_file_path(self, table, chunk):
         """ Generates a path for a given chunk of a table """

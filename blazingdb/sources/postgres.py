@@ -10,6 +10,8 @@ from blazingdb import sources
 class PostgresSource(sources.BaseSource):
     """ Handles connecting and retrieving data from Postgres, and loading it into BlazingDB """
 
+    FETCH_COUNT = 50000
+
     def __init__(self, connection, schema, **kwargs):
         super(PostgresSource, self).__init__()
         self.logger = logging.getLogger(__name__)
@@ -17,7 +19,7 @@ class PostgresSource(sources.BaseSource):
         self.connection = connection
         self.schema = schema
 
-        self.fetch_count = kwargs.get("fetch_count", 10000)
+        self.fetch_count = kwargs.get("fetch_count", self.FETCH_COUNT)
 
     def _strip_schema(self, table):
         """ Strips the schema from a table if it exists (schema + '_') """
