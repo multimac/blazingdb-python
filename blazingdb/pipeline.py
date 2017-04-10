@@ -17,16 +17,6 @@ class BaseStage(object):
         pass
 
 
-class PrefixTableStage(BaseStage):
-    """ Prefixes the destination tables """
-
-    def __init__(self, prefix):
-        self.prefix = prefix
-
-    def begin_import(self, source, importer, connector, data):
-        data["dest_table"] = "{0}_{1}".format(self.prefix, data["dest_table"])
-
-
 class CreateTableStage(BaseStage):
     """ Creates the destination table before importing data into BlazingDB """
 
@@ -83,3 +73,32 @@ class DropTableStage(BaseStage):
             ])
 
             self.logger.debug(message)
+
+
+class LimitImportStage(BaseStage):
+    """ Limits the number of rows imported from the source """
+
+    def __init__(self, count):
+        self.count = count
+
+    def _limit_stream(self, stream):
+        for index, row in enumerate(stream):
+            if index >= self.count:
+                break
+
+            yield row
+
+        raise StopIteration
+
+    def begin_import(self, source, importer, connector, data):
+        data["stream"] = self._limit_stream(data["stream"])
+
+
+class PrefixTableStage(BaseStage):
+    """ Prefixes the destination tables """
+
+    def __init__(self, prefix):
+        self.prefix = prefix
+
+    def begin_import(self, source, importer, connector, data):
+        data["dest_table"] = "{0}_{1}".format(self.prefix, data["dest_table"])
