@@ -57,7 +57,7 @@ class StreamProcessor(object):
         def stop_check(row):
             nonlocal byte_count, row_count
 
-            processed_row = self._process_row(self.last_row)
+            processed_row = self._process_row(row)
             raw_row = processed_row.encode(self.encoding)
 
             if byte_count + len(raw_row) > size:
