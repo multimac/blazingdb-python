@@ -24,27 +24,32 @@ class CreateTableStage(BaseStage):
         self.logger = logging.getLogger(__name__)
         self.quiet = kwargs.get("quiet", True)
 
+    def _create_table(self, connector, table, column_data):
+        columns = ", ".join([
+            "{0} {1}".format(column["name"], column["type"])
+            for column in column_data
+        ])
+
+        connector.query("CREATE TABLE {0} ({1})".format(table, columns), auto_connect=True)
+
     def begin_import(self, source, importer, connector, data):
         table = data["dest_table"]
 
-        column_data = [
-            "{0} {1}".format(column["name"], column["type"])
-            for column in source.get_columns(data["src_table"])
-        ]
-        columns = ", ".join(column_data)
+        columns = source.get_columns(data["src_table"])
 
-        self.logger.info("Creating table %s with %s column(s)", table, len(column_data))
-        self.logger.debug("Columns: %s", columns)
+        self.logger.info("Creating table %s with %s column(s)", table, len(columns))
 
         try:
-            connector.query("CREATE TABLE {0} ({1})".format(table, columns), auto_connect=True)
-        except exceptions.QueryException:
-            message = " ".join([
-                "QueryException caught when attempting to create table, assuming "
-                "this means the table has already been created"
-            ])
+            self._create_table(connector, table, columns)
+        except exceptions.QueryException as ex:
+            if not self.quiet:
+                raise
 
-            self.logger.exception(message)
+            self.logger.debug(" ".join([
+                "QueryException caught when creating table %s, ignoring as it most likely ",
+                "means the table exists"
+            ]), table)
+            self.logger.debug(ex.response)
 
 
 class DropTableStage(BaseStage):
@@ -52,27 +57,27 @@ class DropTableStage(BaseStage):
 
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(__name__)
-
-        self.only_delete = kwargs.get("only_delete", False)
         self.quiet = kwargs.get("quiet", True)
+
+    def _drop_table(self, connector, table):
+        connector.query("DROP TABLE {0}".format(table), auto_connect=True)
 
     def begin_import(self, source, importer, connector, data):
         table = data["dest_table"]
 
-        self.logger.info("Dropping table %s (only truncate: %s)", table, self.only_delete)
+        self.logger.info("Dropping table %s", table)
 
         try:
-            connector.query("DELETE FROM {0}".format(table), auto_connect=True)
+            self._drop_table(connector, table)
+        except exceptions.QueryException as ex:
+            if not self.quiet:
+                raise
 
-            if not self.only_delete:
-                connector.query("DROP TABLE {0}".format(table), auto_connect=True)
-        except exceptions.QueryException:
-            message = " ".join([
-                "QueryException caught when attempting to create table, assuming "
-                "this means the table has already been dropped"
-            ])
-
-            self.logger.exception(message)
+            self.logger.debug(" ".join([
+                "QueryException caught when dropping table %s, ignoring as it most likely ",
+                "means the table doesn't exist"
+            ]), table)
+            self.logger.debug(ex.response)
 
 
 class LimitImportStage(BaseStage):
@@ -102,3 +107,31 @@ class PrefixTableStage(BaseStage):
 
     def begin_import(self, source, importer, connector, data):
         data["dest_table"] = "{0}_{1}".format(self.prefix, data["dest_table"])
+
+
+class TruncateTableStage(BaseStage):
+    """ Drops the destination table before importing data into BlazingDB """
+
+    def __init__(self, **kwargs):
+        self.logger = logging.getLogger(__name__)
+        self.quiet = kwargs.get("quiet", True)
+
+    def _truncate_table(self, connector, table):
+        connector.query("DELETE FROM {0}".format(table), auto_connect=True)
+
+    def begin_import(self, source, importer, connector, data):
+        table = data["dest_table"]
+
+        self.logger.info("Truncating table %s", table)
+
+        try:
+            self._truncate_table(connector, table)
+        except exceptions.QueryException as ex:
+            if not self.quiet:
+                raise
+
+            self.logger.debug(" ".join([
+                "QueryException caught when truncating table %s, ignoring as it most likely ",
+                "means the table doesn't exist"
+            ]), table)
+            self.logger.debug(ex.response)
