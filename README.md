@@ -105,7 +105,6 @@ load, `ChunkingImporter` may be faster than `StreamingImporter` because it isn't
 of data at a time.
 
 ```python
-import datetime
 from blazingdb import importers
 
 importer = importers.StreamingImporter(
