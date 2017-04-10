@@ -35,7 +35,7 @@ class PostgresSource(sources.BaseSource):
             "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
         ]))
 
-        tables = ["{0}_{1}".format(self.schema, row[0]) for row in cursor.fetchall()]
+        tables = [row[0] for row in cursor.fetchall()]
 
         self.logger.debug("Retrieved %s tables from Postgres", len(tables))
 

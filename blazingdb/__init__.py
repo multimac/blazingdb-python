@@ -136,15 +136,19 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         for table in tables:
             self.logger.info("Importing table %s...", table)
 
+            import_data = {
+                "dest_table": table,
+                "src_table": table,
+                "stream": self.source.retrieve(table)
+            }
+
             for stage in self.pipeline:
-                stage.begin_import(self.source, self.importer, self.connector, table)
+                stage.begin_import(self.source, self.importer, self.connector, import_data)
 
-            stream = self.source.retrieve(table)
-
-            self.importer.load(self.connector, stream, table)
+            self.importer.load(self.connector, import_data)
 
             for stage in self.pipeline:
-                stage.end_import(self.source, self.importer, self.connector, table)
+                stage.end_import(self.source, self.importer, self.connector, import_data)
 
 
 __all__ = ["exceptions", "importers", "pipeline", "sources"]

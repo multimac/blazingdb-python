@@ -130,7 +130,7 @@ class BlazingImporter(object):  # pylint: disable=too-few-public-methods
         connector.query(query, auto_connect=True)
 
     @abc.abstractmethod
-    def load(self, connector, stream, table):
+    def load(self, connector, data):
         """ Reads from the stream and imports the data into the table of the given name """
         pass
 
@@ -150,16 +150,16 @@ class StreamImporter(BlazingImporter):  # pylint: disable=too-few-public-methods
         method = "stream '{0}'".format("".join(data))
         self._perform_request(connector, method, table)
 
-    def load(self, connector, stream, table):
+    def load(self, connector, data):
         """ Reads from the stream and imports the data into the table of the given name """
-        processor = StreamProcessor(stream, **self.processor_args)
+        processor = StreamProcessor(data["stream"], **self.processor_args)
 
         while True:
             chunk_data = processor.read_bytes(self.chunk_size)
             if len(chunk_data) == 0:
                 break
 
-            self._stream_chunk(connector, chunk_data, table)
+            self._stream_chunk(connector, chunk_data, data["dest_table"])
 
 
 class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-methods
@@ -196,9 +196,9 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         method = "infile {0}".format(chunk_filename)
         self._perform_request(connector, method, table)
 
-    def load(self, connector, stream, table):
+    def load(self, connector, data):
         """ Reads from the stream and imports the data into the table of the given name """
-        processor = StreamProcessor(stream, **self.processor_args)
+        processor = StreamProcessor(data["stream"], **self.processor_args)
 
         counter = 0
         while True:
@@ -206,6 +206,6 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
             if len(chunk_data) == 0:
                 break
 
-            self._load_chunk(connector, chunk_data, table, counter)
+            self._load_chunk(connector, chunk_data, data["dest_table"], counter)
 
             counter += 1
