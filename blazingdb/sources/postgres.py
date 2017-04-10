@@ -21,12 +21,6 @@ class PostgresSource(sources.BaseSource):
 
         self.fetch_count = kwargs.get("fetch_count", self.FETCH_COUNT)
 
-    def _strip_schema(self, table):
-        """ Strips the schema from a table if it exists (schema + '_') """
-        prefix = "{0}_".format(self.schema)
-
-        return table[len(prefix):] if table.startswith(prefix) else table
-
     def get_tables(self):
         """ Retrieves a list of the tables in this source """
         cursor = self.connection.cursor()
@@ -43,8 +37,6 @@ class PostgresSource(sources.BaseSource):
 
     def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
-        table = self._strip_schema(table)
-
         cursor = self.connection.cursor()
         cursor.execute(" ".join([
             "SELECT column_name, data_type, character_maximum_length",
@@ -63,9 +55,7 @@ class PostgresSource(sources.BaseSource):
 
     def retrieve(self, table):
         """ Retrieves data for the given table from the source """
-        table = self._strip_schema(table)
         columns = self.get_columns(table)
-
         cursor = self.connection.cursor()
         cursor.execute(" ".join([
             "SELECT {0}".format(",".join(column["name"] for column in columns)),
