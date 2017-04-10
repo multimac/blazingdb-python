@@ -199,9 +199,9 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         """ Generates a path for a given chunk of a table to be used in a query """
         filename = self._get_filename(table, chunk)
         if self.user_folder is None:
-            return path.join(self.user_folder, filename)
+            return path.join(self.upload_folder, filename)
 
-        return path.join(self.upload_folder, self.user_folder, filename)
+        return path.join(self.user_folder, filename)
 
     def _load_chunk(self, connector, data, table, i):
         """ Loads a chunk of data into Blazing """
