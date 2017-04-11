@@ -30,8 +30,8 @@ class StreamProcessor(object):
         self.field_wrapper = kwargs.get("field_wrapper", DEFAULT_FIELD_WRAPPER)
         self.line_terminator = kwargs.get("line_terminator", DEFAULT_LINE_TERMINATOR)
 
-    def _wrap_field(self, c):
-        return self.field_wrapper + c + self.field_wrapper
+    def _wrap_field(self, column):
+        return self.field_wrapper + column + self.field_wrapper
 
     def _process_column(self, column):
         if column is None:
