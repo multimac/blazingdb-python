@@ -106,19 +106,20 @@ of data at a time.
 
 ```python
 from blazingdb import importers
+from datetime import date
 
 importer = importers.StreamingImporter(
     # Configure the size of each request in bytes
-    chunk_size=1048576
+    chunk_size=1048576,
 
     # Configure the encoding to use when calculating size of rows
-    encoding="utf-8"
+    encoding="utf-8",
 
     # Configure the character to use when separating fields
-    field_terminator="|"
+    field_terminator="|",
 
     # Configure the character to use when wrapping fields
-    field_wrapper="\""
+    field_wrapper="\"",
 
     # Configure the character to use when separating rows
     line_terminator="\n"
@@ -133,9 +134,9 @@ connector = blazingdb.Connector(
 
 # Importers can load any arbitrary iterable which returns arrays
 importer.load(connector, "table", [
-    ["a", 123, "2017-4-1"],
-    ["b", 456, "1970-1-1"],
-    ["z", 789, "1999-12-31"]
+    ["a", 123, date(2017, 4, 1)],
+    ["b", 456, date(1970, 1, 1)],
+    ["z", 789, date(1999, 12, 31)]
 ])
 ```
 
