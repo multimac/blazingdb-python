@@ -13,7 +13,7 @@ after each successful query. Either call .connect() before each .query(), or pas
 'auto_connect=True' into .query().
 
 ```python
-import blazingdb
+import blazingdb.connector
 
 connector = blazingdb.Connector(
     host="localhost",
@@ -162,6 +162,7 @@ PostgreSQL (and inherently Amazon Redshift) is the only source available.
 
 ```python
 import psycopg2
+
 from blazingdb.sources import postgres
 
 source = postgres.PostgresSource(

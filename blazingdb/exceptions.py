@@ -1,5 +1,5 @@
 """
-Defines the exceptions thrown by the BlazingDB module
+Defines all the exceptions which can be thrown by the BlazingDB package
 """
 
 

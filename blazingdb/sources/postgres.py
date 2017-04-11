@@ -4,10 +4,10 @@ Defines the Postgres migrator for moving data into BlazingDB from Postgres
 
 import logging
 
-from blazingdb import sources
+from . import base
 
 
-class PostgresSource(sources.BaseSource):
+class PostgresSource(base.BaseSource):
     """ Handles connecting and retrieving data from Postgres, and loading it into BlazingDB """
 
     FETCH_COUNT = 50000

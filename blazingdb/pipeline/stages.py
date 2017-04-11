@@ -1,23 +1,19 @@
-""" Pipeline stages for use when importing into BlazingDB """
+"""
+Defines a series of pipeline stages including:
+ - CreateTableStage
+ - DropTableStage
+ - LimitImportStage
+ - PrefixTableStage
+ - TruncateTableStage
+"""
 
 import logging
 
-from blazingdb import exceptions
+from . import base
+from .. import exceptions
 
 
-class BaseStage(object):
-    """ Abstract base class for all pipeline stages """
-
-    def begin_import(self, source, importer, connector, table):
-        """ Called before data begins being piped through the pipeline """
-        pass
-
-    def end_import(self, source, importer, connector, table):
-        """ Called after before data begins being piped through the pipeline """
-        pass
-
-
-class CreateTableStage(BaseStage):
+class CreateTableStage(base.BaseStage):
     """ Creates the destination table before importing data into BlazingDB """
 
     def __init__(self, **kwargs):
@@ -52,7 +48,7 @@ class CreateTableStage(BaseStage):
             self.logger.debug(ex.response)
 
 
-class DropTableStage(BaseStage):
+class DropTableStage(base.BaseStage):
     """ Drops the destination table before importing data into BlazingDB """
 
     def __init__(self, **kwargs):
@@ -80,7 +76,7 @@ class DropTableStage(BaseStage):
             self.logger.debug(ex.response)
 
 
-class LimitImportStage(BaseStage):
+class LimitImportStage(base.BaseStage):
     """ Limits the number of rows imported from the source """
 
     def __init__(self, count):
@@ -101,7 +97,7 @@ class LimitImportStage(BaseStage):
         data["stream"] = self._limit_stream(data["stream"])
 
 
-class PrefixTableStage(BaseStage):
+class PrefixTableStage(base.BaseStage):
     """ Prefixes the destination tables """
 
     def __init__(self, prefix):
@@ -111,7 +107,7 @@ class PrefixTableStage(BaseStage):
         data["dest_table"] = "{0}_{1}".format(self.prefix, data["dest_table"])
 
 
-class TruncateTableStage(BaseStage):
+class TruncateTableStage(base.BaseStage):
     """ Drops the destination table before importing data into BlazingDB """
 
     def __init__(self, **kwargs):
