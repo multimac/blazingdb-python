@@ -6,6 +6,8 @@ loading data into BlazingDB
 import abc
 import itertools
 import logging
+import queue
+import threading
 
 from os import path
 
@@ -211,29 +213,22 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
 
         return "{0}.{1}".format(filename, self.file_extension)
 
-    def _get_file_path(self, filename):
+    def _get_file_path(self, table, chunk):
         """ Generates a path for a given chunk of a table to be used for writing chunks """
-        import_path = self._get_import_path(filename)
+        import_path = self._get_import_path(table, chunk)
         return path.join(self.upload_folder, import_path)
 
-    def _get_import_path(self, filename):
+    def _get_import_path(self, table, chunk):
         """ Generates a path for a given chunk of a table to be used in a query """
+        filename = self._get_filename(table, chunk)
         if self.user_folder is None:
             return filename
 
         return path.join(self.user_folder, filename)
 
-    def _load_chunk(self, connector, filename):
-        """ Loads a chunk of data into Blazing """
-        query_filename = self._get_import_path(filename)
-        method = "infile {0}".format(query_filename)
-
-        self.logger.info("Loading chunk %s into blazing", query_filename)
-        self._perform_request(connector, method, table)
-
-    def _write_chunk(self, data, filename):
+    def _write_chunk(self, data, table, chunk):
         """ Writes a chunk of data to disk """
-        chunk_filename = self._get_file_path(filename)
+        chunk_filename = self._get_file_path(table, chunk)
         chunk_data = "".join(data)
 
         self.logger.info("Writing chunk file (%s bytes): %s", len(chunk_data), chunk_filename)
@@ -241,19 +236,49 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         with open(chunk_filename, "w", encoding=self.encoding) as chunk_file:
             chunk_file.write(chunk_data)
 
+    def _load_chunk(self, connector, table, chunk):
+        """ Loads a chunk of data into Blazing """
+        query_filename = self._get_import_path(table, chunk)
+        method = "infile {0}".format(query_filename)
+
+        self.logger.info("Loading chunk %s into blazing", query_filename)
+        self._perform_request(connector, method, table)
+
+    def _load_chunk_loop(self, connector, queue):
+        """ Processes chunks to be loaded in the given queue """
+        self.logger.debug("Beginning chunk loading thread...")
+
+        while True:
+            filename_parts = queue.get()
+            if filename_parts is None:
+                break
+
+            self._load_chunk(connector, *filename_parts)
+
     def load(self, connector, data):
         """ Reads from the stream and imports the data into the table of the given name """
         processor = StreamProcessor(data["stream"], **self.processor_args)
 
+        load_queue = queue.Queue()
+        load_thread = threading.Thread(
+            target=self._load_chunk_loop,
+            args=(connector, load_queue)
+            daemon=False
+        )
+
         counter = 0
+        load_thread.start()
         while True:
             chunk_data = processor.read_rows(self.row_count)
             if len(chunk_data) == 0:
+                load_queue.put(None)
                 break
 
-            filename = self._get_filename(data["dest_table"], counter)
+            filename_parts = (data["dest_table"], counter)
+            self._write_chunk(chunk_data, *filename_parts)
 
-            self._write_chunk(chunk_data, filename)
-            self._load_chunk(connector, filename)
-
+            load_queue.put(filename_parts)
             counter += 1
+
+        self.logger.info("Waiting for chunk loading to complete...")
+        load_thread.join()
