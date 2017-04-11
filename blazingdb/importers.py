@@ -200,7 +200,7 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
         self.user_folder = user_folder
 
         self.encoding = kwargs.get("encoding", DEFAULT_FILE_ENCODING)
-        self.file_extension = kwargs.get("file_extension", DEFAULT_FILE_EXTENSION)
+        self.file_extension = kwargs.get("file_extension", self.DEFAULT_FILE_EXTENSION)
         self.row_count = kwargs.get("row_count", self.DEFAULT_CHUNK_ROWS)
 
     def _get_filename(self, table, chunk):
