@@ -1,4 +1,4 @@
-# BlazingDB Python Module
+# BlazingDB Python Package
 
 Contains classes for connecting to, and importing data from, BlazingDB.
 
