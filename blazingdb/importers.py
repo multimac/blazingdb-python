@@ -211,35 +211,35 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
 
         return "{0}.{1}".format(filename, self.file_extension)
 
-    def _get_file_path(self, table, chunk):
+    def _get_file_path(self, filename):
         """ Generates a path for a given chunk of a table to be used for writing chunks """
-        import_path = self._get_import_path(table, chunk)
+        import_path = self._get_import_path(filename)
         return path.join(self.upload_folder, import_path)
 
-    def _get_import_path(self, table, chunk):
+    def _get_import_path(self, filename):
         """ Generates a path for a given chunk of a table to be used in a query """
-        filename = self._get_filename(table, chunk)
         if self.user_folder is None:
             return filename
 
         return path.join(self.user_folder, filename)
 
-    def _load_chunk(self, connector, data, table, i):
+    def _load_chunk(self, connector, filename):
         """ Loads a chunk of data into Blazing """
-        chunk_filename = self._get_file_path(table, i)
-        query_filename = self._get_import_path(table, i)
+        query_filename = self._get_import_path(filename)
+        method = "infile {0}".format(query_filename)
 
+        self.logger.info("Loading chunk %s into blazing", query_filename)
+        self._perform_request(connector, method, table)
+
+    def _write_chunk(self, data, filename):
+        """ Writes a chunk of data to disk """
+        chunk_filename = self._get_file_path(filename)
         chunk_data = "".join(data)
 
         self.logger.info("Writing chunk file (%s bytes): %s", len(chunk_data), chunk_filename)
 
         with open(chunk_filename, "w", encoding=self.encoding) as chunk_file:
             chunk_file.write(chunk_data)
-
-        method = "infile {0}".format(query_filename)
-
-        self.logger.info("Loading chunk %s into blazing", query_filename)
-        self._perform_request(connector, method, table)
 
     def load(self, connector, data):
         """ Reads from the stream and imports the data into the table of the given name """
@@ -251,6 +251,9 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
             if len(chunk_data) == 0:
                 break
 
-            self._load_chunk(connector, chunk_data, data["dest_table"], counter)
+            filename = self._get_filename(data["dest_table"], counter)
+
+            self._write_chunk(chunk_data, filename)
+            self._load_chunk(connector, filename)
 
             counter += 1
