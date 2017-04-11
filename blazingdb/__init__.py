@@ -114,7 +114,6 @@ class Connector(object):
             raise exceptions.QueryException(query, None)
 
         if result["status"] == "fail":
-            self.logger.error("Query returned a status of fail")
             raise exceptions.QueryException(query, result)
 
         return result
