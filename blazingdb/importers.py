@@ -35,7 +35,7 @@ class StreamProcessor(object):
 
     def _process_column(self, column):
         if column is None:
-            return "NULL"
+            return ""
         elif isinstance(column, str):
             return self._wrap_field(column)
 
