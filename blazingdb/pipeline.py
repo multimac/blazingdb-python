@@ -84,11 +84,13 @@ class LimitImportStage(BaseStage):
     """ Limits the number of rows imported from the source """
 
     def __init__(self, count):
+        self.logger = logging.getLogger(__name__)
         self.count = count
 
     def _limit_stream(self, stream):
         for index, row in enumerate(stream):
             if index >= self.count:
+                self.logger.debug("Reached %s row limit, not returning any more rows", self.count)
                 break
 
             yield row

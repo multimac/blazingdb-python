@@ -42,7 +42,7 @@ class Connector(object):
         data = {"resultSetToken": token, "token": self.token}
         result = self._perform_request("get-results", data).json()
 
-        self.logger.debug("Discarding invalid login token...")
+        self.logger.warning("Discarding invalidated login token")
 
         # Currently /get-results invalidates the connection, so this is just to notify
         # the user to reconnect. TODO: Remove when fixed in BlazingDB
@@ -141,8 +141,10 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         elif isinstance(tables, str):
             tables = [tables]
 
-        for table in tables:
-            self.logger.info("Importing table %s...", table)
+        self.logger.info("Tables to be imported: %s", ", ".join(tables))
+
+        for i, table in enumerate(tables):
+            self.logger.info("Importing table %s of %s, %s", i, len(tables), table)
 
             import_data = {
                 "dest_table": table,

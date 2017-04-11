@@ -77,7 +77,7 @@ class StreamProcessor(object):
 
     def _read_bytes(self, size):
         """ Reads rows from the stream until the next row would exceed the given size (in bytes) """
-        self.logger.debug("Reading %s byte(s) from the stream", size)
+        self.logger.debug("Reading %s bytes from the stream", size)
 
         byte_count = 0
         row_count = 0
@@ -96,7 +96,7 @@ class StreamProcessor(object):
 
         batch = self._build_batch(stop_check)
 
-        self.logger.debug("Read %s (%s byte(s)) row(s) from the stream", row_count, byte_count)
+        self.logger.debug("Read %s row(s) (%s bytes) from the stream", row_count, byte_count)
 
         return batch
 
@@ -133,8 +133,6 @@ class BlazingImporter(object):  # pylint: disable=too-few-public-methods
     """ Handles performing requests to load data into Blazing """
 
     def __init__(self, **kwargs):
-        self.logger = logging.getLogger(__name__)
-
         self.field_terminator = kwargs.get("field_terminator", DEFAULT_FIELD_TERMINATOR)
         self.field_wrapper = kwargs.get("field_wrapper", DEFAULT_FIELD_WRAPPER)
         self.line_terminator = kwargs.get("line_terminator", DEFAULT_LINE_TERMINATOR)
@@ -148,7 +146,6 @@ class BlazingImporter(object):  # pylint: disable=too-few-public-methods
             "lines terminated by '{0}'".format(self.line_terminator)
         ])
 
-        self.logger.info("Importing rows into Blazing...")
         connector.query(query, auto_connect=True)
 
     @abc.abstractmethod
@@ -164,12 +161,16 @@ class StreamImporter(BlazingImporter):  # pylint: disable=too-few-public-methods
 
     def __init__(self, **kwargs):
         super(StreamImporter, self).__init__(**kwargs)
+        self.logger = logging.getLogger(__name__)
+
         self.processor_args = kwargs
         self.chunk_size = kwargs.get("chunk_size", self.DEFAULT_CHUNK_SIZE)
 
     def _stream_chunk(self, connector, data, table):
         """ Streams a chunk of data into Blazing """
         method = "stream '{0}'".format("".join(data))
+
+        self.logger.info("Streaming %s row(s) into %s", len(rows), table)
         self._perform_request(connector, method, table)
 
     def load(self, connector, data):
@@ -230,12 +231,14 @@ class ChunkingImporter(BlazingImporter):  # pylint: disable=too-few-public-metho
 
         chunk_data = "".join(data)
 
-        self.logger.info("Writing chunk file (%s byte(s)): %s", len(chunk_data), chunk_filename)
+        self.logger.info("Writing chunk file (%s bytes): %s", len(chunk_data), chunk_filename)
 
         with open(chunk_filename, "w", encoding=self.encoding) as chunk_file:
             chunk_file.write(chunk_data)
 
         method = "infile {0}".format(query_filename)
+
+        self.logger.info("Loading chunk %s into blazing", query_filename)
         self._perform_request(connector, method, table)
 
     def load(self, connector, data):
