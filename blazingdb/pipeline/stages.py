@@ -3,6 +3,7 @@ Defines a series of pipeline stages including:
  - CreateTableStage
  - DropTableStage
  - LimitImportStage
+ - PostImportHackStage
  - PrefixTableStage
  - TruncateTableStage
 """
@@ -101,6 +102,25 @@ class LimitImportStage(base.BaseStage):
     def begin_import(self, source, importer, connector, data):
         """ Replaces the stream with one which limits the number of rows returned """
         data["stream"] = self._limit_stream(data["stream"])
+
+
+class PostImportHackStage(base.BaseStage):
+    """ Performs a series of queries to help fix an issue with BlazingDB importing data """
+
+    def __init__(self, **kwargs):
+        self.logger = logging.getLogger(__name__)
+
+    @staticmethod
+    def _perform_post_import_queries(connector, table):
+        connector.query("POST-OPTIMIZE TABLE {0}".format(table), auto_connect=True)
+        connector.query("GENERATE SKIP-DATA FOR {0}".format(table), auto_connect=True)
+
+    def end_import(self, source, importer, connector, data):
+        """ Triggers the series of queries required to fix the issue """
+        table = data["dest_table"]
+
+        self.logger.info("Performing post-optimize on table %s", table)
+        self._perform_post_import_queries(connector, table)
 
 
 class PrefixTableStage(base.BaseStage):
