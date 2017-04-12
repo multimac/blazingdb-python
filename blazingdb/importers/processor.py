@@ -44,6 +44,7 @@ class StreamProcessor(object):
         return self.field_terminator.join(fields) + self.line_terminator
 
     def _load_row(self):
+        """ Reads a single row from the stream and sets it as self.last_row """
         if self.stream is None:
             return
 
@@ -54,6 +55,7 @@ class StreamProcessor(object):
             self.stream = None
 
     def _build_batch(self, stop_check):
+        """ Reads rows from the stream until stop_check returns True """
         if self.last_row is None:
             self._load_row()
 
@@ -73,7 +75,7 @@ class StreamProcessor(object):
 
         byte_count = 0
         row_count = 0
-        def stop_check(row):
+        def _stop_check(row):
             nonlocal byte_count, row_count
 
             processed_row = self._process_row(row)
@@ -86,7 +88,7 @@ class StreamProcessor(object):
             row_count += 1
             return False
 
-        batch = self._build_batch(stop_check)
+        batch = self._build_batch(_stop_check)
 
         self.logger.debug("Read %s row(s) (%s bytes) from the stream", row_count, byte_count)
 
@@ -97,7 +99,7 @@ class StreamProcessor(object):
         self.logger.debug("Reading %s row(s) from the stream", count)
 
         row_count = 0
-        def stop_check(row):
+        def _stop_check(row):  # pylint: disable=unused-argument
             nonlocal row_count
 
             if row_count >= count:
@@ -106,7 +108,7 @@ class StreamProcessor(object):
             row_count += 1
             return False
 
-        batch = self._build_batch(stop_check)
+        batch = self._build_batch(_stop_check)
 
         self.logger.debug("Read %s row(s) from the stream", row_count)
 

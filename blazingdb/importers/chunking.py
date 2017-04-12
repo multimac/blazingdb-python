@@ -69,12 +69,12 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         self.logger.info("Loading chunk %s into blazing", query_filename)
         self._perform_request(connector, method, table)
 
-    def _load_chunk_loop(self, connector, queue):
+    def _load_chunk_loop(self, connector, load_queue):
         """ Processes chunks to be loaded in the given queue """
         self.logger.debug("Beginning chunk loading thread...")
 
         while True:
-            filename_parts = queue.get()
+            filename_parts = load_queue.get()
             if filename_parts is None:
                 break
 
