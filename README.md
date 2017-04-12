@@ -13,7 +13,7 @@ after each successful query. Either call .connect() before each .query(), or pas
 'auto_connect=True' into .query().
 
 ```python
-import blazingdb.connector
+import blazingdb
 
 connector = blazingdb.Connector(
     host="localhost",
@@ -105,6 +105,8 @@ load, `ChunkingImporter` may be faster than `StreamingImporter` because it isn't
 of data at a time.
 
 ```python
+import blazingdb
+
 from blazingdb import importers
 from datetime import date
 
