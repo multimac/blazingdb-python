@@ -55,5 +55,5 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
             tasks.append(self._migrate_table(table))
 
         self.loop.run_until_complete(
-            asyncio.gather(tasks, loop=self.loop)
+            asyncio.gather(*tasks, loop=self.loop)
         )
