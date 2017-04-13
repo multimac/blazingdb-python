@@ -16,7 +16,7 @@ class Connector(object):
     def __init__(self, host, user, password, loop=None, **kwargs):
         self.logger = logging.getLogger(__name__)
 
-        conn = aiohttp.TCPConnector(verify_ssl=False)
+        conn = aiohttp.TCPConnector(loop=loop, verify_ssl=False)
         self.session = aiohttp.ClientSession(connector=conn, loop=loop)
 
         self.user = user
@@ -34,7 +34,7 @@ class Connector(object):
         """ Builds a url to access the given path in Blazing """
         return "{0}/blazing-jdbc/{1}".format(self.baseurl, path)
 
-    async def _perform_request(self, path, data):
+    def _perform_request(self, path, data):
         """ Performs a request against the given path in Blazing """
         url = self._build_url(path)
 
