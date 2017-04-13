@@ -16,6 +16,22 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         self.pipeline = pipeline
         self.source = source
 
+    def _migrate_table(self, table):
+        """ Imports an individual table into BlazingDB """
+        import_data = {
+            "dest_table": table,
+            "src_table": table,
+            "stream": self.source.retrieve(table)
+        }
+
+        for stage in self.pipeline:
+            stage.begin_import(self.source, self.importer, self.connector, import_data)
+
+        self.importer.load(self.connector, import_data)
+
+        for stage in self.pipeline:
+            stage.end_import(self.source, self.importer, self.connector, import_data)
+
     def migrate(self, tables=None):
         """
         Migrates the given list of tables from the source into BlazingDB. If tables is not
@@ -31,17 +47,4 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
 
         for i, table in enumerate(tables):
             self.logger.info("Importing table %s of %s, %s", i, len(tables), table)
-
-            import_data = {
-                "dest_table": table,
-                "src_table": table,
-                "stream": self.source.retrieve(table)
-            }
-
-            for stage in self.pipeline:
-                stage.begin_import(self.source, self.importer, self.connector, import_data)
-
-            self.importer.load(self.connector, import_data)
-
-            for stage in self.pipeline:
-                stage.end_import(self.source, self.importer, self.connector, import_data)
+            self._migrate_table(table)
