@@ -4,8 +4,6 @@ writing them to disk and then importing them into BlazingDB
 """
 
 import logging
-import queue
-import threading
 
 from os import path
 
@@ -61,15 +59,15 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         with open(chunk_filename, "w", encoding=self.encoding) as chunk_file:
             chunk_file.write(chunk_data)
 
-    def _load_chunk(self, connector, table, chunk):
+    async def _load_chunk(self, connector, table, chunk):
         """ Loads a chunk of data into Blazing """
         query_filename = self._get_import_path(table, chunk)
         method = "infile {0}".format(query_filename)
 
         self.logger.info("Loading chunk %s into blazing", query_filename)
-        self._perform_request(connector, method, table)
+        await self._perform_request(connector, method, table)
 
-    def _load_chunk_loop(self, connector, load_queue):
+    async def _load_chunk_loop(self, connector, load_queue):
         """ Processes chunks to be loaded in the given queue """
         self.logger.debug("Beginning chunk loading thread...")
 
@@ -78,32 +76,18 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
             if filename_parts is None:
                 break
 
-            self._load_chunk(connector, *filename_parts)
+            await self._load_chunk(connector, *filename_parts)
 
-    def load(self, connector, data):
+    async def load(self, connector, data):
         """ Reads from the stream and imports the data into the table of the given name """
         stream_processor = processor.StreamProcessor(data["stream"], **self.processor_args)
 
-        load_queue = queue.Queue()
-        load_thread = threading.Thread(
-            target=self._load_chunk_loop,
-            args=(connector, load_queue),
-            daemon=False
-        )
-
         counter = 0
-        load_thread.start()
+        table = data["dest_table"]
         while True:
             chunk_data = stream_processor.read_rows(self.row_count)
-            if len(chunk_data) == 0:
-                load_queue.put(None)
-                break
 
-            filename_parts = (data["dest_table"], counter)
-            self._write_chunk(chunk_data, *filename_parts)
+            self._write_chunk(chunk_data, table, counter)
+            await self._load_chunk(connector, table, counter)
 
-            load_queue.put(filename_parts)
             counter += 1
-
-        self.logger.info("Waiting for chunk loading to complete...")
-        load_thread.join()

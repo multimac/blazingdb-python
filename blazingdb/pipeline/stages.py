@@ -24,15 +24,15 @@ class CreateTableStage(base.BaseStage):
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod
-    def _create_table(connector, table, column_data):
+    async def _create_table(connector, table, column_data):
         columns = ", ".join([
             "{0} {1}".format(column["name"], column["type"])
             for column in column_data
         ])
 
-        connector.query("CREATE TABLE {0} ({1})".format(table, columns), auto_connect=True)
+        await connector.query("CREATE TABLE {0} ({1})".format(table, columns), auto_connect=True)
 
-    def begin_import(self, source, importer, connector, data):
+    async def begin_import(self, source, importer, connector, data):
         """ Triggers the creation of the destination table """
         columns = source.get_columns(data["src_table"])
         table = data["dest_table"]
@@ -40,7 +40,7 @@ class CreateTableStage(base.BaseStage):
         self.logger.info("Creating table %s with %s column(s)", table, len(columns))
 
         try:
-            self._create_table(connector, table, columns)
+            await self._create_table(connector, table, columns)
         except exceptions.QueryException as ex:
             if not self.quiet:
                 raise
@@ -60,17 +60,17 @@ class DropTableStage(base.BaseStage):
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod
-    def _drop_table(connector, table):
-        connector.query("DROP TABLE {0}".format(table), auto_connect=True)
+    async def _drop_table(connector, table):
+        await connector.query("DROP TABLE {0}".format(table), auto_connect=True)
 
-    def begin_import(self, source, importer, connector, data):
+    async def begin_import(self, source, importer, connector, data):
         """ Triggers the dropping of the destination table """
         table = data["dest_table"]
 
         self.logger.info("Dropping table %s", table)
 
         try:
-            self._drop_table(connector, table)
+            await self._drop_table(connector, table)
         except exceptions.QueryException as ex:
             if not self.quiet:
                 raise
@@ -99,7 +99,7 @@ class LimitImportStage(base.BaseStage):
 
         raise StopIteration
 
-    def begin_import(self, source, importer, connector, data):
+    async def begin_import(self, source, importer, connector, data):
         """ Replaces the stream with one which limits the number of rows returned """
         data["stream"] = self._limit_stream(data["stream"])
 
@@ -111,16 +111,16 @@ class PostImportHackStage(base.BaseStage):
         self.logger = logging.getLogger(__name__)
 
     @staticmethod
-    def _perform_post_import_queries(connector, table):
-        connector.query("POST-OPTIMIZE TABLE {0}".format(table), auto_connect=True)
-        connector.query("GENERATE SKIP-DATA FOR {0}".format(table), auto_connect=True)
+    async def _perform_post_import_queries(connector, table):
+        await connector.query("POST-OPTIMIZE TABLE {0}".format(table), auto_connect=True)
+        await connector.query("GENERATE SKIP-DATA FOR {0}".format(table), auto_connect=True)
 
-    def end_import(self, source, importer, connector, data):
+    async def end_import(self, source, importer, connector, data):
         """ Triggers the series of queries required to fix the issue """
         table = data["dest_table"]
 
         self.logger.info("Performing post-optimize on table %s", table)
-        self._perform_post_import_queries(connector, table)
+        await self._perform_post_import_queries(connector, table)
 
 
 class PrefixTableStage(base.BaseStage):
@@ -129,7 +129,7 @@ class PrefixTableStage(base.BaseStage):
     def __init__(self, prefix):
         self.prefix = prefix
 
-    def begin_import(self, source, importer, connector, data):
+    async def begin_import(self, source, importer, connector, data):
         """ Prefixes the destination table with the given prefix """
         data["dest_table"] = "{0}_{1}".format(self.prefix, data["dest_table"])
 
@@ -142,17 +142,17 @@ class TruncateTableStage(base.BaseStage):
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod
-    def _truncate_table(connector, table):
-        connector.query("DELETE FROM {0}".format(table), auto_connect=True)
+    async def _truncate_table(connector, table):
+        await connector.query("DELETE FROM {0}".format(table), auto_connect=True)
 
-    def begin_import(self, source, importer, connector, data):
+    async def begin_import(self, source, importer, connector, data):
         """ Triggers the truncation of the destination table """
         table = data["dest_table"]
 
         self.logger.info("Truncating table %s", table)
 
         try:
-            self._truncate_table(connector, table)
+            await self._truncate_table(connector, table)
         except exceptions.QueryException as ex:
             if not self.quiet:
                 raise

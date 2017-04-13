@@ -20,14 +20,14 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         self.processor_args = kwargs
         self.chunk_size = kwargs.get("chunk_size", self.DEFAULT_CHUNK_SIZE)
 
-    def _stream_chunk(self, connector, data, table):
+    async def _stream_chunk(self, connector, data, table):
         """ Streams a chunk of data into Blazing """
         method = "stream '{0}'".format("".join(data))
 
         self.logger.info("Streaming %s row(s) into %s", len(data), table)
-        self._perform_request(connector, method, table)
+        await self._perform_request(connector, method, table)
 
-    def load(self, connector, data):
+    async def load(self, connector, data):
         """ Reads from the stream and imports the data into the table of the given name """
         stream_processor = processor.StreamProcessor(data["stream"], **self.processor_args)
 
@@ -36,4 +36,4 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
             if len(chunk_data) == 0:
                 break
 
-            self._stream_chunk(connector, chunk_data, data["dest_table"])
+            await self._stream_chunk(connector, chunk_data, data["dest_table"])

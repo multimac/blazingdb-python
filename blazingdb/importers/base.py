@@ -17,7 +17,7 @@ class BaseImporter(object):  # pylint: disable=too-few-public-methods
         self.field_wrapper = kwargs.get("field_wrapper", DEFAULT_FIELD_WRAPPER)
         self.line_terminator = kwargs.get("line_terminator", DEFAULT_LINE_TERMINATOR)
 
-    def _perform_request(self, connector, method, table):
+    async def _perform_request(self, connector, method, table):
         """ Runs a query to load the data into Blazing using the given method """
         query = " ".join([
             "load data {0} into table {1}".format(method, table),
@@ -26,9 +26,9 @@ class BaseImporter(object):  # pylint: disable=too-few-public-methods
             "lines terminated by '{0}'".format(self.line_terminator)
         ])
 
-        connector.query(query, auto_connect=True)
+        await connector.query(query, auto_connect=True)
 
     @abc.abstractmethod
-    def load(self, connector, data):
+    async def load(self, connector, data):
         """ Reads from the stream and imports the data into the table of the given name """
         pass

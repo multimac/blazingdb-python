@@ -2,21 +2,24 @@
 Defines the Migrator class which can be used for migrating data into BlazingDB
 """
 
+import asyncio
 import logging
 
 
 class Migrator(object):  # pylint: disable=too-few-public-methods
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, connector, source, pipeline, importer):
+    def __init__(self, connector, source, pipeline, importer, loop=None):  # pylint: disable=too-many-arguments
         self.logger = logging.getLogger(__name__)
+
+        self.loop = loop if loop is not None else asyncio.get_event_loop()
 
         self.connector = connector
         self.importer = importer
         self.pipeline = pipeline
         self.source = source
 
-    def _migrate_table(self, table):
+    async def _migrate_table(self, table):
         """ Imports an individual table into BlazingDB """
         import_data = {
             "dest_table": table,
@@ -25,12 +28,12 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         }
 
         for stage in self.pipeline:
-            stage.begin_import(self.source, self.importer, self.connector, import_data)
+            await stage.begin_import(self.source, self.importer, self.connector, import_data)
 
-        self.importer.load(self.connector, import_data)
+        await self.importer.load(self.connector, import_data)
 
         for stage in self.pipeline:
-            stage.end_import(self.source, self.importer, self.connector, import_data)
+            await stage.end_import(self.source, self.importer, self.connector, import_data)
 
     def migrate(self, tables=None):
         """
@@ -45,6 +48,12 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
 
         self.logger.info("Tables to be imported: %s", ", ".join(tables))
 
+        tasks = []
         for i, table in enumerate(tables):
             self.logger.info("Importing table %s of %s, %s", i, len(tables), table)
-            self._migrate_table(table)
+
+            tasks.append(self._migrate_table(table))
+
+        self.loop.run_until_complete(
+            asyncio.wait(tasks, loop=self.loop)
+        )
