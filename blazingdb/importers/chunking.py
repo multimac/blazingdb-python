@@ -76,6 +76,9 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         while True:
             chunk_data = stream_processor.read_rows(self.row_count)
 
+            if len(chunk_data) == 0:
+                break
+
             self._write_chunk(chunk_data, table, counter)
             await self._load_chunk(connector, table, counter)
 

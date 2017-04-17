@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="blazingdb",
-    version="1.3.0.alpha6",
+    version="1.3.0.alpha7",
 
     description=" ".join([
         "Contains the relevant classes for connecting to, and",
