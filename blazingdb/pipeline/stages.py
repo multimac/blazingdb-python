@@ -107,7 +107,7 @@ class LimitImportStage(base.BaseStage):
 class PostImportHackStage(base.BaseStage):
     """ Performs a series of queries to help fix an issue with BlazingDB importing data """
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         self.logger = logging.getLogger(__name__)
 
     @staticmethod

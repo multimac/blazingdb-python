@@ -2,7 +2,6 @@
 Defines the Connector class to use when connecting to and querying BlazingDB
 """
 
-import json
 import logging
 
 import aiohttp
@@ -29,6 +28,15 @@ class Connector(object):
         port = kwargs.get("port", 8080 if protocol == "http" else 8443)
 
         self.baseurl = "{0}://{1}:{2}".format(protocol, host, port)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self):
+        self.close()
+
+    def close(self):
+        self.session.close()
 
     def _build_url(self, path):
         """ Builds a url to access the given path in Blazing """
