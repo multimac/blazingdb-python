@@ -67,17 +67,6 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         self.logger.info("Loading chunk %s into blazing", query_filename)
         await self._perform_request(connector, method, table)
 
-    async def _load_chunk_loop(self, connector, load_queue):
-        """ Processes chunks to be loaded in the given queue """
-        self.logger.debug("Beginning chunk loading thread...")
-
-        while True:
-            filename_parts = load_queue.get()
-            if filename_parts is None:
-                break
-
-            await self._load_chunk(connector, *filename_parts)
-
     async def load(self, connector, data):
         """ Reads from the stream and imports the data into the table of the given name """
         stream_processor = processor.StreamProcessor(data["stream"], **self.processor_args)
