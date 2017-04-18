@@ -31,7 +31,7 @@ class CreateTableStage(base.BaseStage):
             for column in column_data
         ])
 
-        await connector.query("CREATE TABLE {0} ({1})".format(table, columns), auto_connect=True)
+        await connector.query("CREATE TABLE {0} ({1})".format(table, columns))
 
     async def begin_import(self, data):
         """ Triggers the creation of the destination table """
@@ -63,7 +63,7 @@ class DropTableStage(base.BaseStage):
 
     @staticmethod
     async def _drop_table(connector, table):
-        await connector.query("DROP TABLE {0}".format(table), auto_connect=True)
+        await connector.query("DROP TABLE {0}".format(table))
 
     async def begin_import(self, data):
         """ Triggers the dropping of the destination table """
@@ -171,8 +171,8 @@ class PostImportHackStage(base.BaseStage):
 
     @staticmethod
     async def _perform_post_import_queries(connector, table):
-        await connector.query("POST-OPTIMIZE TABLE {0}".format(table), auto_connect=True)
-        await connector.query("GENERATE SKIP-DATA FOR {0}".format(table), auto_connect=True)
+        await connector.query("POST-OPTIMIZE TABLE {0}".format(table))
+        await connector.query("GENERATE SKIP-DATA FOR {0}".format(table))
 
     async def end_import(self, data):
         """ Triggers the series of queries required to fix the issue """
@@ -203,7 +203,7 @@ class TruncateTableStage(base.BaseStage):
 
     @staticmethod
     async def _truncate_table(connector, table):
-        await connector.query("DELETE FROM {0}".format(table), auto_connect=True)
+        await connector.query("DELETE FROM {0}".format(table))
 
     async def begin_import(self, data):
         """ Triggers the truncation of the destination table """

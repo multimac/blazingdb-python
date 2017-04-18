@@ -10,7 +10,7 @@ import aiohttp
 from . import exceptions
 
 
-class Connector(object): # pylint: disable=too-many-instance-attributes
+class Connector(object):
     """ Handles connecting and querying BlazingDB instances """
 
     DEFAULT_REQUEST_LIMIT = 5
@@ -23,7 +23,6 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
 
         self.database = kwargs.get("database")
         self.password = password
-        self.token = None
         self.user = user
 
         protocol = "https" if (kwargs.get("https", True)) else "http"
@@ -41,14 +40,8 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
 
     def close(self):
         """ Closes the given connector and cleans up the session """
-        self.session.close()
-
         self.password = None
-        self.token = None
-
-    def is_connected(self):
-        """ Determines if the connection is connected to Blazing """
-        return self.token is not None
+        self.session.close()
 
     def _build_url(self, path):
         """ Builds a url to access the given path in Blazing """
@@ -66,23 +59,15 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
             self.logger.debug("Retrieved response: %s", await response.text())
             return response
 
-    async def _perform_get_results(self, token):
+    async def _perform_get_results(self, login_token, result_token):
         """ Performs a request to retrieves the results for the given request token """
-        data = {"resultSetToken": token, "token": self.token}
+        data = {"resultSetToken": result_token, "token": login_token}
         async with await self._perform_request("get-results", data) as response:
-            result = await response.json()
+            return await response.json()
 
-        self.logger.warning("Discarding invalidated login token")
-
-        # Currently /get-results invalidates the connection, so this is just to notify
-        # the user to reconnect. TODO: Remove when fixed in BlazingDB
-        self.token = None
-
-        return result
-
-    async def _perform_query(self, query):
+    async def _perform_query(self, query, login_token):
         """ Performs a query against Blazing """
-        data = {"username": self.user, "query": query.lower(), "token": self.token}
+        data = {"username": self.user, "query": query.lower(), "token": login_token}
         async with await self._perform_request("query", data) as response:
             return await response.text()
 
@@ -92,11 +77,8 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
         async with await self._perform_request("register", data) as response:
             return await response.text()
 
-    async def connect(self):
+    async def _connect(self):
         """ Initialises the connection to Blazing """
-        if self.is_connected():
-            return
-
         try:
             token = await self._perform_register()
         except aiohttp.ClientError as ex:
@@ -106,37 +88,32 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
         if token == "fail":
             raise exceptions.ConnectionFailedException()
 
-        self.token = token
-        self.logger.debug("Retrieved login token %s", self.token)
+        self.logger.debug("Retrieved login token %s", token)
 
-        if self.database is None:
-            return
+        if self.database is not None:
+            try:
+                await self._perform_query("USE DATABASE {0}".format(self.database), token)
+            except aiohttp.ClientError as ex:
+                self.logger.exception("Failed using specified database for connection")
+                raise exceptions.RequestException(ex)
 
-        try:
-            await self._perform_query("USE DATABASE {0}".format(self.database))
-        except aiohttp.ClientError as ex:
-            self.logger.exception("Failed using specified database for connection")
-            raise exceptions.RequestException(ex)
+        return token
 
-    async def query(self, query, auto_connect=False):
+    async def query(self, query):
         """ Performs a query against Blazing """
-        if not self.is_connected():
-            if not auto_connect:
-                raise exceptions.NotConnectedException()
-
-            await self.connect()
+        login_token = await self._connect()
 
         try:
-            token = await self._perform_query(query)
+            result_token = await self._perform_query(query, login_token)
         except aiohttp.ClientError as ex:
             self.logger.exception("Failed to perform the given query")
             raise exceptions.RequestException(ex)
 
-        if token == "fail":
+        if result_token == "fail":
             raise exceptions.QueryException(query, None)
 
         try:
-            result = await self._perform_get_results(token)
+            result = await self._perform_get_results(login_token, result_token)
         except aiohttp.ClientError as ex:
             self.logger.exception("Could not retrieve results for the given query")
             raise exceptions.RequestException(ex)

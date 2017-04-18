@@ -26,7 +26,7 @@ class BaseImporter(object):  # pylint: disable=too-few-public-methods
             "lines terminated by '{0}'".format(self.line_terminator)
         ])
 
-        await connector.query(query, auto_connect=True)
+        await connector.query(query)
 
     @abc.abstractmethod
     async def load(self, connector, data):
