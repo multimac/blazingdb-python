@@ -54,7 +54,12 @@ class Connector(object):
         self.logger.debug("Performing request to BlazingDB (%s): %s", url, data)
 
         async with self.semaphore:
-            return await self.session.post(url, data=data, timeout=None)
+            response = await self.session.post(url, data=data, timeout=None)
+
+            if response.status != 200:
+                raise exceptions.RequestException(response.status, await response.text())
+
+            return response
 
     async def _perform_get_results(self, login_token, result_token):
         """ Performs a request to retrieves the results for the given request token """
@@ -78,9 +83,9 @@ class Connector(object):
         """ Initialises the connection to Blazing """
         try:
             token = await self._perform_register()
-        except aiohttp.ClientError as ex:
-            self.logger.exception("Could not log the given user in")
-            raise exceptions.RequestException(ex)
+        except:
+            self.logger.error("Could not log the given user in")
+            raise
 
         if token == "fail":
             raise exceptions.ConnectionFailedException()
@@ -90,9 +95,9 @@ class Connector(object):
         if self.database is not None:
             try:
                 await self._perform_query("USE DATABASE {0}".format(self.database), token)
-            except aiohttp.ClientError as ex:
-                self.logger.exception("Failed using specified database for connection")
-                raise exceptions.RequestException(ex)
+            except:
+                self.logger.error("Failed using specified database for connection")
+                raise
 
         return token
 
@@ -102,18 +107,18 @@ class Connector(object):
 
         try:
             result_token = await self._perform_query(query, login_token)
-        except aiohttp.ClientError as ex:
-            self.logger.exception("Failed to perform the given query")
-            raise exceptions.RequestException(ex)
+        except:
+            self.logger.error("Failed to perform the given query")
+            raise
 
         if result_token == "fail":
             raise exceptions.QueryException(query, None)
 
         try:
             result = await self._perform_get_results(login_token, result_token)
-        except aiohttp.ClientError as ex:
-            self.logger.exception("Could not retrieve results for the given query")
-            raise exceptions.RequestException(ex)
+        except:
+            self.logger.error("Could not retrieve results for the given query")
+            raise
 
         if result["status"] == "fail":
             raise exceptions.QueryException(query, result)

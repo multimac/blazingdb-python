@@ -2,6 +2,8 @@
 Defines all the exceptions which can be thrown by the BlazingDB package
 """
 
+import textwrap
+
 
 class BlazingException(Exception):
     """ Base class for all BlazingDB exceptions """
@@ -9,11 +11,6 @@ class BlazingException(Exception):
 
 class ConnectionFailedException(BlazingException):
     """ Thown when something goes wrong attempting to connect to BlazingDB """
-    pass
-
-
-class NotConnectedException(BlazingException):
-    """ Thrown when attempting to query an unconnected Connector """
     pass
 
 
@@ -33,9 +30,11 @@ class QueryException(BlazingException):
 class RequestException(BlazingException):
     """ Thrown when there is an exception caught from the requests module"""
 
-    def __init__(self, exception):
+    def __init__(self, status, response):
         super(RequestException, self).__init__()
-        self.inner_exception = exception
+        self.status = status
+        self.response = response
 
     def __str__(self):
-        return "inner_exception='{0}'".format(self.inner_exception)
+        response_message = textwrap.shorten(self.response, 100)
+        return "status='{0}', response='{1}'".format(self.status, response_message)
