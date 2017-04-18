@@ -137,9 +137,6 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
         except aiohttp.ClientError as ex:
             self.logger.exception("Could not retrieve results for the given query")
             raise exceptions.RequestException(ex)
-        except ValueError as ex:
-            self.logger.exception("Could not parse response as JSON")
-            raise exceptions.QueryException(query, None)
 
         if result["status"] == "fail":
             raise exceptions.QueryException(query, result)
