@@ -84,7 +84,7 @@ class Connector(object):
         try:
             token = await self._perform_register()
         except:
-            self.logger.error("Could not log the given user in")
+            self.logger.exception("Could not log the given user in")
             raise
 
         if token == "fail":
@@ -96,7 +96,7 @@ class Connector(object):
             try:
                 await self._perform_query("USE DATABASE {0}".format(self.database), token)
             except:
-                self.logger.error("Failed using specified database for connection")
+                self.logger.exception("Failed using specified database for connection")
                 raise
 
         return token
@@ -108,7 +108,7 @@ class Connector(object):
         try:
             result_token = await self._perform_query(query, login_token)
         except:
-            self.logger.error("Failed to perform the given query")
+            self.logger.exception("Failed to perform the given query")
             raise
 
         if result_token == "fail":
@@ -117,7 +117,7 @@ class Connector(object):
         try:
             result = await self._perform_get_results(login_token, result_token)
         except:
-            self.logger.error("Could not retrieve results for the given query")
+            self.logger.exception("Could not retrieve results for the given query")
             raise
 
         if result["status"] == "fail":
