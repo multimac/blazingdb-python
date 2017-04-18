@@ -125,7 +125,7 @@ class FilterColumnsStage(base.BaseStage):
             filtered_row = []
 
             for row_slice in slices:
-                filtered_row.append(row[row_slice])
+                filtered_row.extend(row[row_slice])
 
             yield filtered_row
 
