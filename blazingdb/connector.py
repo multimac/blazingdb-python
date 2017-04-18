@@ -57,12 +57,12 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
         self.logger.debug("Performing request to BlazingDB (%s): %s", url, data)
 
         async with self.semaphore:
-            return await self.session.post(url, data=data, timeout=None)
+            return self.session.post(url, data=data, timeout=None)
 
     async def _perform_get_results(self, token):
         """ Performs a request to retrieves the results for the given request token """
         data = {"resultSetToken": token, "token": self.token}
-        async with self._perform_request("get-results", data) as response:
+        async with await self._perform_request("get-results", data) as response:
             result = await response.json()
 
         self.logger.warning("Discarding invalidated login token")
@@ -76,13 +76,13 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
     async def _perform_query(self, query):
         """ Performs a query against Blazing """
         data = {"username": self.user, "query": query.lower(), "token": self.token}
-        async with self._perform_request("query", data) as response:
+        async with await self._perform_request("query", data) as response:
             return await response.text()
 
     async def _perform_register(self):
         """ Performs a register request against Blazing, logging the user in """
         data = {"username": self.user, "password": self.password}
-        async with self._perform_request("register", data) as response:
+        async with await self._perform_request("register", data) as response:
             return await response.text()
 
     def is_connected(self):
