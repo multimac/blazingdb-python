@@ -2,6 +2,7 @@
 Defines a series of pipeline stages including:
  - CreateTableStage
  - DropTableStage
+ - FilterColumnsStage
  - LimitImportStage
  - PostImportHackStage
  - PrefixTableStage
