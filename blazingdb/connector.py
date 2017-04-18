@@ -57,7 +57,10 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
         self.logger.debug("Performing request to BlazingDB (%s): %s", url, data)
 
         async with self.semaphore:
-            return self.session.post(url, data=data, timeout=None)
+            response = await self.session.post(url, data=data, timeout=None)
+
+            self.logger.debug("Retrieved response: %s", response.text())
+            return response
 
     async def _perform_get_results(self, token):
         """ Performs a request to retrieves the results for the given request token """
