@@ -94,6 +94,9 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
 
     async def connect(self):
         """ Initialises the connection to Blazing """
+        if self.is_connected():
+            return
+
         try:
             token = await self._perform_register()
         except aiohttp.ClientError as ex:
