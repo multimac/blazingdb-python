@@ -34,6 +34,8 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         }
 
         async with self.semaphore:
+            self.logger.info("Importing table %s...", table)
+
             for stage in self.pipeline:
                 await stage.begin_import(import_data)
 
@@ -57,8 +59,6 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
 
         tasks = []
         for i, table in enumerate(tables):
-            self.logger.info("Importing table %s of %s, %s", i, len(tables), table)
-
             tasks.append(self._migrate_table(table))
 
         self.loop.run_until_complete(
