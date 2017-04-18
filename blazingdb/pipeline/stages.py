@@ -99,35 +99,33 @@ class FilterColumnsStage(base.BaseStage):
             ", ".join(ignored_columns)
         )
 
-        segments = []
-        current_segment = None
+        current_start = None
+        slices = []
 
         for index, column in enumerate(columns):
             if column["name"] not in ignored_columns:
-                if current_segment is None:
-                    current_segment = {"start": index, "end": None}
-                    segments.append(current_segment)
+                if current_start is None:
+                    current_start = index
 
                 continue
 
-            if current_segment is not None:
-                current_segment["end"] = index
-                current_segment = None
+            if current_start is not None:
+                slices.append(slice(current_start, index))
+                current_start = None
+
+        if current_start is not None:
+            slices.append(slice(current_start, None))
 
         self.logger.debug(
-            "Generated row segments %s for table %s",
-            ", ".join(["{start}:{end}".format(**s) for s in segments]),
-            table
+            "Generated %s row segments for table %s",
+            len(slices), table
         )
 
         for row in stream:
             filtered_row = []
 
-            for segment in segments:
-                start = segment["start"]
-                end = segment["end"]
-
-                filtered_row.append(row[start:end])
+            for row_slice in slices:
+                filtered_row.append(row[row_slice])
 
             yield filtered_row
 
