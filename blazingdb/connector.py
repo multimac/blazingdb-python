@@ -54,10 +54,7 @@ class Connector(object):
         self.logger.debug("Performing request to BlazingDB (%s): %s", url, data)
 
         async with self.semaphore:
-            response = await self.session.post(url, data=data, timeout=None)
-
-            self.logger.debug("Retrieved response: %s", await response.text())
-            return response
+            return await self.session.post(url, data=data, timeout=None)
 
     async def _perform_get_results(self, login_token, result_token):
         """ Performs a request to retrieves the results for the given request token """
