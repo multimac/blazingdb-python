@@ -44,6 +44,8 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
             for stage in self.pipeline:
                 await stage.end_import(import_data)
 
+            self.logger.info("Successfully imported table %s", table)
+
     def migrate(self, tables=None):
         """
         Migrates the given list of tables from the source into BlazingDB. If tables is not
@@ -58,7 +60,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         self.logger.info("Tables to be imported: %s", ", ".join(tables))
 
         tasks = []
-        for i, table in enumerate(tables):
+        for table in tables:
             tasks.append(self._migrate_table(table))
 
         self.loop.run_until_complete(
