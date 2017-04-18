@@ -9,10 +9,11 @@ import logging
 class Migrator(object):  # pylint: disable=too-few-public-methods
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, connector, source, pipeline, importer, loop=None):  # pylint: disable=too-many-arguments
+    def __init__(self, connector, source, pipeline, importer, loop=None, import_limit=5):  # pylint: disable=too-many-arguments
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop if loop is not None else asyncio.get_event_loop()
+        self.semaphore = asyncio.BoundedSemaphore(import_limit)
 
         self.connector = connector
         self.importer = importer
@@ -32,13 +33,14 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
             "src_table": table
         }
 
-        for stage in self.pipeline:
-            await stage.begin_import(import_data)
+        async with self.semaphore:
+            for stage in self.pipeline:
+                await stage.begin_import(import_data)
 
-        await self.importer.load(self.connector, import_data)
+            await self.importer.load(self.connector, import_data)
 
-        for stage in self.pipeline:
-            await stage.end_import(import_data)
+            for stage in self.pipeline:
+                await stage.end_import(import_data)
 
     def migrate(self, tables=None):
         """
