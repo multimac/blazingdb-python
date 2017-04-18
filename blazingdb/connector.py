@@ -2,6 +2,7 @@
 Defines the Connector class to use when connecting to and querying BlazingDB
 """
 
+import asyncio
 import logging
 
 import aiohttp
@@ -9,8 +10,10 @@ import aiohttp
 from . import exceptions
 
 
-class Connector(object):
+class Connector(object): # pylint: disable=too-many-instance-attributes
     """ Handles connecting and querying BlazingDB instances """
+
+    DEFAULT_REQUEST_LIMIT = 5
 
     def __init__(self, host, user, password, loop=None, **kwargs):
         self.logger = logging.getLogger(__name__)
@@ -18,16 +21,17 @@ class Connector(object):
         conn = aiohttp.TCPConnector(loop=loop, verify_ssl=False)
         self.session = aiohttp.ClientSession(connector=conn, loop=loop)
 
-        self.user = user
-        self.password = password
-
         self.database = kwargs.get("database")
+        self.password = password
         self.token = None
+        self.user = user
 
         protocol = "https" if (kwargs.get("https", True)) else "http"
         port = kwargs.get("port", 8080 if protocol == "http" else 8443)
+        request_limit = kwargs.get("request_limit", self.DEFAULT_REQUEST_LIMIT)
 
         self.baseurl = "{0}://{1}:{2}".format(protocol, host, port)
+        self.semaphore = asyncio.BoundedSemaphore(request_limit)
 
     def __enter__(self):
         return self
@@ -46,13 +50,14 @@ class Connector(object):
         """ Builds a url to access the given path in Blazing """
         return "{0}/blazing-jdbc/{1}".format(self.baseurl, path)
 
-    def _perform_request(self, path, data):
+    async def _perform_request(self, path, data):
         """ Performs a request against the given path in Blazing """
         url = self._build_url(path)
 
         self.logger.debug("Performing request to BlazingDB (%s): %s", url, data)
 
-        return self.session.post(url, data=data, timeout=None)
+        async with self.semaphore:
+            return await self.session.post(url, data=data, timeout=None)
 
     async def _perform_get_results(self, token):
         """ Performs a request to retrieves the results for the given request token """
