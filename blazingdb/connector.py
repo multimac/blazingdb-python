@@ -46,6 +46,10 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
         self.password = None
         self.token = None
 
+    def is_connected(self):
+        """ Determines if the connection is connected to Blazing """
+        return self.token is not None
+
     def _build_url(self, path):
         """ Builds a url to access the given path in Blazing """
         return "{0}/blazing-jdbc/{1}".format(self.baseurl, path)
@@ -87,10 +91,6 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
         data = {"username": self.user, "password": self.password}
         async with await self._perform_request("register", data) as response:
             return await response.text()
-
-    def is_connected(self):
-        """ Determines if the connection is connected to Blazing """
-        return self.token is not None
 
     async def connect(self):
         """ Initialises the connection to Blazing """
