@@ -14,7 +14,7 @@ from . import base
 from .. import exceptions
 
 
-# pragma pylint: disable=too-few-public-methods, unused-argument
+# pragma pylint: disable=too-few-public-methods
 
 class CreateTableStage(base.BaseStage):
     """ Creates the destination table before importing data into BlazingDB """
@@ -32,9 +32,10 @@ class CreateTableStage(base.BaseStage):
 
         await connector.query("CREATE TABLE {0} ({1})".format(table, columns), auto_connect=True)
 
-    async def begin_import(self, source, importer, connector, data):
+    async def begin_import(self, data):
         """ Triggers the creation of the destination table """
-        columns = source.get_columns(data["src_table"])
+        connector = data["connector"]
+        columns = data["columns"]
         table = data["dest_table"]
 
         self.logger.info("Creating table %s with %s column(s)", table, len(columns))
@@ -63,8 +64,9 @@ class DropTableStage(base.BaseStage):
     async def _drop_table(connector, table):
         await connector.query("DROP TABLE {0}".format(table), auto_connect=True)
 
-    async def begin_import(self, source, importer, connector, data):
+    async def begin_import(self, data):
         """ Triggers the dropping of the destination table """
+        connector = data["connector"]
         table = data["dest_table"]
 
         self.logger.info("Dropping table %s", table)
@@ -89,15 +91,8 @@ class FilterColumnsStage(base.BaseStage):
         self.logger = logging.getLogger(__name__)
         self.tables = tables
 
-    def _filter_stream(self, source, table, stream):
+    def _filter_stream(self, columns, table, stream):
         ignored_columns = self.tables.get(table, [])
-        columns = source.get_columns(table)
-
-        self.logger.info(
-            "Filtering %s columns from %s (%s)",
-            len(ignored_columns), table,
-            ", ".join(ignored_columns)
-        )
 
         current_start = None
         slices = []
@@ -130,9 +125,19 @@ class FilterColumnsStage(base.BaseStage):
             yield filtered_row
 
 
-    async def begin_import(self, source, importer, connector, data):
+    async def begin_import(self, data):
         """ Replaces the stream with one which filters the columns """
-        data["stream"] = self._filter_stream(source, data["src_table"], data["stream"])
+        ignored_columns = self.tables.get(data["src_table"], [])
+
+        self.logger.info(
+            "Filtering %s columns from %s%s", len(ignored_columns), data["src_table"],
+            " ({0})".format(", ".join(ignored_columns)) if len(ignored_columns) != 0 else ""
+        )
+
+        data["stream"] = self._filter_stream(data["columns"], data["src_table"], data["stream"])
+
+        filter_column = lambda col: col["name"] not in ignored_columns
+        data["columns"] = list(filter(filter_column, data["columns"]))
 
 
 class LimitImportStage(base.BaseStage):
@@ -152,7 +157,7 @@ class LimitImportStage(base.BaseStage):
 
         raise StopIteration
 
-    async def begin_import(self, source, importer, connector, data):
+    async def begin_import(self, data):
         """ Replaces the stream with one which limits the number of rows returned """
         data["stream"] = self._limit_stream(data["stream"])
 
@@ -168,8 +173,9 @@ class PostImportHackStage(base.BaseStage):
         await connector.query("POST-OPTIMIZE TABLE {0}".format(table), auto_connect=True)
         await connector.query("GENERATE SKIP-DATA FOR {0}".format(table), auto_connect=True)
 
-    async def end_import(self, source, importer, connector, data):
+    async def end_import(self, data):
         """ Triggers the series of queries required to fix the issue """
+        connector = data["connector"]
         table = data["dest_table"]
 
         self.logger.info("Performing post-optimize on table %s", table)
@@ -182,7 +188,7 @@ class PrefixTableStage(base.BaseStage):
     def __init__(self, prefix):
         self.prefix = prefix
 
-    async def begin_import(self, source, importer, connector, data):
+    async def begin_import(self, data):
         """ Prefixes the destination table with the given prefix """
         data["dest_table"] = "{0}_{1}".format(self.prefix, data["dest_table"])
 
@@ -198,8 +204,9 @@ class TruncateTableStage(base.BaseStage):
     async def _truncate_table(connector, table):
         await connector.query("DELETE FROM {0}".format(table), auto_connect=True)
 
-    async def begin_import(self, source, importer, connector, data):
+    async def begin_import(self, data):
         """ Triggers the truncation of the destination table """
+        connector = data["connector"]
         table = data["dest_table"]
 
         self.logger.info("Truncating table %s", table)

@@ -22,18 +22,23 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
     async def _migrate_table(self, table):
         """ Imports an individual table into BlazingDB """
         import_data = {
+            "connector": self.connector,
+            "importer": self.importer,
+            "source": self.source,
+            "stream": self.source.retrieve(table),
+
+            "columns": self.source.get_columns(table),
             "dest_table": table,
-            "src_table": table,
-            "stream": self.source.retrieve(table)
+            "src_table": table
         }
 
         for stage in self.pipeline:
-            await stage.begin_import(self.source, self.importer, self.connector, import_data)
+            await stage.begin_import(import_data)
 
         await self.importer.load(self.connector, import_data)
 
         for stage in self.pipeline:
-            await stage.end_import(self.source, self.importer, self.connector, import_data)
+            await stage.end_import(import_data)
 
     def migrate(self, tables=None):
         """
