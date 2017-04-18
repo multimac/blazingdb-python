@@ -59,7 +59,7 @@ class Connector(object): # pylint: disable=too-many-instance-attributes
         async with self.semaphore:
             response = await self.session.post(url, data=data, timeout=None)
 
-            self.logger.debug("Retrieved response: %s", response.text())
+            self.logger.debug("Retrieved response: %s", await response.text())
             return response
 
     async def _perform_get_results(self, token):
