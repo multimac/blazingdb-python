@@ -76,7 +76,10 @@ importer = importers.ChunkingImporter(
 
 # Create the migrator using all the pieces above
 migrator = blazingdb.Migrator(
-    connector, source, stages, importer
+    connector, source, stages, importer,
+
+    # Set max tables to import concurrently
+    import_limit=5
 )
 
 # Import all tables into BlazingDB
