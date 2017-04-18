@@ -32,11 +32,15 @@ class Connector(object):
     def __enter__(self):
         return self
 
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
     def close(self):
+        """ Closes the given connector and cleans up the session """
         self.session.close()
+
+        self.password = None
+        self.token = None
 
     def _build_url(self, path):
         """ Builds a url to access the given path in Blazing """
