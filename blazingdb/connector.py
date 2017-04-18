@@ -52,7 +52,7 @@ class Connector(object):
 
         self.logger.debug("Performing request to BlazingDB (%s): %s", url, data)
 
-        return self.session.post(url, data=data)
+        return self.session.post(url, data=data, timeout=None)
 
     async def _perform_get_results(self, token):
         """ Performs a request to retrieves the results for the given request token """
