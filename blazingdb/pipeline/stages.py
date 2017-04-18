@@ -82,6 +82,61 @@ class DropTableStage(base.BaseStage):
             self.logger.debug(ex.response)
 
 
+class FilterColumnsStage(base.BaseStage):
+    """ Filters the given columns from the imported data """
+
+    def __init__(self, tables):
+        self.logger = logging.getLogger(__name__)
+        self.tables = tables
+
+    def _filter_stream(self, source, table, stream):
+        ignored_columns = self.tables.get(table, [])
+        columns = source.get_columns(table)
+
+        self.logger.info(
+            "Filtering %s columns from %s (%s)",
+            len(ignored_columns), table,
+            ", ".join(ignored_columns)
+        )
+
+        segments = []
+        current_segment = None
+
+        for index, column in enumerate(columns):
+            if column["name"] not in ignored_columns:
+                if current_segment is None:
+                    current_segment = {"start": index, "end": None}
+                    segments.append(current_segment)
+
+                continue
+
+            if current_segment is not None:
+                current_segment["end"] = index
+                current_segment = None
+
+        self.logger.debug(
+            "Generated row segments %s for table %s",
+            ", ".join(["{start}:{end}".format(**s) for s in segments]),
+            table
+        )
+
+        for row in stream:
+            filtered_row = []
+
+            for segment in segments:
+                start = segment["start"]
+                end = segment["end"]
+
+                filtered_row.append(row[start:end])
+
+            yield filtered_row
+
+
+    async def begin_import(self, source, importer, connector, data):
+        """ Replaces the stream with one which filters the columns """
+        data["stream"] = self._filter_stream(source, data["src_table"], data["stream"])
+
+
 class LimitImportStage(base.BaseStage):
     """ Limits the number of rows imported from the source """
 
