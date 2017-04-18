@@ -13,7 +13,7 @@ from . import base, processor
 class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-methods
     """ Handles the loading of data into Blazing using flat files """
 
-    DEFAULT_CHUNK_ROWS = 100000
+    DEFAULT_CHUNK_ROWS = 1500000
     DEFAULT_FILE_EXTENSION = "dat"
 
     def __init__(self, upload_folder, user, user_folder, **kwargs):
