@@ -77,7 +77,7 @@ class CustomQueryStage(base.BaseStage):
     async def _perform_query(self, data):
         connector = data["connector"]
         formatted_query = self.query.format(
-            table = data["dest_table"]
+            table=data["dest_table"]
         )
 
         results = await connector.query(formatted_query)
