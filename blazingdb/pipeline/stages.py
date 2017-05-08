@@ -1,6 +1,7 @@
 """
 Defines a series of pipeline stages including:
  - CreateTableStage
+ - CustomQueryStage
  - DropTableStage
  - FilterColumnsStage
  - LimitImportStage

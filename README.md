@@ -146,6 +146,7 @@ Pipeline stages are used to affect BlazingDB before/after tables have been impor
 
 At the moment, the following pipeline stages exist:
 - `CreateTableStage` - Creates tables in BlazingDB before data is imported into them
+- `CustomQueryStage` - Runs a custom SQL query against BlazingDB before or after a table is imported
 - `DropTableStage` - Drops existing tables in BlazingDB before data is imported into them
 - `FilterColumnsStage` - Filters a given set of columns from the imported data
 - `LimitImportStage` - Only imports the given number of rows, ignoring any remaining
