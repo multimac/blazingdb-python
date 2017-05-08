@@ -9,7 +9,10 @@ Defines a series of pipeline stages including:
  - TruncateTableStage
 """
 
+import json
 import logging
+
+import flags
 
 from . import base
 from .. import exceptions
@@ -52,6 +55,53 @@ class CreateTableStage(base.BaseStage):
                 "means the table exists"
             ]), table)
             self.logger.debug(ex.response)
+
+
+class CustomQueryStage(base.BaseStage):
+    """ Performs a query against BlazingDB and outputs the results to the log """
+
+    class When(flags.Flags):
+        """ Defines the stages at which a custom query can be executed """
+
+        never = 0
+        before = 1
+        after = 2
+        both = 3
+
+    def __init__(self, query, **kwargs):
+        self.logger = logging.getLogger(__name__)
+
+        self.query = query
+
+        self.quiet = kwargs.get("quiet", False)
+        self.when = kwargs.get("when", CustomQueryStage.When.never)
+
+    async def _perform_query(self, data):
+        connector = data["connector"]
+        formatted_query = self.query.format({
+            "table": data["dest_table"]
+        })
+
+        results = await connector.query(formatted_query)
+
+        self.logger.debug(
+            "Reults for custom query stage: %s",
+            json.dumps(results)
+        )
+
+    async def begin_import(self, data):
+        """ Triggers the query if it should be run before the table is imported """
+        if CustomQueryStage.When.before not in self.when:
+            return
+
+        await self._perform_query(data)
+
+    async def end_import(self, data):
+        """ Triggers the query if it should be run before the table is imported """
+        if CustomQueryStage.When.after not in self.when:
+            return
+
+        await self._perform_query(data)
 
 
 class DropTableStage(base.BaseStage):
