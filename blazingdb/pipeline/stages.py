@@ -63,10 +63,8 @@ class CustomQueryStage(base.BaseStage):
     class When(flags.Flags):
         """ Defines the stages at which a custom query can be executed """
 
-        never = 0
-        before = 1
-        after = 2
-        both = 3
+        before = ()
+        after = ()
 
     def __init__(self, query, **kwargs):
         self.logger = logging.getLogger(__name__)
@@ -74,7 +72,7 @@ class CustomQueryStage(base.BaseStage):
         self.query = query
 
         self.quiet = kwargs.get("quiet", False)
-        self.when = kwargs.get("when", CustomQueryStage.When.never)
+        self.when = kwargs.get("when", CustomQueryStage.When.before)
 
     async def _perform_query(self, data):
         connector = data["connector"]
