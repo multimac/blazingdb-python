@@ -240,7 +240,7 @@ class PrefixTableStage(base.BaseStage):
 
     async def begin_import(self, data):
         """ Prefixes the destination table with the given prefix """
-        data["dest_table"] = "{0}_{1}".format(self.prefix, data["dest_table"])
+        data["dest_table"] = "{0}${1}".format(self.prefix, data["dest_table"])
 
 
 class TruncateTableStage(base.BaseStage):
