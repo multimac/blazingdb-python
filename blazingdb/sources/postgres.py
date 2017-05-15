@@ -10,6 +10,7 @@ from . import base
 class PostgresSource(base.BaseSource):
     """ Handles connecting and retrieving data from Postgres, and loading it into BlazingDB """
 
+    CURSOR_NAME = __name__
     FETCH_COUNT = 50000
 
     def __init__(self, connection, schema, **kwargs):
@@ -21,15 +22,21 @@ class PostgresSource(base.BaseSource):
 
         self.fetch_count = kwargs.get("fetch_count", self.FETCH_COUNT)
 
+    def _create_cursor(self):
+        cursor = self.connection.cursor(self.CURSOR_NAME)
+        cursor.itersize = self.fetch_count
+
+        return cursor
+
     def get_tables(self):
         """ Retrieves a list of the tables in this source """
-        cursor = self.connection.cursor()
-        cursor.execute(" ".join([
-            "SELECT DISTINCT table_name FROM information_schema.tables",
-            "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
-        ]))
+        with self._create_cursor() as cursor:
+            cursor.execute(" ".join([
+                "SELECT DISTINCT table_name FROM information_schema.tables",
+                "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
+            ]))
 
-        tables = [row[0] for row in cursor.fetchall()]
+            tables = [row[0] for row in cursor.fetchall()]
 
         self.logger.debug("Retrieved %s tables from Postgres", len(tables))
 
@@ -37,17 +44,17 @@ class PostgresSource(base.BaseSource):
 
     def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
-        cursor = self.connection.cursor()
-        cursor.execute(" ".join([
-            "SELECT column_name, data_type, character_maximum_length",
-            "FROM information_schema.columns",
-            "WHERE table_schema = '{0}' AND table_name = '{1}'".format(self.schema, table)
-        ]))
+        with self._create_cursor() as cursor:
+            cursor.execute(" ".join([
+                "SELECT column_name, data_type, character_maximum_length",
+                "FROM information_schema.columns",
+                "WHERE table_schema = '{0}' AND table_name = '{1}'".format(self.schema, table)
+            ]))
 
-        columns = []
-        for row in cursor.fetchall():
-            datatype = convert_datatype(row[1], row[2])
-            columns.append({"name": row[0], "type": datatype})
+            columns = []
+            for row in cursor.fetchall():
+                datatype = convert_datatype(row[1], row[2])
+                columns.append({"name": row[0], "type": datatype})
 
         self.logger.debug("Retrieved %s columns for table %s from Postgres", len(columns), table)
 
@@ -56,21 +63,23 @@ class PostgresSource(base.BaseSource):
     def retrieve(self, table):
         """ Retrieves data for the given table from the source """
         columns = self.get_columns(table)
-        cursor = self.connection.cursor()
-        cursor.execute(" ".join([
-            "SELECT {0}".format(",".join(column["name"] for column in columns)),
-            "FROM {0}.{1}".format(self.schema, table)
-        ]))
 
-        while True:
-            chunk = cursor.fetchmany(self.fetch_count)
-            if len(chunk) == 0:
-                raise StopIteration
+        with self._create_cursor() as cursor:
+            cursor.execute(" ".join([
+                "SELECT {0}".format(",".join(column["name"] for column in columns)),
+                "FROM {0}.{1}".format(self.schema, table)
+            ]))
 
-            self.logger.debug("Retrieved chunk of %s rows from Postgres", len(chunk))
+            while True:
+                chunk = cursor.fetchmany(self.fetch_count)
 
-            for row in chunk:
-                yield row
+                self.logger.debug("Retrieved chunk of %s rows from Postgres", len(chunk))
+
+                if len(chunk) == 0:
+                    raise StopIteration
+
+                for row in chunk:
+                    yield row
 
 
 DATATYPE_MAP = {
