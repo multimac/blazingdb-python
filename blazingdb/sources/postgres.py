@@ -22,6 +22,16 @@ class PostgresSource(base.BaseSource):
 
         self.fetch_count = kwargs.get("fetch_count", self.FETCH_COUNT)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def close(self):
+        """ Closes the given source and cleans up the connection """
+        self.connection.close()
+
     def _create_cursor(self):
         cursor = self.connection.cursor(self.CURSOR_NAME)
         cursor.itersize = self.fetch_count
