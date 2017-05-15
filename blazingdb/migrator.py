@@ -49,7 +49,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
     async def _safe_migrate_table(self, table):
         """ Imports an individual table into BlazingDB, but handles exceptions if they occur """
         try:
-            self._migrate_table(table)
+            await self._migrate_table(table)
         except Exception:  # pylint: disable=broad-except
             self.logger.exception("Failed to import table %s", table)
 
