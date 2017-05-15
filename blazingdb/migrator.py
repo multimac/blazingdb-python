@@ -46,11 +46,23 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
 
             self.logger.info("Successfully imported table %s", table)
 
-    def migrate(self, tables=None):
+    async def _safe_migrate_table(self, table):
+        """ Imports an individual table into BlazingDB, but handles exceptions if they occur """
+        try:
+            self._migrate_table(table)
+        except Exception:  # pylint: disable=broad-except
+            self.logger.exception("Failed to import table %s", table)
+
+    def migrate(self, tables=None, **kwargs):
         """
         Migrates the given list of tables from the source into BlazingDB. If tables is not
         specified, all tables in the source are migrated
         """
+
+        if kwargs.get("continue_on_error", False):
+            migrate = self._safe_migrate_table
+        else:
+            migrate = self._migrate_table
 
         if tables is None:
             tables = self.source.get_tables()
@@ -61,7 +73,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
 
         tasks = []
         for table in tables:
-            tasks.append(self._migrate_table(table))
+            tasks.append(migrate(table))
 
         self.loop.run_until_complete(
             asyncio.gather(*tasks, loop=self.loop)
