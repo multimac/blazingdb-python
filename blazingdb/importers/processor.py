@@ -59,15 +59,12 @@ class StreamProcessor(object):
         if self.last_row is None:
             self._load_row()
 
-        batch = []
         while self.last_row is not None:
             if stop_check(self.last_row):
                 break
 
-            batch.append(self.last_row)
+            yield self.last_row
             self._load_row()
-
-        return batch
 
     def _read_bytes(self, size):
         """ Reads rows from the stream until the next row would exceed the given size (in bytes) """
@@ -88,11 +85,9 @@ class StreamProcessor(object):
             row_count += 1
             return False
 
-        batch = self._build_batch(_stop_check)
+        yield from self._build_batch(_stop_check)
 
         self.logger.debug("Read %s row(s) (%s bytes) from the stream", row_count, byte_count)
-
-        return batch
 
     def _read_rows(self, count):
         """ Reads the given number of rows from the stream """
@@ -108,16 +103,14 @@ class StreamProcessor(object):
             row_count += 1
             return False
 
-        batch = self._build_batch(_stop_check)
+        yield from self._build_batch(_stop_check)
 
         self.logger.debug("Read %s row(s) from the stream", row_count)
 
-        return batch
-
     def read_bytes(self, size):
         """ Reads rows from the stream until the next row would exceed the given size (in bytes) """
-        return list(map(self._process_row, self._read_bytes(size)))
+        return map(self._process_row, self._read_bytes(size))
 
     def read_rows(self, count):
         """ Reads the given number of rows from the stream """
-        return list(map(self._process_row, self._read_rows(count)))
+        return map(self._process_row, self._read_rows(count))

@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="blazingdb",
-    version="1.3.0.beta3.dev2",
+    version="1.3.0.beta3.dev3",
 
     description=" ".join([
         "Contains the relevant classes for connecting to, and",
@@ -21,5 +21,5 @@ setup(
     ],
 
     packages=find_packages(),
-    install_requires=["aiohttp", "py-flags"]
+    install_requires=["aiofiles", "aiohttp", "py-flags"]
 )

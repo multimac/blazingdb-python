@@ -31,9 +31,5 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         """ Reads from the stream and imports the data into the table of the given name """
         stream_processor = processor.StreamProcessor(data["stream"], **self.processor_args)
 
-        while True:
-            chunk_data = stream_processor.read_bytes(self.chunk_size)
-            if len(chunk_data) == 0:
-                break
-
+        for chunk_data in stream_processor.read_bytes(self.chunk_size):
             await self._stream_chunk(connector, chunk_data, data["dest_table"])
