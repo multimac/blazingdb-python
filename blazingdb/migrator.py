@@ -72,9 +72,9 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         if kwargs.get("retry_handler", None) is not None:
             migrate = partial(self._safe_migrate_table, kwargs.get("retry_handler"))
         elif kwargs.get("continue_on_error", False):
-            migrate = partial(self._safe_migrate_table, lambda ex: False)
+            migrate = partial(self._safe_migrate_table, lambda table, ex: False)
         else:
-            def raise_exception(ex):
+            def raise_exception(table, ex):
                 raise exceptions.MigrateException() from ex
 
             migrate = partial(self._safe_migrate_table, raise_exception)
