@@ -33,7 +33,7 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
 
         while True:
             try:
-                chunk_data = stream_processor.read_rows(self.row_count)
+                chunk_data = stream_processor.read_bytes(self.chunk_size)
             except StopIteration:
                 break
 
