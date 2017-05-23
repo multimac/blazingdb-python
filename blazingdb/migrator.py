@@ -74,7 +74,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         elif kwargs.get("continue_on_error", False):
             migrate = partial(self._safe_migrate_table, lambda table, ex: False)
         else:
-            def raise_exception(table, ex):
+            def raise_exception(table, ex):  # pylint: disable=unused-argument
                 raise exceptions.MigrateException() from ex
 
             migrate = partial(self._safe_migrate_table, raise_exception)
