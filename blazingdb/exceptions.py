@@ -9,6 +9,11 @@ class BlazingException(Exception):
     """ Base class for all BlazingDB exceptions """
 
 
+class MigrateException(Exception):
+    """ Thrown when an exception occurs when migrating a table """
+    pass
+
+
 class ConnectionFailedException(BlazingException):
     """ Thown when something goes wrong attempting to connect to BlazingDB """
     pass

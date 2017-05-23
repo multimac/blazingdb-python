@@ -6,6 +6,8 @@ import asyncio
 import logging
 from functools import partial
 
+from . import exceptions
+
 
 class Migrator(object):  # pylint: disable=too-few-public-methods
     """ Handles migrating data from a source into BlazingDB """
@@ -72,7 +74,10 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         elif kwargs.get("continue_on_error", False):
             migrate = partial(self._safe_migrate_table, lambda ex: False)
         else:
-            migrate = self._migrate_table
+            def raise_exception(ex):
+                raise exceptions.MigrateException() from ex
+
+            migrate = partial(self._safe_migrate_table, raise_exception)
 
         if tables is None:
             tables = self.source.get_tables()
