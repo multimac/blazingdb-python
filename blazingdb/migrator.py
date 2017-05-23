@@ -12,11 +12,11 @@ from . import exceptions
 class Migrator(object):  # pylint: disable=too-few-public-methods
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, connector, source, pipeline, importer, loop=None, import_limit=5):  # pylint: disable=too-many-arguments
+    def __init__(self, connector, source, pipeline, importer, loop=None, **kwargs):  # pylint: disable=too-many-arguments
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop if loop is not None else asyncio.get_event_loop()
-        self.semaphore = asyncio.BoundedSemaphore(import_limit)
+        self.semaphore = asyncio.BoundedSemaphore(kwargs.get("import_limit", 5))
 
         self.connector = connector
         self.importer = importer
