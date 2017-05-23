@@ -55,10 +55,7 @@ class StreamProcessor(object):
         if self.last_row is None:
             self._load_row()
 
-        while True:
-            if stop_check(self.last_row):
-                raise StopIteration()
-
+        while not stop_check(self.last_row):
             yield self.last_row
             self._load_row()
 
