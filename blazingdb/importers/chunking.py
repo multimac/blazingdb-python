@@ -14,21 +14,32 @@ from . import base, processor
 class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-methods
     """ Handles the loading of data into Blazing using flat files """
 
+    DEFAULT_BUFFER_SIZE = 52428800
     DEFAULT_CHUNK_ROWS = 1500000
     DEFAULT_FILE_EXTENSION = "dat"
 
-    def __init__(self, upload_folder, user, user_folder, **kwargs):
+    def __init__(self, upload_folder, user, user_folder, loop=None, **kwargs):
         super(ChunkingImporter, self).__init__(**kwargs)
         self.logger = logging.getLogger(__name__)
 
+        self.loop = loop
         self.processor_args = kwargs
 
         self.upload_folder = path.join(upload_folder, user)
         self.user_folder = user_folder
 
+        self.buffer_size = kwargs.get("buffer_size", self.DEFAULT_BUFFER_SIZE)
         self.encoding = kwargs.get("encoding", base.DEFAULT_FILE_ENCODING)
         self.file_extension = kwargs.get("file_extension", self.DEFAULT_FILE_EXTENSION)
         self.row_count = kwargs.get("row_count", self.DEFAULT_CHUNK_ROWS)
+
+    def _open_file(self, filename):
+        return aiofiles.open(
+            filename, "w",
+            buffering=self.buffer_size,
+            encoding=self.encoding,
+            loop=self.loop
+        )
 
     def _get_filename(self, table, chunk):
         filename = "{0}_{1}".format(table, chunk)
@@ -56,7 +67,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
         self.logger.info("Writing chunk file: %s", chunk_filename)
 
-        async with aiofiles.open(chunk_filename, "w", encoding=self.encoding) as chunk_file:
+        async with self._open_file(chunk_filename) as chunk_file:
             await chunk_file.writelines(data)
 
             self.logger.debug("Wrote %s bytes", await chunk_file.tell())
