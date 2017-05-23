@@ -11,10 +11,10 @@ import aiofiles
 from . import base, processor
 
 
-class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-methods
+class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
     """ Handles the loading of data into Blazing using flat files """
 
-    DEFAULT_BUFFER_SIZE = 52428800
+    DEFAULT_BUFFER_SIZE = -1
     DEFAULT_CHUNK_ROWS = 1500000
     DEFAULT_FILE_EXTENSION = "dat"
 
