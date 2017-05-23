@@ -46,22 +46,18 @@ class StreamProcessor(object):
     def _load_row(self):
         """ Reads a single row from the stream and sets it as self.last_row """
         if self.stream is None:
-            return
+            raise StopIteration()
 
-        try:
-            self.last_row = next(self.stream)
-        except StopIteration:
-            self.last_row = None
-            self.stream = None
+        self.last_row = next(self.stream)
 
     def _build_batch(self, stop_check):
         """ Reads rows from the stream until stop_check returns True """
         if self.last_row is None:
             self._load_row()
 
-        while self.last_row is not None:
+        while True:
             if stop_check(self.last_row):
-                break
+                raise StopIteration()
 
             yield self.last_row
             self._load_row()
@@ -94,7 +90,7 @@ class StreamProcessor(object):
         self.logger.debug("Reading %s row(s) from the stream", count)
 
         row_count = 0
-        def _stop_check(row):  # pylint: disable=unused-argument
+        def _stop_check(_):
             nonlocal row_count
 
             if row_count >= count:

@@ -59,7 +59,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         async with aiofiles.open(chunk_filename, "w", encoding=self.encoding) as chunk_file:
             await chunk_file.writelines(data)
 
-            self.logger.debug("Wrote %s bytes", chunk_file.tell())
+            self.logger.debug("Wrote %s bytes", await chunk_file.tell())
 
     async def _load_chunk(self, connector, table, chunk):
         """ Loads a chunk of data into Blazing """
@@ -76,7 +76,11 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         counter = 0
         table = data["dest_table"]
 
-        for chunk_data in stream_processor.read_rows(self.row_count):
+        while True:
+            try:
+                chunk_data = stream_processor.read_rows(self.row_count)
+            except StopIteration:
+                break
 
             await self._write_chunk(chunk_data, table, counter)
             await self._load_chunk(connector, table, counter)

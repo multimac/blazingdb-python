@@ -88,8 +88,7 @@ class PostgresSource(base.BaseSource):
                 if len(chunk) == 0:
                     raise StopIteration
 
-                for row in chunk:
-                    yield row
+                yield from chunk
 
 
 DATATYPE_MAP = {
