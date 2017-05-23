@@ -4,6 +4,7 @@ Defines the Migrator class which can be used for migrating data into BlazingDB
 
 import asyncio
 import logging
+from functools import partial
 
 
 class Migrator(object):  # pylint: disable=too-few-public-methods
@@ -46,12 +47,19 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
 
             self.logger.info("Successfully imported table %s", table)
 
-    async def _safe_migrate_table(self, table):
+    async def _safe_migrate_table(self, retry_handler, table):
         """ Imports an individual table into BlazingDB, but handles exceptions if they occur """
-        try:
-            await self._migrate_table(table)
-        except Exception:  # pylint: disable=broad-except
-            self.logger.exception("Failed to import table %s", table)
+
+        async_handler = asyncio.coroutine(retry_handler)
+        while True:
+            try:
+                await self._migrate_table(table)
+                return
+            except Exception as ex:  # pylint: disable=broad-except
+                self.logger.exception("Failed to import table %s", table)
+
+                if not await async_handler(table, ex):
+                    return
 
     def migrate(self, tables=None, **kwargs):
         """
@@ -59,8 +67,10 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         specified, all tables in the source are migrated
         """
 
-        if kwargs.get("continue_on_error", False):
-            migrate = self._safe_migrate_table
+        if kwargs.get("retry_handler", None) is not None:
+            migrate = partial(self._safe_migrate_table, kwargs.get("retry_handler"))
+        elif kwargs.get("continue_on_error", False):
+            migrate = partial(self._safe_migrate_table, lambda ex: False)
         else:
             migrate = self._migrate_table
 
