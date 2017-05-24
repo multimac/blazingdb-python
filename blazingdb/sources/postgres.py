@@ -38,11 +38,12 @@ class PostgresSource(base.BaseSource):
 
         return cursor
 
-    def _process_results(self, cursor):
+    def _process_results(self, cursor, quiet=True):
         while True:
             chunk = cursor.fetchmany(self.fetch_count)
 
-            self.logger.debug("Retrieved chunk of %s rows from Postgres", len(chunk))
+            if not quiet:
+                self.logger.debug("Retrieved chunk of %s rows from Postgres", len(chunk))
 
             if len(chunk) == 0:
                 raise StopIteration
@@ -91,7 +92,7 @@ class PostgresSource(base.BaseSource):
                 "FROM {0}.{1}".format(self.schema, table)
             ]))
 
-            yield from self._process_results(cursor)
+            yield from self._process_results(cursor, quiet=False)
 
 
 DATATYPE_MAP = {
