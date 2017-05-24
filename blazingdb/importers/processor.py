@@ -6,6 +6,7 @@ can be imported into BlazingDB
 import logging
 
 from . import base
+from ..util import timer
 
 
 class StreamProcessor(object):
@@ -70,6 +71,13 @@ class StreamProcessor(object):
 
         byte_count = 0
         row_count = 0
+        def _log_progress():
+            nonlocal row_count
+            self.logger.debug(
+                "Read %s of %s bytes (%s rows) from the stream",
+                byte_count, size, row_count
+            )
+
         def _stop_check(row):
             nonlocal byte_count, row_count
 
@@ -83,7 +91,8 @@ class StreamProcessor(object):
             row_count += 1
             return False
 
-        yield from self._build_batch(_stop_check)
+        with timer.RepeatedTimer(10, _log_progress):
+            yield from self._build_batch(_stop_check)
 
         self.logger.debug("Read %s row(s) (%s bytes) from the stream", row_count, byte_count)
 
@@ -92,6 +101,13 @@ class StreamProcessor(object):
         self.logger.debug("Reading %s row(s) from the stream", count)
 
         row_count = 0
+        def _log_progress():
+            nonlocal row_count
+            self.logger.debug(
+                "Read %s of %s rows from the stream",
+                row_count, count
+            )
+
         def _stop_check(_):
             nonlocal row_count
 
@@ -101,7 +117,8 @@ class StreamProcessor(object):
             row_count += 1
             return False
 
-        yield from self._build_batch(_stop_check)
+        with timer.RepeatedTimer(10, _log_progress):
+            yield from self._build_batch(_stop_check)
 
         self.logger.debug("Read %s row(s) from the stream", row_count)
 
