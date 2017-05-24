@@ -9,7 +9,7 @@ DEFAULT_FIELD_TERMINATOR = "|"
 DEFAULT_FIELD_WRAPPER = "\""
 DEFAULT_LINE_TERMINATOR = "\n"
 
-class BaseImporter(object):  # pylint: disable=too-few-public-methods
+class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-public-methods
     """ Handles performing requests to load data into Blazing """
 
     def __init__(self, **kwargs):
