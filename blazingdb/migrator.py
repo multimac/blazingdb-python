@@ -25,43 +25,42 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
 
     async def _migrate_table(self, table):
         """ Imports an individual table into BlazingDB """
-        async with self.semaphore:
-            self.logger.info("Importing table %s...", table)
+        self.logger.info("Importing table %s...", table)
 
-            import_data = {
-                "connector": self.connector,
-                "importer": self.importer,
-                "source": self.source,
-                "stream": self.source.retrieve(table),
+        import_data = {
+            "connector": self.connector,
+            "importer": self.importer,
+            "source": self.source,
+            "stream": self.source.retrieve(table),
 
-                "columns": self.source.get_columns(table),
-                "dest_table": table,
-                "src_table": table
-            }
+            "columns": self.source.get_columns(table),
+            "dest_table": table,
+            "src_table": table
+        }
 
-            for stage in self.pipeline:
-                await stage.begin_import(import_data)
+        for stage in self.pipeline:
+            await stage.begin_import(import_data)
 
-            await self.importer.load(import_data)
+        await self.importer.load(import_data)
 
-            for stage in self.pipeline:
-                await stage.end_import(import_data)
+        for stage in self.pipeline:
+            await stage.end_import(import_data)
 
-            self.logger.info("Successfully imported table %s", table)
+        self.logger.info("Successfully imported table %s", table)
 
     async def _safe_migrate_table(self, retry_handler, table):
         """ Imports an individual table into BlazingDB, but handles exceptions if they occur """
 
-        async_handler = asyncio.coroutine(retry_handler)
         while True:
-            try:
-                await self._migrate_table(table)
-                return
-            except Exception as ex:  # pylint: disable=broad-except
-                self.logger.exception("Failed to import table %s", table)
-
-                if not await async_handler(table, ex):
+            async with self.semaphore:
+                try:
+                    await self._migrate_table(table)
                     return
+                except Exception as ex:  # pylint: disable=broad-except
+                    self.logger.exception("Failed to import table %s", table)
+
+                    if not await retry_handler(table, ex):
+                        return
 
     def migrate(self, tables=None, **kwargs):
         """
