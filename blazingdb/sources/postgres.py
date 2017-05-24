@@ -38,6 +38,17 @@ class PostgresSource(base.BaseSource):
 
         return cursor
 
+    def _process_results(self, cursor):
+        while True:
+            chunk = cursor.fetchmany(self.fetch_count)
+
+            self.logger.debug("Retrieved chunk of %s rows from Postgres", len(chunk))
+
+            if len(chunk) == 0:
+                raise StopIteration
+
+            yield from chunk
+
     def get_tables(self):
         """ Retrieves a list of the tables in this source """
         with self._create_cursor() as cursor:
@@ -46,7 +57,7 @@ class PostgresSource(base.BaseSource):
                 "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
             ]))
 
-            tables = [row[0] for row in cursor.fetchall()]
+            tables = [row[0] for row in self._process_results(cursor)]
 
         self.logger.debug("Retrieved %s tables from Postgres", len(tables))
 
@@ -62,7 +73,7 @@ class PostgresSource(base.BaseSource):
             ]))
 
             columns = []
-            for row in cursor.fetchall():
+            for row in self._process_results(cursor):
                 datatype = convert_datatype(row[1], row[2])
                 columns.append({"name": row[0], "type": datatype})
 
@@ -80,15 +91,7 @@ class PostgresSource(base.BaseSource):
                 "FROM {0}.{1}".format(self.schema, table)
             ]))
 
-            while True:
-                chunk = cursor.fetchmany(self.fetch_count)
-
-                self.logger.debug("Retrieved chunk of %s rows from Postgres", len(chunk))
-
-                if len(chunk) == 0:
-                    raise StopIteration
-
-                yield from chunk
+            yield from self._process_results(cursor)
 
 
 DATATYPE_MAP = {
