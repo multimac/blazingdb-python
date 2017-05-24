@@ -15,6 +15,6 @@ class SkipImporter(base.BaseImporter):  # pylint: disable=too-few-public-methods
         super(SkipImporter, self).__init__(**kwargs)
         self.logger = logging.getLogger(__name__)
 
-    async def load(self, connector, data):
+    async def load(self, data):
         """ Logs out which table would have been imported int Blazing """
         self.logger.info("Skipping import of table %s", data["dest_table"])

@@ -42,7 +42,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
             for stage in self.pipeline:
                 await stage.begin_import(import_data)
 
-            await self.importer.load(self.connector, import_data)
+            await self.importer.load(import_data)
 
             for stage in self.pipeline:
                 await stage.end_import(import_data)

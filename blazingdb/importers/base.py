@@ -29,6 +29,6 @@ class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pu
         await connector.query(query)
 
     @abc.abstractmethod
-    async def load(self, connector, data):
+    async def load(self, data):
         """ Reads from the stream and imports the data into the table of the given name """
         pass

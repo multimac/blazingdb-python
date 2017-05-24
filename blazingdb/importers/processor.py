@@ -41,10 +41,14 @@ class StreamProcessor(object):
     def _process_row(self, row):
         """ Processes a row of data into it a string to be loaded into Blazing """
         fields = map(self._process_column, row)
-        return self.field_terminator.join(fields) + self.line_terminator
+        line = self.field_terminator.join(fields)
+
+        return line + self.line_terminator
 
     def _load_row(self):
         """ Reads a single row from the stream and sets it as self.last_row """
+        self.last_row = None
+
         if self.stream is None:
             raise StopIteration()
 
@@ -55,8 +59,9 @@ class StreamProcessor(object):
         if self.last_row is None:
             self._load_row()
 
-        while self.last_row is not None and not stop_check(self.last_row):
+        while not stop_check(self.last_row):
             yield self.last_row
+
             self._load_row()
 
     def _read_bytes(self, size):
@@ -100,10 +105,20 @@ class StreamProcessor(object):
 
         self.logger.debug("Read %s row(s) from the stream", row_count)
 
-    def read_bytes(self, size):
+    def batch_bytes(self, size):
         """ Reads rows from the stream until the next row would exceed the given size (in bytes) """
-        return map(self._process_row, self._read_bytes(size))
+        while True:
+            batch = self._read_bytes(size)
+            yield map(self._process_row, batch)
 
-    def read_rows(self, count):
+            if self.last_row is None:
+                break
+
+    def batch_rows(self, count):
         """ Reads the given number of rows from the stream """
-        return map(self._process_row, self._read_rows(count))
+        while True:
+            batch = self._read_rows(count)
+            yield map(self._process_row, batch)
+
+            if self.last_row is None:
+                break

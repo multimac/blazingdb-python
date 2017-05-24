@@ -77,7 +77,10 @@ class Connector(object):
         """ Performs a register request against Blazing, logging the user in """
         data = {"username": self.user, "password": self.password}
         async with await self._perform_request("register", data) as response:
-            return await response.text()
+            response_text = await response.text()
+
+            response.close()
+            return response_text
 
     async def _connect(self):
         """ Initialises the connection to Blazing """

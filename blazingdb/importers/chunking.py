@@ -61,16 +61,14 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
         return path.join(self.user_folder, filename)
 
-    async def _write_chunk(self, data, table, chunk):
+    async def _write_chunk(self, chunk, table, index):
         """ Writes a chunk of data to disk """
-        chunk_filename = self._get_file_path(table, chunk)
+        chunk_filename = self._get_file_path(table, index)
 
         self.logger.info("Writing chunk file: %s", chunk_filename)
 
         async with self._open_file(chunk_filename) as chunk_file:
-            await chunk_file.writelines(data)
-
-            self.logger.debug("Wrote %s bytes", await chunk_file.tell())
+            await chunk_file.writelines(chunk)
 
     async def _load_chunk(self, connector, table, chunk):
         """ Loads a chunk of data into Blazing """
@@ -80,20 +78,16 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         self.logger.info("Loading chunk %s into blazing", query_filename)
         await self._perform_request(connector, method, table)
 
-    async def load(self, connector, data):
+    async def load(self, data):
         """ Reads from the stream and imports the data into the table of the given name """
         stream_processor = processor.StreamProcessor(data["stream"], **self.processor_args)
 
         counter = 0
+        connector = data["connector"]
         table = data["dest_table"]
 
-        while True:
-            try:
-                chunk_data = stream_processor.read_rows(self.row_count)
-            except StopIteration:
-                break
-
-            await self._write_chunk(chunk_data, table, counter)
+        for chunk in stream_processor.batch_rows(self.row_count):
+            await self._write_chunk(chunk, table, counter)
             await self._load_chunk(connector, table, counter)
 
             counter += 1
