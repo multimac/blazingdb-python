@@ -9,8 +9,10 @@ from . import base
 from ..util import timer
 
 
-class StreamProcessor(object):
+class StreamProcessor(object):  # pylint: disable=too-many-instance-attributes
     """ Processes a stream of data into rows BlazingDB can import """
+
+    DEFAULT_LOG_INTERVAL = 10
 
     def __init__(self, stream, **kwargs):
         self.logger = logging.getLogger(__name__)
@@ -22,6 +24,8 @@ class StreamProcessor(object):
         self.field_terminator = kwargs.get("field_terminator", base.DEFAULT_FIELD_TERMINATOR)
         self.field_wrapper = kwargs.get("field_wrapper", base.DEFAULT_FIELD_WRAPPER)
         self.line_terminator = kwargs.get("line_terminator", base.DEFAULT_LINE_TERMINATOR)
+
+        self.log_interval = kwargs.get("log_interval", self.DEFAULT_LOG_INTERVAL)
 
     def _wrap_field(self, column):
         return self.field_wrapper + column + self.field_wrapper
@@ -117,7 +121,7 @@ class StreamProcessor(object):
             row_count += 1
             return False
 
-        with timer.RepeatedTimer(10, _log_progress):
+        with timer.RepeatedTimer(self.log_interval, _log_progress):
             yield from self._build_batch(_stop_check)
 
         self.logger.debug("Read %s row(s) from the stream", row_count)
