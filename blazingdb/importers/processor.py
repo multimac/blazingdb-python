@@ -75,12 +75,20 @@ class StreamProcessor(object):  # pylint: disable=too-many-instance-attributes
 
         byte_count = 0
         row_count = 0
+
+        last_count = -1
         def _log_progress():
-            nonlocal row_count
+            nonlocal row_count, last_count
+
+            if row_count == last_count:
+                return
+
             self.logger.debug(
                 "Read %s of %s bytes (%s rows) from the stream",
                 byte_count, size, row_count
             )
+
+            last_count = row_count
 
         def _stop_check(row):
             nonlocal byte_count, row_count
@@ -105,12 +113,19 @@ class StreamProcessor(object):  # pylint: disable=too-many-instance-attributes
         self.logger.debug("Reading %s row(s) from the stream", count)
 
         row_count = 0
+        last_count = -1
         def _log_progress():
-            nonlocal row_count
+            nonlocal row_count, last_count
+
+            if row_count == last_count:
+                return
+
             self.logger.debug(
                 "Read %s of %s rows from the stream",
                 row_count, count
             )
+
+            last_count = row_count
 
         def _stop_check(_):
             nonlocal row_count
