@@ -83,7 +83,7 @@ class StreamProcessor(object):  # pylint: disable=too-many-instance-attributes
             if row_count == last_count:
                 return
 
-            self.logger.debug(
+            self.logger.info(
                 "Read %s of %s bytes (%s rows) from the stream",
                 byte_count, size, row_count
             )
@@ -106,7 +106,7 @@ class StreamProcessor(object):  # pylint: disable=too-many-instance-attributes
         with timer.RepeatedTimer(10, _log_progress):
             yield from self._build_batch(_stop_check)
 
-        self.logger.debug("Read %s row(s) (%s bytes) from the stream", row_count, byte_count)
+        self.logger.info("Read %s row(s) (%s bytes) from the stream", row_count, byte_count)
 
     def _read_rows(self, count):
         """ Reads the given number of rows from the stream """
@@ -120,7 +120,7 @@ class StreamProcessor(object):  # pylint: disable=too-many-instance-attributes
             if row_count == last_count:
                 return
 
-            self.logger.debug(
+            self.logger.info(
                 "Read %s of %s rows from the stream",
                 row_count, count
             )
@@ -139,7 +139,7 @@ class StreamProcessor(object):  # pylint: disable=too-many-instance-attributes
         with timer.RepeatedTimer(self.log_interval, _log_progress):
             yield from self._build_batch(_stop_check)
 
-        self.logger.debug("Read %s row(s) from the stream", row_count)
+        self.logger.info("Read %s row(s) from the stream", row_count)
 
     def batch_bytes(self, size):
         """ Reads rows from the stream until the next row would exceed the given size (in bytes) """
