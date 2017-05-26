@@ -14,7 +14,7 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
     DEFAULT_CHUNK_SIZE = 1048576
 
     def __init__(self, **kwargs):
-        super(StreamImporter, self).__init__(**kwargs)
+        super(StreamImporter, self).__init__(loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.processor_args = kwargs

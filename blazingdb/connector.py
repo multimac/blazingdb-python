@@ -47,40 +47,36 @@ class Connector(object):
         """ Builds a url to access the given path in Blazing """
         return "{0}/blazing-jdbc/{1}".format(self.baseurl, path)
 
-    async def _perform_request(self, path, data):
+    async def _perform_request(self, path, data, callback):
         """ Performs a request against the given path in Blazing """
         url = self._build_url(path)
 
         self.logger.debug("Performing request to BlazingDB (%s): %s", url, data)
 
         async with self.semaphore:
-            response = await self.session.post(url, data=data, timeout=None)
+            async with self.session.post(url, data=data, timeout=None) as response:
+                if response.status != 200:
+                    raise exceptions.RequestException(response.status, await response.text())
 
-            if response.status != 200:
-                raise exceptions.RequestException(response.status, await response.text())
+                result = await callback(response)
 
-            return response
+                response.close()
+                return result
 
     async def _perform_get_results(self, login_token, result_token):
         """ Performs a request to retrieves the results for the given request token """
         data = {"resultSetToken": result_token, "token": login_token}
-        async with await self._perform_request("get-results", data) as response:
-            return await response.json()
+        return await self._perform_request("get-results", data, lambda r: r.json())
 
     async def _perform_query(self, query, login_token):
         """ Performs a query against Blazing """
         data = {"username": self.user, "query": query.lower(), "token": login_token}
-        async with await self._perform_request("query", data) as response:
-            return await response.text()
+        return await self._perform_request("query", data, lambda r: r.text())
 
     async def _perform_register(self):
         """ Performs a register request against Blazing, logging the user in """
         data = {"username": self.user, "password": self.password}
-        async with await self._perform_request("register", data) as response:
-            response_text = await response.text()
-
-            response.close()
-            return response_text
+        return await self._perform_request("register", data, lambda r: r.text())
 
     async def _connect(self):
         """ Initialises the connection to Blazing """

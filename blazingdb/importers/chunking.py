@@ -19,7 +19,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
     DEFAULT_FILE_EXTENSION = "dat"
 
     def __init__(self, upload_folder, user, user_folder, loop=None, **kwargs):
-        super(ChunkingImporter, self).__init__(**kwargs)
+        super(ChunkingImporter, self).__init__(loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop
@@ -35,10 +35,8 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
     def _open_file(self, filename):
         return aiofiles.open(
-            filename, "w",
-            buffering=self.buffer_size,
-            encoding=self.encoding,
-            loop=self.loop
+            filename, "w", buffering=self.buffer_size,
+            encoding=self.encoding, loop=self.loop
         )
 
     def _get_filename(self, table, chunk):

@@ -3,6 +3,7 @@ Defines the base importer class for loading data into BlazingDB
 """
 
 import abc
+import async_timeout
 
 DEFAULT_FILE_ENCODING = "utf-8"
 DEFAULT_FIELD_TERMINATOR = "|"
@@ -12,10 +13,14 @@ DEFAULT_LINE_TERMINATOR = "\n"
 class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-public-methods
     """ Handles performing requests to load data into Blazing """
 
-    def __init__(self, **kwargs):
+    def __init__(self, loop=None, **kwargs):
+        self.loop = loop
+
         self.field_terminator = kwargs.get("field_terminator", DEFAULT_FIELD_TERMINATOR)
         self.field_wrapper = kwargs.get("field_wrapper", DEFAULT_FIELD_WRAPPER)
         self.line_terminator = kwargs.get("line_terminator", DEFAULT_LINE_TERMINATOR)
+
+        self.timeout = kwargs.get("timeout", None)
 
     async def _perform_request(self, connector, method, table):
         """ Runs a query to load the data into Blazing using the given method """
@@ -26,7 +31,8 @@ class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pu
             "lines terminated by '{0}'".format(self.line_terminator)
         ])
 
-        await connector.query(query)
+        with async_timeout.timeout(self.timeout, loop=self.loop):
+            await connector.query(query)
 
     @abc.abstractmethod
     async def load(self, data):

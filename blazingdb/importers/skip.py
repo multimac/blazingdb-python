@@ -12,7 +12,7 @@ class SkipImporter(base.BaseImporter):  # pylint: disable=too-few-public-methods
     """ Skips importing any data into Blazing """
 
     def __init__(self, **kwargs):
-        super(SkipImporter, self).__init__(**kwargs)
+        super(SkipImporter, self).__init__()
         self.logger = logging.getLogger(__name__)
 
     async def load(self, data):
