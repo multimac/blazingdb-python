@@ -3,6 +3,7 @@ Defines the Migrator class which can be used for migrating data into BlazingDB
 """
 
 import asyncio
+import fnmatch
 import logging
 from functools import partial
 
@@ -22,6 +23,24 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         self.importer = importer
         self.pipeline = pipeline
         self.source = source
+
+    def _retrieve_tables(self, included_tables, excluded_tables):
+        source_tables = self.source.get_tables()
+        migrate_tables = set()
+
+        if included_tables is not None:
+            for pattern in included_tables:
+                matches = fnmatch.filter(source_tables, pattern)
+                migrate_tables.update(matches)
+        else:
+            migrate_tables.update(source_tables)
+
+        if excluded_tables is not None:
+            for pattern in excluded_tables:
+                matches = fnmatch.filter(migrate_tables, pattern)
+                migrate_tables.difference_update(matches)
+
+        return migrate_tables
 
     async def _migrate_table(self, table):
         """ Imports an individual table into BlazingDB """
@@ -62,7 +81,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
                     if not await retry_handler(table, ex):
                         return
 
-    def migrate(self, tables=None, **kwargs):
+    def migrate(self, included_tables=None, excluded_tables=None, **kwargs):
         """
         Migrates the given list of tables from the source into BlazingDB. If tables is not
         specified, all tables in the source are migrated
@@ -78,17 +97,11 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
 
             migrate = partial(self._safe_migrate_table, raise_exception)
 
-        if tables is None:
-            tables = self.source.get_tables()
-        elif isinstance(tables, str):
-            tables = [tables]
+        tables = self._retrieve_tables(included_tables, excluded_tables)
 
         self.logger.info("Tables to be imported: %s", ", ".join(tables))
 
-        tasks = []
-        for table in tables:
-            tasks.append(migrate(table))
+        tasks = [migrate(table) for table in tables]
+        gather_task = asyncio.gather(*tasks, loop=self.loop)
 
-        self.loop.run_until_complete(
-            asyncio.gather(*tasks, loop=self.loop)
-        )
+        self.loop.run_until_complete(gather_task)
