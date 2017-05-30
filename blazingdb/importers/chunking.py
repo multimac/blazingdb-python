@@ -28,10 +28,12 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         self.upload_folder = path.join(upload_folder, user)
         self.user_folder = user_folder
 
-        self.buffer_size = kwargs.get("buffer_size", self.DEFAULT_BUFFER_SIZE)
         self.encoding = kwargs.get("encoding", base.DEFAULT_FILE_ENCODING)
         self.file_extension = kwargs.get("file_extension", self.DEFAULT_FILE_EXTENSION)
         self.row_count = kwargs.get("row_count", self.DEFAULT_CHUNK_ROWS)
+
+        self.buffer_size = kwargs.get("buffer_size", self.DEFAULT_BUFFER_SIZE)
+        self.ignore_skipdata = kwargs.get("ignore_skipdata", False)
 
     def _open_file(self, filename):
         return aiofiles.open(
@@ -71,7 +73,9 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
     async def _load_chunk(self, connector, table, chunk):
         """ Loads a chunk of data into Blazing """
         query_filename = self._get_import_path(table, chunk)
-        method = "infile {0}".format(query_filename)
+
+        style = "infile" if not self.ignore_skipdata else "infilenoskip"
+        method = "{0} {1}".format(style, query_filename)
 
         self.logger.info("Loading chunk %s into blazing", query_filename)
         await self._perform_request(connector, method, table)
