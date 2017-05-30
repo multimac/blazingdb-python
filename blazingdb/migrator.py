@@ -62,7 +62,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
 
         await self.importer.load(import_data)
 
-        for stage in self.pipeline:
+        for stage in reversed(self.pipeline):
             await stage.end_import(import_data)
 
         self.logger.info("Successfully imported table %s", table)
