@@ -14,6 +14,11 @@ class MigrateException(Exception):
     pass
 
 
+class PipelineException(Exception):
+    """ Thrown when an exception occurs while processing pipeline stages """
+    pass
+
+
 class ConnectionFailedException(BlazingException):
     """ Thown when something goes wrong attempting to connect to BlazingDB """
     pass

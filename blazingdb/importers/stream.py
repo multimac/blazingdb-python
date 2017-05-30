@@ -13,7 +13,7 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
 
     DEFAULT_CHUNK_SIZE = 1048576
 
-    def __init__(self, **kwargs):
+    def __init__(self, loop=None, **kwargs):
         super(StreamImporter, self).__init__(loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
@@ -31,10 +31,11 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
 
     async def load(self, data):
         """ Reads from the stream and imports the data into the table of the given name """
-        stream_processor = processor.StreamProcessor(data["stream"], **self.processor_args)
-
         connector = data["connector"]
+        stream = data["stream"]
         table = data["dest_table"]
+
+        stream_processor = processor.StreamProcessor(stream, **self.processor_args)
 
         for chunk in stream_processor.batch_bytes(self.chunk_size):
             await self._stream_chunk(connector, chunk, table)

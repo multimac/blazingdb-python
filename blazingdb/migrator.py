@@ -57,13 +57,8 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
             "src_table": table
         }
 
-        for stage in self.pipeline:
-            await stage.begin_import(import_data)
-
-        await self.importer.load(import_data)
-
-        for stage in reversed(self.pipeline):
-            await stage.end_import(import_data)
+        async with self.pipeline.process(import_data):
+            await self.importer.load(import_data)
 
         self.logger.info("Successfully imported table %s", table)
 

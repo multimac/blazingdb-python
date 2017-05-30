@@ -82,11 +82,12 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
     async def load(self, data):
         """ Reads from the stream and imports the data into the table of the given name """
-        stream_processor = processor.StreamProcessor(data["stream"], **self.processor_args)
-
         counter = 0
         connector = data["connector"]
+        stream = data["stream"]
         table = data["dest_table"]
+
+        stream_processor = processor.StreamProcessor(stream, **self.processor_args)
 
         for chunk in stream_processor.batch_rows(self.row_count):
             await self._write_chunk(chunk, table, counter)

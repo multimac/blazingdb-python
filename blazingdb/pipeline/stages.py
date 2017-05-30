@@ -220,14 +220,14 @@ class PauseStage(base.BaseStage):
 
         self.prompt = kwargs.get("prompt", "Waiting for input...")
 
-    async def begin_import(self, data):
+    async def begin_import(self, data):  # pylint: disable=unused-argument
         """ Pauses the execution of the pipeline if requested before the import """
         if When.before not in self.when:
             return
 
         input(self.prompt)
 
-    async def end_import(self, data):
+    async def end_import(self, data):  # pylint: disable=unused-argument
         """ Pauses the execution of the pipeline if requested before the import """
         if When.after not in self.when:
             return
