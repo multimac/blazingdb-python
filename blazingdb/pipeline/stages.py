@@ -21,6 +21,12 @@ from .. import exceptions
 
 # pragma pylint: disable=too-few-public-methods
 
+class When(flags.Flags):
+    """ Defines the stages at which a custom query can be executed """
+
+    before = ()
+    after = ()
+
 class CreateTableStage(base.BaseStage):
     """ Creates the destination table before importing data into BlazingDB """
 
@@ -61,19 +67,13 @@ class CreateTableStage(base.BaseStage):
 class CustomQueryStage(base.BaseStage):
     """ Performs a query against BlazingDB and outputs the results to the log """
 
-    class When(flags.Flags):
-        """ Defines the stages at which a custom query can be executed """
-
-        before = ()
-        after = ()
-
     def __init__(self, query, **kwargs):
         self.logger = logging.getLogger(__name__)
 
         self.query = query
 
         self.quiet = kwargs.get("quiet", False)
-        self.when = kwargs.get("when", CustomQueryStage.When.before)
+        self.when = kwargs.get("when", When.before)
 
     async def _perform_query(self, data):
         connector = data["connector"]
@@ -90,14 +90,14 @@ class CustomQueryStage(base.BaseStage):
 
     async def begin_import(self, data):
         """ Triggers the query if it should be run before the table is imported """
-        if CustomQueryStage.When.before not in self.when:
+        if When.before not in self.when:
             return
 
         await self._perform_query(data)
 
     async def end_import(self, data):
         """ Triggers the query if it should be run before the table is imported """
-        if CustomQueryStage.When.after not in self.when:
+        if When.after not in self.when:
             return
 
         await self._perform_query(data)
@@ -210,6 +210,27 @@ class LimitImportStage(base.BaseStage):
     async def begin_import(self, data):
         """ Replaces the stream with one which limits the number of rows returned """
         data["stream"] = self._limit_stream(data["stream"])
+
+
+class PauseStage(base.BaseStage):
+    """ Pauses an import before and/or after it is performed """
+
+    def __init__(self, when, **kwargs):
+        self.when = when
+
+        self.prompt = kwargs.get("prompt", "Waiting for input...")
+
+    async def begin_import(self, data):
+        if When.before not in self.when:
+            return
+
+        input(self.prompt)
+
+    async def end_import(self, data):
+        if When.after not in self.when:
+            return
+
+        input(self.prompt)
 
 
 class PostImportHackStage(base.BaseStage):
