@@ -45,6 +45,7 @@ class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pu
         import_data = {
             "connector": connector,
             "dest_table": table,
+            "importer": self,
             "method": method
         }
 
