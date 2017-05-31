@@ -10,6 +10,7 @@ Defines a series of pipeline stages including:
  - TruncateTableStage
 """
 
+import asyncio
 import json
 import logging
 
@@ -64,16 +65,56 @@ class CreateTableStage(base.BaseStage):
             self.logger.debug(ex.response)
 
 
-class CustomQueryStage(base.BaseStage):
+class CustomActionStage(base.BaseStage):
+    """ Performs a custom callback before / after importing data """
+
+    def __init__(self, callback, **kwargs):
+        self.logger = logging.getLogger(__name__)
+
+        self.callback = callback
+        self.when = kwargs.get("when", When.before)
+
+    async def _perform_callback(self, data):
+        await self.callback(data)
+
+    async def begin_import(self, data):
+        """ Triggers the callback if it has queued to run before the import """
+        if When.before not in self.when:
+            return
+
+        await self._perform_callback(data)
+
+    async def end_import(self, data):
+        """ Triggers the callback if it has queued to run after the import """
+        if When.after not in self.when:
+            return
+
+        await self._perform_callback(data)
+
+class CustomCommandStage(CustomActionStage):
+    """ Runs a sub-process before / after importing data """
+
+    def __init__(self, *args, **kwargs):
+        super(CustomCommandStage, self).__init__(self._perform_command, **kwargs)
+        self.logger = logging.getLogger(__name__)
+        self.args = args
+
+    async def _perform_command(self, data):  # pylint: disable=unused-argument
+        null = asyncio.subprocess.DEVNULL
+        process = await asyncio.create_subprocess_exec(
+            *self.args, stdin=null, stdout=null, stderr=null
+        )
+
+        await process.wait()
+
+
+class CustomQueryStage(CustomActionStage):
     """ Performs a query against BlazingDB and outputs the results to the log """
 
     def __init__(self, query, **kwargs):
+        super(CustomQueryStage, self).__init__(self._perform_query, **kwargs)
         self.logger = logging.getLogger(__name__)
-
         self.query = query
-
-        self.quiet = kwargs.get("quiet", False)
-        self.when = kwargs.get("when", When.before)
 
     async def _perform_query(self, data):
         connector = data["connector"]
@@ -87,20 +128,6 @@ class CustomQueryStage(base.BaseStage):
             "Reults for custom query stage: %s",
             json.dumps(results)
         )
-
-    async def begin_import(self, data):
-        """ Triggers the query if it should be run before the table is imported """
-        if When.before not in self.when:
-            return
-
-        await self._perform_query(data)
-
-    async def end_import(self, data):
-        """ Triggers the query if it should be run before the table is imported """
-        if When.after not in self.when:
-            return
-
-        await self._perform_query(data)
 
 
 class DropTableStage(base.BaseStage):
@@ -212,26 +239,14 @@ class LimitImportStage(base.BaseStage):
         data["stream"] = self._limit_stream(data["stream"])
 
 
-class PauseStage(base.BaseStage):
-    """ Pauses an import before and/or after it is performed """
+class PauseStage(CustomActionStage):
+    """ Pauses an import before / after it is performed """
 
-    def __init__(self, when, **kwargs):
-        self.when = when
-
+    def __init__(self, **kwargs):
+        super(PauseStage, self).__init__(self._pause, **kwargs)
         self.prompt = kwargs.get("prompt", "Waiting for input...")
 
-    async def begin_import(self, data):  # pylint: disable=unused-argument
-        """ Pauses the execution of the pipeline if requested before the import """
-        if When.before not in self.when:
-            return
-
-        input(self.prompt)
-
-    async def end_import(self, data):  # pylint: disable=unused-argument
-        """ Pauses the execution of the pipeline if requested before the import """
-        if When.after not in self.when:
-            return
-
+    async def _pause(self, data):  # pylint: disable=unused-argument
         input(self.prompt)
 
 
