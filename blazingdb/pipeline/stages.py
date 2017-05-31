@@ -100,6 +100,8 @@ class CustomCommandStage(CustomActionStage):
         self.args = args
 
     async def _perform_command(self, data):  # pylint: disable=unused-argument
+        self.logger.info("Performing command: %s", " ".join([str(a) for a in self.args]))
+
         null = asyncio.subprocess.DEVNULL
         process = await asyncio.create_subprocess_exec(
             *self.args, stdin=null, stdout=null, stderr=null
@@ -124,10 +126,19 @@ class CustomQueryStage(CustomActionStage):
 
         results = await connector.query(formatted_query)
 
-        self.logger.debug(
-            "Reults for custom query stage: %s",
-            json.dumps(results)
-        )
+        self.logger.debug("Reults for custom query stage: %s", json.dumps(results))
+
+
+class DelayStage(CustomActionStage):
+    """ Pauses an import before / after it is performed """
+
+    def __init__(self, delay, **kwargs):
+        super(DelayStage, self).__init__(self._delay, **kwargs)
+        self.prompt = kwargs.get("prompt", "Waiting for input...")
+        self.delay = delay
+
+    async def _delay(self, data):  # pylint: disable=unused-argument
+        await asyncio.sleep(self.delay)
 
 
 class DropTableStage(base.BaseStage):
@@ -239,14 +250,14 @@ class LimitImportStage(base.BaseStage):
         data["stream"] = self._limit_stream(data["stream"])
 
 
-class PauseStage(CustomActionStage):
+class PromptInputStage(CustomActionStage):
     """ Pauses an import before / after it is performed """
 
     def __init__(self, **kwargs):
-        super(PauseStage, self).__init__(self._pause, **kwargs)
+        super(PromptInputStage, self).__init__(self._prompt, **kwargs)
         self.prompt = kwargs.get("prompt", "Waiting for input...")
 
-    async def _pause(self, data):  # pylint: disable=unused-argument
+    async def _prompt(self, data):  # pylint: disable=unused-argument
         input(self.prompt)
 
 
