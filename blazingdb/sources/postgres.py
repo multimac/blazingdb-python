@@ -38,24 +38,26 @@ class PostgresSource(base.BaseSource):
 
         return cursor
 
-    def _process_results(self, cursor):
-        while True:
-            chunk = cursor.fetchmany(self.fetch_count)
+    def _perform_query(self, query):
+        with self._create_cursor() as cursor:
+            cursor.execute(query)
 
-            if len(chunk) == 0:
-                raise StopIteration
+            while True:
+                chunk = cursor.fetchmany(self.fetch_count)
 
-            yield from chunk
+                if not chunk:
+                    break
+
+                yield from chunk
 
     def get_tables(self):
         """ Retrieves a list of the tables in this source """
-        with self._create_cursor() as cursor:
-            cursor.execute(" ".join([
-                "SELECT DISTINCT table_name FROM information_schema.tables",
-                "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
-            ]))
+        results = self._perform_query(" ".join([
+            "SELECT DISTINCT table_name FROM information_schema.tables",
+            "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
+        ]))
 
-            tables = [row[0] for row in self._process_results(cursor)]
+        tables = [row[0] for row in results]
 
         self.logger.debug("Retrieved %s tables from Postgres", len(tables))
 
@@ -63,17 +65,16 @@ class PostgresSource(base.BaseSource):
 
     def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
-        with self._create_cursor() as cursor:
-            cursor.execute(" ".join([
-                "SELECT column_name, data_type, character_maximum_length",
-                "FROM information_schema.columns",
-                "WHERE table_schema = '{0}' AND table_name = '{1}'".format(self.schema, table)
-            ]))
+        results = self._perform_query(" ".join([
+            "SELECT column_name, data_type, character_maximum_length",
+            "FROM information_schema.columns",
+            "WHERE table_schema = '{0}' AND table_name = '{1}'".format(self.schema, table)
+        ]))
 
-            columns = []
-            for row in self._process_results(cursor):
-                datatype = convert_datatype(row[1], row[2])
-                columns.append({"name": row[0], "type": datatype})
+        columns = []
+        for row in results:
+            datatype = convert_datatype(row[1], row[2])
+            columns.append({"name": row[0], "type": datatype})
 
         self.logger.debug("Retrieved %s columns for table %s from Postgres", len(columns), table)
 
@@ -83,13 +84,10 @@ class PostgresSource(base.BaseSource):
         """ Retrieves data for the given table from the source """
         columns = self.get_columns(table)
 
-        with self._create_cursor() as cursor:
-            cursor.execute(" ".join([
-                "SELECT {0}".format(",".join(column["name"] for column in columns)),
-                "FROM {0}.{1}".format(self.schema, table)
-            ]))
-
-            yield from self._process_results(cursor)
+        yield from self._perform_query(" ".join([
+            "SELECT {0}".format(",".join(column["name"] for column in columns)),
+            "FROM {0}.{1}".format(self.schema, table)
+        ]))
 
 
 DATATYPE_MAP = {

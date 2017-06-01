@@ -94,9 +94,11 @@ class CustomActionStage(base.BaseStage):
 class CustomCommandStage(CustomActionStage):
     """ Runs a sub-process before / after importing data """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, program, *args, **kwargs):
         super(CustomCommandStage, self).__init__(self._perform_command, **kwargs)
         self.logger = logging.getLogger(__name__)
+
+        self.program = program
         self.args = args
 
     async def _perform_command(self, data):  # pylint: disable=unused-argument
@@ -104,7 +106,8 @@ class CustomCommandStage(CustomActionStage):
 
         null = asyncio.subprocess.DEVNULL
         process = await asyncio.create_subprocess_exec(
-            *self.args, stdin=null, stdout=null, stderr=null
+            self.program, *self.args,
+            stdin=null, stdout=null, stderr=null
         )
 
         await process.wait()
@@ -219,7 +222,7 @@ class FilterColumnsStage(base.BaseStage):
 
         self.logger.info(
             "Filtering %s columns from %s%s", len(ignored_columns), data["src_table"],
-            " ({0})".format(", ".join(ignored_columns)) if len(ignored_columns) != 0 else ""
+            " ({0})".format(", ".join(ignored_columns)) if ignored_columns else ""
         )
 
         data["stream"] = self._filter_stream(data["columns"], data["src_table"], data["stream"])

@@ -16,8 +16,10 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
     def __init__(self, connector, source, pipeline, importer, loop=None, **kwargs):  # pylint: disable=too-many-arguments
         self.logger = logging.getLogger(__name__)
 
-        self.loop = loop if loop is not None else asyncio.get_event_loop()
-        self.semaphore = asyncio.BoundedSemaphore(kwargs.get("import_limit", 5))
+        self.loop = loop
+        self.semaphore = asyncio.BoundedSemaphore(
+            kwargs.get("import_limit", 5), loop=loop
+        )
 
         self.connector = connector
         self.importer = importer
@@ -76,7 +78,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
                     if not await retry_handler(table, ex):
                         return
 
-    def migrate(self, included_tables=None, excluded_tables=None, **kwargs):
+    async def migrate(self, included_tables=None, excluded_tables=None, **kwargs):
         """
         Migrates the given list of tables from the source into BlazingDB. If tables is not
         specified, all tables in the source are migrated
@@ -97,6 +99,4 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         self.logger.info("Tables to be imported: %s", ", ".join(tables))
 
         tasks = [migrate(table) for table in tables]
-        gather_task = asyncio.gather(*tasks, loop=self.loop)
-
-        self.loop.run_until_complete(gather_task)
+        await asyncio.gather(*tasks, loop=self.loop)
