@@ -23,7 +23,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop
-        self.processor_args = kwargs
+        self.args = kwargs
 
         self.upload_folder = path.join(upload_folder, user)
         self.user_folder = user_folder
@@ -87,10 +87,9 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         stream = data["stream"]
         table = data["dest_table"]
 
-        stream_processor = processor.StreamProcessor(stream, **self.processor_args)
+        with processor.StreamProcessor(stream, **self.args) as stream_processor:
+            for chunk in stream_processor.batch_rows(self.row_count):
+                await self._write_chunk(chunk, table, counter)
+                await self._load_chunk(connector, table, counter)
 
-        for chunk in stream_processor.batch_rows(self.row_count):
-            await self._write_chunk(chunk, table, counter)
-            await self._load_chunk(connector, table, counter)
-
-            counter += 1
+                counter += 1

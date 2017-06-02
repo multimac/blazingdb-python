@@ -18,6 +18,7 @@ import flags
 
 from . import base
 from .. import exceptions
+from ..util import gen
 
 
 # pragma pylint: disable=too-few-public-methods
@@ -239,14 +240,15 @@ class LimitImportStage(base.BaseStage):
         self.count = count
 
     def _limit_stream(self, stream):
-        for index, row in enumerate(stream):
-            if index >= self.count:
-                self.logger.debug("Reached %s row limit, not returning any more rows", self.count)
-                break
+        with gen.GeneratorContext(stream):
+            for index, row in enumerate(stream):
+                if index >= self.count:
+                    message = "Reached %s row limit, not returning any more rows"
 
-            yield row
+                    self.logger.debug(message, self.count)
+                    break
 
-        raise StopIteration
+                yield row
 
     async def begin_import(self, data):
         """ Replaces the stream with one which limits the number of rows returned """

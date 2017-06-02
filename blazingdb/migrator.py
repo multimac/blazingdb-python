@@ -99,4 +99,9 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         self.logger.info("Tables to be imported: %s", ", ".join(tables))
 
         tasks = [migrate(table) for table in tables]
-        await asyncio.gather(*tasks, loop=self.loop)
+        gather_task = asyncio.gather(*tasks, loop=self.loop)
+
+        try:
+            await gather_task
+        except Exception:  # pylint: disable=broad-except
+            gather_task.cancel()

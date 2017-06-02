@@ -54,9 +54,9 @@ class SystemContext(object):  # pylint: disable=too-few-public-methods
                 stage = self.processed.pop()
                 await stage.end_import(self.data)
             except Exception:  # pylint: disable=broad-except
-                errored = True
-
                 self.logger.exception("Exception occurred while processing end_import")
+
+                errored = True
 
         if errored:
             raise exceptions.PipelineException()

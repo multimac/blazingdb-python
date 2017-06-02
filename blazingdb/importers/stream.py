@@ -17,7 +17,7 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         super(StreamImporter, self).__init__(loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
-        self.processor_args = kwargs
+        self.args = kwargs
         self.chunk_size = kwargs.get("chunk_size", self.DEFAULT_CHUNK_SIZE)
 
     async def _stream_chunk(self, connector, chunk, table):
@@ -35,7 +35,6 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         stream = data["stream"]
         table = data["dest_table"]
 
-        stream_processor = processor.StreamProcessor(stream, **self.processor_args)
-
-        for chunk in stream_processor.batch_bytes(self.chunk_size):
-            await self._stream_chunk(connector, chunk, table)
+        with processor.StreamProcessor(stream, **self.args) as stream_processor:
+            for chunk in stream_processor.batch_bytes(self.chunk_size):
+                await self._stream_chunk(connector, chunk, table)

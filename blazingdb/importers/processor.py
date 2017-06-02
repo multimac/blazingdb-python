@@ -27,6 +27,12 @@ class StreamProcessor(object):  # pylint: disable=too-many-instance-attributes
 
         self.log_interval = kwargs.get("log_interval", self.DEFAULT_LOG_INTERVAL)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stream.close()
+
     def _wrap_field(self, column):
         return self.field_wrapper + column + self.field_wrapper
 
