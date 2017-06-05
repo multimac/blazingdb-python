@@ -3,6 +3,6 @@ Package containing all the different pipeline stages which can be utilised durin
 """
 
 from .stages import *  # pylint: disable=wildcard-import
-from .system import *  # pylint: disable=wildcard-import
+from .system import System
 
-__all__ = ["base", "stages"]
+__all__ = ["base", "stages", "system"]

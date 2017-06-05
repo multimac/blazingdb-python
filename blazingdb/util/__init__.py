@@ -2,4 +2,4 @@
 Package containing utility modules
 """
 
-__all__ = ["timer"]
+__all__ = ["gen", "timer"]
