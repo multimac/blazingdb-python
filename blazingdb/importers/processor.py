@@ -5,13 +5,16 @@ can be imported into BlazingDB
 
 import logging
 
-from . import base
 from ..util import timer
 
 
 class StreamProcessor(object):  # pylint: disable=too-many-instance-attributes
     """ Processes a stream of data into rows BlazingDB can import """
 
+    DEFAULT_FILE_ENCODING = "utf-8"
+    DEFAULT_FIELD_TERMINATOR = "|"
+    DEFAULT_FIELD_WRAPPER = "\""
+    DEFAULT_LINE_TERMINATOR = "\n"
     DEFAULT_LOG_INTERVAL = 10
 
     def __init__(self, stream, **kwargs):
@@ -20,10 +23,10 @@ class StreamProcessor(object):  # pylint: disable=too-many-instance-attributes
         self.last_row = None
         self.stream = stream
 
-        self.encoding = kwargs.get("encoding", base.DEFAULT_FILE_ENCODING)
-        self.field_terminator = kwargs.get("field_terminator", base.DEFAULT_FIELD_TERMINATOR)
-        self.field_wrapper = kwargs.get("field_wrapper", base.DEFAULT_FIELD_WRAPPER)
-        self.line_terminator = kwargs.get("line_terminator", base.DEFAULT_LINE_TERMINATOR)
+        self.encoding = kwargs.get("encoding", self.DEFAULT_FILE_ENCODING)
+        self.field_terminator = kwargs.get("field_terminator", self.DEFAULT_FIELD_TERMINATOR)
+        self.field_wrapper = kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER)
+        self.line_terminator = kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR)
 
         self.log_interval = kwargs.get("log_interval", self.DEFAULT_LOG_INTERVAL)
 

@@ -39,7 +39,8 @@ class CreateTableStage(base.BaseStage):
         self.logger = logging.getLogger(__name__)
         self.quiet = kwargs.get("quiet", False)
 
-    def _get_columns(self, data):
+    @staticmethod
+    def _get_columns(data):
         source = data["source"]
         table = data["src_table"]
 
@@ -54,7 +55,7 @@ class CreateTableStage(base.BaseStage):
 
         await connector.query("CREATE TABLE {0} ({1})".format(table, columns))
 
-    async def begin_import(self, data):
+    async def before(self, data):
         """ Triggers the creation of the destination table """
         connector = data["connector"]
         table = data["dest_table"]
@@ -88,14 +89,14 @@ class CustomActionStage(base.BaseStage):
     async def _perform_callback(self, data):
         await self.callback(data)
 
-    async def begin_import(self, data):
+    async def before(self, data):
         """ Triggers the callback if it has queued to run before the import """
         if When.before not in self.when:
             return
 
         await self._perform_callback(data)
 
-    async def end_import(self, data):
+    async def after(self, data):
         """ Triggers the callback if it has queued to run after the import """
         if When.after not in self.when:
             return
@@ -166,7 +167,7 @@ class DropTableStage(base.BaseStage):
     async def _drop_table(connector, table):
         await connector.query("DROP TABLE {0}".format(table))
 
-    async def begin_import(self, data):
+    async def before(self, data):
         """ Triggers the dropping of the destination table """
         connector = data["connector"]
         table = data["dest_table"]
@@ -193,7 +194,7 @@ class FilterColumnsStage(base.BaseStage):
         self.logger = logging.getLogger(__name__)
         self.tables = tables
 
-    async def begin_import(self, data):
+    async def before(self, data):
         """ Replaces the stream with one which filters the columns """
         ignored_columns = self.tables.get(data["src_table"], [])
 
@@ -211,7 +212,7 @@ class LimitImportStage(base.BaseStage):
     def __init__(self, count):
         self.count = count
 
-    async def begin_import(self, data):
+    async def before(self, data):
         """ Replaces the source with one which limits the number of rows returned """
         data["source"] = sources.limited.LimitedSource(data["source"], self.count)
 
@@ -238,7 +239,7 @@ class PostImportHackStage(base.BaseStage):
         await connector.query("POST-OPTIMIZE TABLE {0}".format(table))
         await connector.query("GENERATE SKIP-DATA FOR {0}".format(table))
 
-    async def end_import(self, data):
+    async def after(self, data):
         """ Triggers the series of queries required to fix the issue """
         connector = data["connector"]
         table = data["dest_table"]
@@ -250,12 +251,13 @@ class PostImportHackStage(base.BaseStage):
 class PrefixTableStage(base.BaseStage):
     """ Prefixes the destination tables """
 
-    def __init__(self, prefix):
+    def __init__(self, prefix, separator="$"):
         self.prefix = prefix
+        self.separator = separator
 
-    async def begin_import(self, data):
+    async def before(self, data):
         """ Prefixes the destination table with the given prefix """
-        data["dest_table"] = "{0}${1}".format(self.prefix, data["dest_table"])
+        data["dest_table"] = self.separator.join(self.prefix, data["dest_table"])
 
 
 class TruncateTableStage(base.BaseStage):
@@ -269,7 +271,7 @@ class TruncateTableStage(base.BaseStage):
     async def _truncate_table(connector, table):
         await connector.query("DELETE FROM {0}".format(table))
 
-    async def begin_import(self, data):
+    async def before(self, data):
         """ Triggers the truncation of the destination table """
         connector = data["connector"]
         table = data["dest_table"]

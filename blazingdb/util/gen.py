@@ -2,7 +2,7 @@
 Defines a context manager to close a generator upon exiting.
 """
 
-class GeneratorContext(object):
+class GeneratorContext(object):  # pylint: disable=too-few-public-methods
     """ Wraps a generator and closes it upon exiting """
 
     def __init__(self, generator):

@@ -26,17 +26,16 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         self.upload_folder = path.join(upload_folder, user)
         self.user_folder = user_folder
 
-        self.encoding = kwargs.get("encoding", base.DEFAULT_FILE_ENCODING)
         self.file_extension = kwargs.get("file_extension", self.DEFAULT_FILE_EXTENSION)
         self.row_count = kwargs.get("row_count", self.DEFAULT_CHUNK_ROWS)
 
         self.buffer_size = kwargs.get("buffer_size", self.DEFAULT_BUFFER_SIZE)
         self.ignore_skipdata = kwargs.get("ignore_skipdata", False)
 
-    def _open_file(self, filename):
+    def _open_file(self, filename, encoding):
         return aiofiles.open(
             filename, "w", buffering=self.buffer_size,
-            encoding=self.encoding, loop=self.loop
+            encoding=encoding, loop=self.loop
         )
 
     def _get_filename(self, table, chunk):
@@ -59,16 +58,16 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
         return path.join(self.user_folder, filename)
 
-    async def _write_chunk(self, chunk, table, index):
+    async def _write_chunk(self, chunk, processor, table, index):
         """ Writes a chunk of data to disk """
         chunk_filename = self._get_file_path(table, index)
 
         self.logger.info("Writing chunk file: %s", chunk_filename)
 
-        async with self._open_file(chunk_filename) as chunk_file:
+        async with self._open_file(chunk_filename, processor.encoding) as chunk_file:
             await chunk_file.writelines(chunk)
 
-    async def _load_chunk(self, connector, table, chunk):
+    async def _load_chunk(self, connector, processor, table, chunk):
         """ Loads a chunk of data into Blazing """
         query_filename = self._get_import_path(table, chunk)
 
@@ -76,7 +75,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         method = "{0} {1}".format(style, query_filename)
 
         self.logger.info("Loading chunk %s into blazing", query_filename)
-        await self._perform_request(connector, method, table)
+        await self._perform_request(connector, method, processor, table)
 
     async def load(self, data):
         """ Reads from the stream and imports the data into the table of the given name """
@@ -84,9 +83,9 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         connector = data["connector"]
         table = data["dest_table"]
 
-        with self._create_stream(data) as stream_processor:
-            for chunk in stream_processor.batch_rows(self.row_count):
-                await self._write_chunk(chunk, table, counter)
-                await self._load_chunk(connector, table, counter)
+        with self._create_stream(data) as processor:
+            for chunk in processor.batch_rows(self.row_count):
+                await self._write_chunk(chunk, processor, table, counter)
+                await self._load_chunk(connector, processor, table, counter)
 
                 counter += 1

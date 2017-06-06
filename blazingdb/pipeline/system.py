@@ -30,33 +30,33 @@ class SystemContext(object):  # pylint: disable=too-few-public-methods
 
         self.processed = []
 
+    async def _process_begin(self):
+        for stage in self.pipeline:
+            await stage.before(self.data)
+            self.processed.append(stage)
+
+    async def _process_end(self, success):
+        data = {"success": success}.update(self.data)
+
+        errors = []
+        while self.processed:
+            stage = self.processed.pop()
+            try:
+                await stage.after(data)
+            except Exception as ex:  # pylint: disable=broad-except
+                errors.append(ex)
+
+        if errors:
+            raise exceptions.PipelineException(errors)
+
     async def __aenter__(self):
         try:
             await self._process_begin()
         except:
-            await self._process_end()
+            await self._process_end(False)
             raise
 
-        return self
+        return
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._process_end()
-
-    async def _process_begin(self):
-        for stage in self.pipeline:
-            await stage.begin_import(self.data)
-            self.processed.append(stage)
-
-    async def _process_end(self):
-        errored = False
-        while self.processed:
-            try:
-                stage = self.processed.pop()
-                await stage.end_import(self.data)
-            except Exception:  # pylint: disable=broad-except
-                self.logger.exception("Exception occurred while processing end_import")
-
-                errored = True
-
-        if errored:
-            raise exceptions.PipelineException()
+        await self._process_end(exc_val is None)
