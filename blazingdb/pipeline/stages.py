@@ -257,7 +257,9 @@ class PrefixTableStage(base.BaseStage):
 
     async def before(self, data):
         """ Prefixes the destination table with the given prefix """
-        data["dest_table"] = self.separator.join(self.prefix, data["dest_table"])
+        data["dest_table"] = self.separator.join([
+            self.prefix, data["dest_table"]
+        ])
 
 
 class TruncateTableStage(base.BaseStage):
