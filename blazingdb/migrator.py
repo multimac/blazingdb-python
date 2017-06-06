@@ -52,9 +52,6 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
             "connector": self.connector,
             "importer": self.importer,
             "source": self.source,
-            "stream": self.source.retrieve(table),
-
-            "columns": self.source.get_columns(table),
             "dest_table": table,
             "src_table": table
         }

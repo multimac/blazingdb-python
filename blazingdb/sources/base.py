@@ -5,7 +5,7 @@ Defines the base class for data sources
 import abc
 
 
-class BaseSource(object):
+class BaseSource(object, metaclass=abc.ABCMeta):
     """ Handles retrieving data from a given source (eg. PostgreSQL) """
 
     @abc.abstractmethod

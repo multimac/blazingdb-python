@@ -1,10 +1,14 @@
 """
 Defines a series of pipeline stages including:
  - CreateTableStage
+ - CustomActionStage
+ - CustomCommandStage
  - CustomQueryStage
+ - DelayStage
  - DropTableStage
  - FilterColumnsStage
  - LimitImportStage
+ - PromptInputStage
  - PostImportHackStage
  - PrefixTableStage
  - TruncateTableStage
@@ -16,9 +20,8 @@ import logging
 
 import flags
 
-from . import base
+from . import base, sources
 from .. import exceptions
-from ..util import gen
 
 
 # pragma pylint: disable=too-few-public-methods
@@ -30,11 +33,17 @@ class When(flags.Flags):
     after = ()
 
 class CreateTableStage(base.BaseStage):
-    """ Creates the destination table before importing data into BlazingDB """
+    """ Creates the destination table before importing data """
 
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(__name__)
         self.quiet = kwargs.get("quiet", False)
+
+    def _get_columns(self, data):
+        source = data["source"]
+        table = data["src_table"]
+
+        return source.get_columns(table)
 
     @staticmethod
     async def _create_table(connector, table, column_data):
@@ -48,8 +57,9 @@ class CreateTableStage(base.BaseStage):
     async def begin_import(self, data):
         """ Triggers the creation of the destination table """
         connector = data["connector"]
-        columns = data["columns"]
         table = data["dest_table"]
+
+        columns = self._get_columns(data)
 
         self.logger.info("Creating table %s with %s column(s)", table, len(columns))
 
@@ -115,7 +125,7 @@ class CustomCommandStage(CustomActionStage):
 
 
 class CustomQueryStage(CustomActionStage):
-    """ Performs a query against BlazingDB and outputs the results to the log """
+    """ Performs a query against BlazingDB before / after importing data """
 
     def __init__(self, query, **kwargs):
         super(CustomQueryStage, self).__init__(self._perform_query, **kwargs)
@@ -134,7 +144,7 @@ class CustomQueryStage(CustomActionStage):
 
 
 class DelayStage(CustomActionStage):
-    """ Pauses an import before / after it is performed """
+    """ Pauses the pipeline before / after importing data """
 
     def __init__(self, delay, **kwargs):
         super(DelayStage, self).__init__(self._delay, **kwargs)
@@ -146,7 +156,7 @@ class DelayStage(CustomActionStage):
 
 
 class DropTableStage(base.BaseStage):
-    """ Drops the destination table before importing data into BlazingDB """
+    """ Drops the destination table before importing data """
 
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(__name__)
@@ -183,40 +193,6 @@ class FilterColumnsStage(base.BaseStage):
         self.logger = logging.getLogger(__name__)
         self.tables = tables
 
-    def _filter_stream(self, columns, table, stream):
-        ignored_columns = self.tables.get(table, [])
-
-        current_start = None
-        slices = []
-
-        for index, column in enumerate(columns):
-            if column["name"] not in ignored_columns:
-                if current_start is None:
-                    current_start = index
-
-                continue
-
-            if current_start is not None:
-                slices.append(slice(current_start, index))
-                current_start = None
-
-        if current_start is not None:
-            slices.append(slice(current_start, None))
-
-        self.logger.debug(
-            "Generated %s row segments for table %s",
-            len(slices), table
-        )
-
-        for row in stream:
-            filtered_row = []
-
-            for row_slice in slices:
-                filtered_row.extend(row[row_slice])
-
-            yield filtered_row
-
-
     async def begin_import(self, data):
         """ Replaces the stream with one which filters the columns """
         ignored_columns = self.tables.get(data["src_table"], [])
@@ -226,37 +202,22 @@ class FilterColumnsStage(base.BaseStage):
             " ({0})".format(", ".join(ignored_columns)) if ignored_columns else ""
         )
 
-        data["stream"] = self._filter_stream(data["columns"], data["src_table"], data["stream"])
-
-        filter_column = lambda col: col["name"] not in ignored_columns
-        data["columns"] = list(filter(filter_column, data["columns"]))
+        data["source"] = sources.FilteredSource(data["source"], ignored_columns)
 
 
 class LimitImportStage(base.BaseStage):
     """ Limits the number of rows imported from the source """
 
     def __init__(self, count):
-        self.logger = logging.getLogger(__name__)
         self.count = count
 
-    def _limit_stream(self, stream):
-        with gen.GeneratorContext(stream):
-            for index, row in enumerate(stream):
-                if index >= self.count:
-                    message = "Reached %s row limit, not returning any more rows"
-
-                    self.logger.debug(message, self.count)
-                    break
-
-                yield row
-
     async def begin_import(self, data):
-        """ Replaces the stream with one which limits the number of rows returned """
-        data["stream"] = self._limit_stream(data["stream"])
+        """ Replaces the source with one which limits the number of rows returned """
+        data["source"] = sources.limited.LimitedSource(data["source"], self.count)
 
 
 class PromptInputStage(CustomActionStage):
-    """ Pauses an import before / after it is performed """
+    """ Prompts for user input to continue before / after importing data """
 
     def __init__(self, **kwargs):
         super(PromptInputStage, self).__init__(self._prompt, **kwargs)
@@ -267,7 +228,7 @@ class PromptInputStage(CustomActionStage):
 
 
 class PostImportHackStage(base.BaseStage):
-    """ Performs a series of queries to help fix an issue with BlazingDB importing data """
+    """ Performs a series of queries to help fix an issue with importing data """
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
@@ -298,7 +259,7 @@ class PrefixTableStage(base.BaseStage):
 
 
 class TruncateTableStage(base.BaseStage):
-    """ Drops the destination table before importing data into BlazingDB """
+    """ Deletes all rows in the destination table before importing data """
 
     def __init__(self, **kwargs):
         self.logger = logging.getLogger(__name__)

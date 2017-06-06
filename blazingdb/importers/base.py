@@ -5,6 +5,7 @@ Defines the base importer class for loading data into BlazingDB
 import abc
 import async_timeout
 
+from .processor import StreamProcessor
 from ..pipeline import system
 
 DEFAULT_FILE_ENCODING = "utf-8"
@@ -18,12 +19,22 @@ class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pu
     def __init__(self, loop=None, **kwargs):
         self.loop = loop
 
+        self.args = kwargs
+
         self.field_terminator = kwargs.get("field_terminator", DEFAULT_FIELD_TERMINATOR)
         self.field_wrapper = kwargs.get("field_wrapper", DEFAULT_FIELD_WRAPPER)
         self.line_terminator = kwargs.get("line_terminator", DEFAULT_LINE_TERMINATOR)
 
         self.pipeline = kwargs.get("pipeline", system.System())
         self.timeout = kwargs.get("timeout", None)
+
+    def _create_stream(self, data):
+        source = data["source"]
+        table = data["src_table"]
+
+        stream = source.retrieve(table)
+
+        return StreamProcessor(stream, **self.args)
 
     async def _pipeline_request(self, data):
         connector = data["connector"]

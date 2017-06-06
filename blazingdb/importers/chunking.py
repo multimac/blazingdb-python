@@ -8,7 +8,7 @@ from os import path
 
 import aiofiles
 
-from . import base, processor
+from . import base
 
 
 class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
@@ -21,9 +21,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
     def __init__(self, upload_folder, user, user_folder, loop=None, **kwargs):
         super(ChunkingImporter, self).__init__(loop, **kwargs)
         self.logger = logging.getLogger(__name__)
-
         self.loop = loop
-        self.args = kwargs
 
         self.upload_folder = path.join(upload_folder, user)
         self.user_folder = user_folder
@@ -84,10 +82,9 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         """ Reads from the stream and imports the data into the table of the given name """
         counter = 0
         connector = data["connector"]
-        stream = data["stream"]
         table = data["dest_table"]
 
-        with processor.StreamProcessor(stream, **self.args) as stream_processor:
+        with self._create_stream(data) as stream_processor:
             for chunk in stream_processor.batch_rows(self.row_count):
                 await self._write_chunk(chunk, table, counter)
                 await self._load_chunk(connector, table, counter)
