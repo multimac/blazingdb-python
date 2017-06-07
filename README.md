@@ -45,20 +45,29 @@ size of requests the `StreamingImporter` can make.
 import blazingdb
 
 from blazingdb import importers
+from blazingdb.importers import batchers
 from blazingdb.pipeline import system
 from blazingdb.sources import postgres
 
 from datetime import date
 
-importer = importers.StreamingImporter(
+batcher = batchers.ByteBatcher(
     # Configure the size of each request in bytes
     chunk_size=1048576,
 
-    # Timeout (in seconds) for requests to BlazingDB
-    timeout=None,
-
     # Configure the encoding to use when calculating size of rows
     encoding="utf-8",
+
+    # Configure how often progress should be logged (in seconds)
+    log_interval=10
+)
+
+importer = importers.StreamingImporter(
+    # Specify the batcher to use when generating requests to BlazingDB
+    batcher=batcher,
+
+    # Timeout (in seconds) for requests to BlazingDB
+    timeout=None,
 
     # Configure the character to use when separating fields
     field_terminator="|",
@@ -176,6 +185,7 @@ system = pipeline.System([
 
 # Create the importer to use when loading data into BlazingDB
 importer = importers.ChunkingImporter(
+    importers.batchers.RowBatcher(100000),
     "/path/to/blazing/uploads", "user_folder", "data"
 )
 
