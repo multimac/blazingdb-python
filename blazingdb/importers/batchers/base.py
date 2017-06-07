@@ -44,7 +44,7 @@ class BaseBatcher(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pub
             batch = []
             data = self._init_batch()
 
-            with timer.RepeatedTimer(10, self._log_progress, batch, data):
+            with timer.RepeatedTimer(10, self._log_progress, data):
                 if last_row is not None:
                     _add_row(batch, data, last_row)
 
@@ -59,6 +59,8 @@ class BaseBatcher(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pub
                         break
 
                     _add_row(batch, data, row)
+
+            self.logger.info("Read %s rows from the stream", len(batch))
 
             yield batch
 

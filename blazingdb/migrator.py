@@ -70,6 +70,9 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
                     await self._migrate_table(table)
                     return
                 except Exception as ex:  # pylint: disable=broad-except
+                    if ex is asyncio.CancelledError:
+                        raise
+
                     self.logger.exception("Failed to import table %s", table)
 
                     if not await retry_handler(table, ex):

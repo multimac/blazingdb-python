@@ -70,4 +70,4 @@ class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pu
 
         load_data = self._init_load(data)
         for batch in self.batcher.batch(processed):
-            self._load_batch(load_data, batch)
+            await self._load_batch(load_data, batch)
