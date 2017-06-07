@@ -19,6 +19,17 @@ class ByteBatcher(base.BaseBatcher):  # pylint: disable=too-few-public-methods
         self.encoding = kwargs.get("encoding", self.DEFAULT_FILE_ENCODING)
         self.size = size
 
+    @staticmethod
+    def _format_size(size, suffix="B"):
+        format_str = "%.1f%s%s"
+        for unit in ["", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"]:
+            if abs(size) < 1024:
+                return format_str % (size, unit, suffix)
+
+            size /= 1024
+
+        return format_str % (size, "Yi", suffix)
+
     def _init_batch(self):
         return {"batch_length": 0, "byte_count": 0, "last_count": 0}
 
@@ -37,7 +48,9 @@ class ByteBatcher(base.BaseBatcher):  # pylint: disable=too-few-public-methods
 
         self.logger.info(
             "Read %s of %s bytes (%s row(s)) from the stream",
-            data["byte_count"], self.size, data["batch_length"]
+            self._format_size(data["byte_count"]),
+            self._format_size(self.size),
+            data["batch_length"]
         )
 
         data["last_count"] = data["byte_count"]
