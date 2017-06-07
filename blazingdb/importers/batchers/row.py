@@ -16,7 +16,10 @@ class RowBatcher(base.BaseBatcher):  # pylint: disable=too-few-public-methods
         self.count = count
 
     def _init_batch(self):
-        return {"batch_length": 0, "last_count": 0}
+        return {
+            "batch_length": 0,
+            "last_count": 0
+        }
 
     def _update_batch(self, data, row):
         data["batch_length"] += 1

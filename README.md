@@ -39,7 +39,7 @@ connector.query("SELECT TOP 1 * FROM table")
 
 Importers are means of loading data into BlazingDB. Depending on how much data you want to
 load, `ChunkingImporter` may be faster than `StreamingImporter` because of a 1MB limit on the
-size of requests the `StreamingImporter` can make.
+size of requests the `StreamImporter` can make.
 
 ```python
 import blazingdb
@@ -62,7 +62,7 @@ batcher = batchers.ByteBatcher(
     log_interval=10
 )
 
-importer = importers.StreamingImporter(
+importer = importers.StreamImporter(
     # Specify the batcher to use when generating requests to BlazingDB
     batcher=batcher,
 
@@ -128,6 +128,8 @@ source = postgres.PostgresSource(
         user="postgres",
         password="password",
     ),
+
+    # Specify which schema to retrieve tables from
     schema="default",
 
     # Configure the number of rows to retrieve at a time
@@ -186,7 +188,7 @@ system = pipeline.System([
 # Create the importer to use when loading data into BlazingDB
 importer = importers.ChunkingImporter(
     importers.batchers.RowBatcher(100000),
-    "/path/to/blazing/uploads", "user_folder", "data"
+    "/path/to/blazing/uploads", "user_folder"
 )
 
 # Create the migrator using all the pieces above

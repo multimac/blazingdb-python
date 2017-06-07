@@ -17,24 +17,29 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
     DEFAULT_BUFFER_SIZE = -1
     DEFAULT_FILE_ENCODING = "utf-8"
     DEFAULT_FILE_EXTENSION = "dat"
+    DEFAULT_USER_FOLDER = "data"
 
-    def __init__(self, batcher, upload_folder, user, user_folder, loop=None, **kwargs):
+    def __init__(self, batcher, upload_folder, user, loop=None, **kwargs):
         super(ChunkingImporter, self).__init__(batcher, loop, **kwargs)
         self.logger = logging.getLogger(__name__)
         self.loop = loop
 
         self.upload_folder = path.join(upload_folder, user)
-        self.user_folder = user_folder
+        self.user_folder = kwargs.get("user_folder", self.DEFAULT_USER_FOLDER)
+
+        default_encoding = getattr(batcher, "encoding", self.DEFAULT_FILE_ENCODING)
+        self.encoding = kwargs.get("encoding", default_encoding)
 
         self.buffer_size = kwargs.get("buffer_size", self.DEFAULT_BUFFER_SIZE)
-        self.encoding = kwargs.get("encoding", self.DEFAULT_FILE_ENCODING)
         self.file_extension = kwargs.get("file_extension", self.DEFAULT_FILE_EXTENSION)
         self.ignore_skipdata = kwargs.get("ignore_skipdata", False)
 
     def _open_file(self, filename):
         return aiofiles.open(
-            filename, "w", buffering=self.buffer_size,
-            encoding=self.encoding, loop=self.loop
+            filename, "w",
+            buffering=self.buffer_size,
+            encoding=self.encoding,
+            loop=self.loop
         )
 
     def _get_filename(self, table, chunk):
@@ -44,11 +49,6 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
         return "{0}.{1}".format(filename, self.file_extension)
 
-    def _get_file_path(self, table, chunk):
-        """ Generates a path for a given chunk of a table to be used for writing chunks """
-        import_path = self._get_import_path(table, chunk)
-        return path.join(self.upload_folder, import_path)
-
     def _get_import_path(self, table, chunk):
         """ Generates a path for a given chunk of a table to be used in a query """
         filename = self._get_filename(table, chunk)
@@ -56,6 +56,11 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
             return filename
 
         return path.join(self.user_folder, filename)
+
+    def _get_file_path(self, table, chunk):
+        """ Generates a path for a given chunk of a table to be used for writing chunks """
+        import_path = self._get_import_path(table, chunk)
+        return path.join(self.upload_folder, import_path)
 
     async def _write_chunk(self, chunk, table, index):
         """ Writes a chunk of data to disk """

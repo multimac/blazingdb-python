@@ -9,14 +9,13 @@ from . import base
 class ByteBatcher(base.BaseBatcher):  # pylint: disable=too-few-public-methods
     """ Handles performing requests to load data into Blazing """
 
-    DEFAULT_FILE_ENCODING = "utf-8"
+    DEFAULT_ENCODING = "utf-8"
 
     def __init__(self, size, **kwargs):
         super(ByteBatcher, self).__init__(**kwargs)
-
         self.logger = logging.getLogger(__name__)
 
-        self.encoding = kwargs.get("encoding", self.DEFAULT_FILE_ENCODING)
+        self.encoding = kwargs.get("encoding", self.DEFAULT_ENCODING)
         self.size = size
 
     @staticmethod
@@ -31,7 +30,11 @@ class ByteBatcher(base.BaseBatcher):  # pylint: disable=too-few-public-methods
         return format_str % (size, "Yi", suffix)
 
     def _init_batch(self):
-        return {"batch_length": 0, "byte_count": 0, "last_count": 0}
+        return {
+            "batch_length": 0,
+            "byte_count": 0,
+            "last_count": 0
+        }
 
     def _update_batch(self, data, row):
         encoded_row = row.encode(self.encoding)
