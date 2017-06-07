@@ -3,8 +3,10 @@ Defines the Migrator class which can be used for migrating data into BlazingDB
 """
 
 import asyncio
+import concurrent
 import fnmatch
 import logging
+
 from functools import partial
 
 from . import exceptions
@@ -70,10 +72,10 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
                     await self._migrate_table(table)
                     return
                 except Exception as ex:  # pylint: disable=broad-except
-                    if ex is asyncio.CancelledError:
+                    if ex is concurrent.futures.CancelledError:
                         raise
 
-                    self.logger.exception("Failed to import table %s", table)
+                    self.logger.error("Failed to import table %s (%s): %s", table, type(ex), ex)
 
                     if not await retry_handler(table, ex):
                         return
@@ -104,4 +106,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         try:
             await gather_task
         except Exception:  # pylint: disable=broad-except
+            self.logger.exception("Failed to migrate all tables")
+
             gather_task.cancel()
+            await asyncio.sleep(0)
