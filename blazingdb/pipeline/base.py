@@ -7,8 +7,6 @@ class BaseStage(object):
 
     async def before(self, data):
         """ Called before data begins being piped through the pipeline """
-        pass
 
     async def after(self, data):
         """ Called after before data begins being piped through the pipeline """
-        pass
