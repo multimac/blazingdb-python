@@ -9,12 +9,12 @@ class BlazingException(Exception):
     """ Base class for all BlazingDB exceptions """
 
 
-class MigrateException(Exception):
+class MigrateException(BlazingException):
     """ Thrown when an exception occurs when migrating a table """
     pass
 
 
-class PipelineException(Exception):
+class PipelineException(BlazingException):
     """ Thrown when an exception occurs while processing pipeline stages """
     pass
 
