@@ -72,7 +72,9 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
                     await self._migrate_table(table)
                     return
                 except Exception as ex:  # pylint: disable=broad-except
-                    if ex is concurrent.futures.CancelledError:
+                    if isinstance(ex, exceptions.SkipImportException):
+                        return
+                    elif isinstance(ex, concurrent.futures.CancelledError):
                         raise
 
                     self.logger.error("Failed to import table %s (%s): %s", table, type(ex), ex)
@@ -86,14 +88,14 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         specified, all tables in the source are migrated
         """
 
+        def raise_exception(table, ex):  # pylint: disable=unused-argument
+            raise exceptions.MigrateException() from ex
+
         if kwargs.get("retry_handler", None) is not None:
             migrate = partial(self._safe_migrate_table, kwargs.get("retry_handler"))
         elif kwargs.get("continue_on_error", False):
             migrate = partial(self._safe_migrate_table, lambda table, ex: False)
         else:
-            def raise_exception(table, ex):  # pylint: disable=unused-argument
-                raise exceptions.MigrateException() from ex
-
             migrate = partial(self._safe_migrate_table, raise_exception)
 
         tables = self._retrieve_tables(included_tables, excluded_tables)

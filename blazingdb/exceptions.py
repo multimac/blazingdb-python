@@ -9,19 +9,16 @@ class BlazingException(Exception):
     """ Base class for all BlazingDB exceptions """
 
 
+class ConnectionFailedException(BlazingException):
+    """ Thown when something goes wrong attempting to connect to BlazingDB """
+
+
 class MigrateException(BlazingException):
     """ Thrown when an exception occurs when migrating a table """
-    pass
 
 
 class PipelineException(BlazingException):
     """ Thrown when an exception occurs while processing pipeline stages """
-    pass
-
-
-class ConnectionFailedException(BlazingException):
-    """ Thown when something goes wrong attempting to connect to BlazingDB """
-    pass
 
 
 class QueryException(BlazingException):
@@ -48,3 +45,7 @@ class RequestException(BlazingException):
     def __str__(self):
         response_message = textwrap.shorten(self.response, 100)
         return "status='{0}', response='{1}'".format(self.status, response_message)
+
+
+class SkipImportException(BlazingException):
+    """ Thrown when an import should be skipped """

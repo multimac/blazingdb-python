@@ -30,6 +30,18 @@ class SystemContext(object):  # pylint: disable=too-few-public-methods
 
         self.processed = []
 
+    async def __aenter__(self):
+        try:
+            await self._process_begin()
+        except:
+            await self._process_end(False)
+            raise
+
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._process_end(exc_val is None)
+
     async def _process_begin(self):
         for stage in self.pipeline:
             await stage.before(self.data)
@@ -48,15 +60,3 @@ class SystemContext(object):  # pylint: disable=too-few-public-methods
 
         if errors:
             raise exceptions.PipelineException(errors)
-
-    async def __aenter__(self):
-        try:
-            await self._process_begin()
-        except:
-            await self._process_end(False)
-            raise
-
-        return
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._process_end(exc_val is None)

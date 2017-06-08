@@ -80,46 +80,36 @@ class Connector(object):
 
     async def _connect(self):
         """ Initialises the connection to Blazing """
-        try:
-            token = await self._perform_register()
-        except:
-            self.logger.exception("Could not log the given user in")
-            raise
-
+        token = await self._perform_register()
         if token == "fail":
             raise exceptions.ConnectionFailedException()
 
         self.logger.debug("Retrieved login token %s", token)
 
         if self.database is not None:
-            try:
-                await self._perform_query("USE DATABASE {0}".format(self.database), token)
-            except:
-                self.logger.exception("Failed using specified database for connection")
-                raise
+            await self._perform_query("USE DATABASE {0}".format(self.database), token)
 
         return token
 
-    async def query(self, query):
-        """ Performs a query against Blazing """
+    async def _query(self, query):
         login_token = await self._connect()
-
-        try:
-            result_token = await self._perform_query(query, login_token)
-        except:
-            self.logger.exception("Failed to perform the given query")
-            raise
+        result_token = await self._perform_query(query, login_token)
 
         if result_token == "fail":
             raise exceptions.QueryException(query, None)
 
-        try:
-            result = await self._perform_get_results(login_token, result_token)
-        except:
-            self.logger.exception("Could not retrieve results for the given query")
-            raise
-
+        result = await self._perform_get_results(login_token, result_token)
         if result["status"] == "fail":
             raise exceptions.QueryException(query, result)
 
         return result
+
+    async def query(self, query):
+        """ Performs a query against Blazing """
+        try:
+            return await self._query(query)
+        except Exception as ex:
+            if isinstance(ex, exceptions.QueryException):
+                raise
+
+            raise exceptions.QueryException(query, None) from ex

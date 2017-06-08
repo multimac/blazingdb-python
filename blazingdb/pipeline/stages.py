@@ -74,6 +74,7 @@ class CreateTableStage(base.BaseStage):
                 "QueryException caught when creating table %s, ignoring as it most likely",
                 "means the table exists"
             ]), table)
+
             self.logger.debug(ex.response)
 
 
@@ -184,6 +185,7 @@ class DropTableStage(base.BaseStage):
                 "QueryException caught when dropping table %s, ignoring as it most likely",
                 "means the table doesn't exist"
             ]), table)
+
             self.logger.debug(ex.response)
 
 
@@ -290,4 +292,5 @@ class TruncateTableStage(base.BaseStage):
                 "QueryException caught when truncating table %s, ignoring as it most likely",
                 "means the table is already empty"
             ]), table)
+
             self.logger.debug(ex.response)
