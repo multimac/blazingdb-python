@@ -34,12 +34,23 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         self.file_extension = kwargs.get("file_extension", self.DEFAULT_FILE_EXTENSION)
         self.ignore_skipdata = kwargs.get("ignore_skipdata", False)
 
+    def _init_load(self, data):
+        return {
+            "counter": 0,
+            "connector": data["connector"],
+            "table": data["dest_table"]
+        }
+
+    async def _load_batch(self, data, batch):
+        await self._write_chunk(batch, data["table"], data["counter"])
+        await self._load_chunk(data["connector"], data["table"], data["counter"])
+
+        data["counter"] += 1
+
     def _open_file(self, filename):
         return aiofiles.open(
-            filename, "w",
-            buffering=self.buffer_size,
-            encoding=self.encoding,
-            loop=self.loop
+            filename, "w", buffering=self.buffer_size,
+            encoding=self.encoding, loop=self.loop
         )
 
     def _get_filename(self, table, chunk):
@@ -79,17 +90,4 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         method = "{0} {1}".format(style, query_filename)
 
         self.logger.info("Loading chunk %s into blazing", query_filename)
-        await self._load_data(connector, method, table)
-
-    def _init_load(self, data):
-        return {
-            "counter": 0,
-            "connector": data["connector"],
-            "table": data["dest_table"]
-        }
-
-    async def _load_batch(self, data, batch):
-        await self._write_chunk(batch, data["table"], data["counter"])
-        await self._load_chunk(data["connector"], data["table"], data["counter"])
-
-        data["counter"] += 1
+        await self._perform_request(connector, method, table)
