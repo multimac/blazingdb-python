@@ -208,6 +208,16 @@ class FilterColumnsStage(base.BaseStage):
         data["source"] = sources.FilteredSource(data["source"], ignored_columns)
 
 
+class JumbleDataStage(base.BaseStage):
+    """ Jumbles the data being loaded to obfuscate any sensitive information """
+
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+
+    async def before(self, data):
+        data["source"] = sources.JumbledSource(data["source"])
+
+
 class LimitImportStage(base.BaseStage):
     """ Limits the number of rows imported from the source """
 
@@ -216,7 +226,7 @@ class LimitImportStage(base.BaseStage):
 
     async def before(self, data):
         """ Replaces the source with one which limits the number of rows returned """
-        data["source"] = sources.limited.LimitedSource(data["source"], self.count)
+        data["source"] = sources.LimitedSource(data["source"], self.count)
 
 
 class PromptInputStage(CustomActionStage):
