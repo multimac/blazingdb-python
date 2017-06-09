@@ -90,7 +90,7 @@ class FilteredSource(ChainedSource):
             for row_slice in slices:
                 filtered_row.extend(row[row_slice])
 
-            yield filtered_row
+            yield tuple(filtered_row)
 
 
 class JumbledSource(AlteredStreamSource):
@@ -102,56 +102,47 @@ class JumbledSource(AlteredStreamSource):
         self.logger = logging.getLogger(__name__)
 
     @staticmethod
-    def _random_date(near_date, variance=90):
-        offset = random.randint(0, variance)
+    def _random_date(start=datetime.date(2000, 1, 1), end=datetime.date.today()):
+        offset = random.randint(0, (end - start).days)
         delta = datetime.timedelta(days=offset)
 
-        return near_date + delta
+        return start + delta
 
     @staticmethod
-    def _random_double(length):
-        decimal = random.randint(1, length - 1)
-
-        rand_digit = lambda: random.choice(string.digits)
-        rand_segment = lambda x: [rand_digit() for _ in range(x)]
-
-        return float(".".join([rand_segment(decimal), rand_segment(length - decimal)]))
+    def _random_double(length=8):
+        return random.uniform(1, 10 ** length - 1)
 
     @staticmethod
-    def _random_long(length):
-        rand_digit = lambda: random.choice(string.digits)
-        return int("".join(rand_digit() for _ in range(length)))
+    def _random_long(length=8):
+        return random.randint(1, 10 ** length - 1)
 
     @staticmethod
-    def _random_string(length=10):
-        options = " " + string.ascii_lowercase
-        jumbled = "".join(random.choice(options) for _ in range(length))
+    def _random_string(length=12):
+        rand_char = lambda: random.choice(string.ascii_lowercase + " ")
+        return "".join(rand_char() for _ in range(length)).title()
 
-        return jumbled.title()
+    def _get_random_func(self, col_type):
+        if col_type == "date":
+            func = self._random_date
+        elif col_type == "double":
+            func = self._random_double
+        elif col_type == "long":
+            func = self._random_long
+        else:
+            match = re.fullmatch(r"string\([0-9]+\)", col_type)
+
+            if match:
+                length = min(int(match.group(1)), 12)
+                func = self._random_string(length)
+
+        return func
 
     def _alter_stream(self, table, stream):
-        types = self.source.get_columns(table)
+        types = [t["type"] for t in self.source.get_columns(table)]
+        type_funcs = [self._get_random_func(t) for t in types]
 
-        for row in stream:
-            jumbled = []
-
-            for i, item in enumerate(row):
-                col_type = types[i]["type"]
-                if col_type == "date":
-                    near_date = item if item is not None else datetime.date.today()
-                    jumbled.append(self._random_date(near_date))
-                else:
-                    length = len(str(item)) if item is not None else 10
-                    if col_type == "double":
-                        jumbled.append(self._random_double(length))
-                    elif col_type == "long":
-                        jumbled.append(self._random_long(length))
-                    elif re.fullmatch("string([0-9]+)", col_type):
-                        jumbled.append(self._random_string(length))
-
-            self.logger.debug("%s ==> %s", row, jumbled)
-
-            yield jumbled
+        for _ in stream:
+            yield (func() for func in type_funcs)
 
 
 class LimitedSource(AlteredStreamSource):
