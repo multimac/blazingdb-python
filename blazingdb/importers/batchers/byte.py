@@ -33,7 +33,7 @@ class ByteBatcher(base.BaseBatcher):  # pylint: disable=too-few-public-methods
         return {
             "batch_length": 0,
             "byte_count": 0,
-            "last_count": 0
+            "last_count": -1
         }
 
     def _update_batch(self, data, row):
