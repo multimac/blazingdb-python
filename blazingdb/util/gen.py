@@ -16,8 +16,10 @@ class CountingGenerator(object):
         return self
 
     def __next__(self):
+        item = next(self.iter)
+
         self.count += 1
-        return next(self.iter)
+        return item
 
 
 class GeneratorContext(object):  # pylint: disable=too-few-public-methods
