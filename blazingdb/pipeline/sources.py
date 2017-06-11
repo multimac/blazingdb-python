@@ -110,11 +110,11 @@ class JumbledSource(AlteredStreamSource):
 
     @staticmethod
     def _random_double(length=8):
-        return random.uniform(1, 10 ** length - 1)
+        return random.uniform(1, (10 ** length) - 1)
 
     @staticmethod
     def _random_long(length=8):
-        return random.randint(1, 10 ** length - 1)
+        return random.randint(1, (10 ** length) - 1)
 
     @staticmethod
     def _random_string(length=12):
