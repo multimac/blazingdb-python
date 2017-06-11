@@ -28,6 +28,9 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         """ Streams a chunk of data into Blazing """
         rows = list(chunk)
 
+        if not rows:
+            return
+
         method = "stream '{0}'".format("".join(rows))
 
         self.logger.info("Streaming %s row(s) into %s", len(rows), table)

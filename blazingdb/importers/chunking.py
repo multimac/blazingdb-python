@@ -9,6 +9,7 @@ from os import path
 import aiofiles
 
 from . import base
+from ..util import gen
 
 
 class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
@@ -42,7 +43,13 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         }
 
     async def _load_batch(self, data, batch):
-        await self._write_chunk(batch, data["table"], data["counter"])
+        stream = gen.CountingGenerator(batch)
+
+        await self._write_chunk(stream, data["table"], data["counter"])
+
+        if stream.count == 0:
+            return
+
         await self._load_chunk(data["connector"], data["table"], data["counter"])
 
         data["counter"] += 1
