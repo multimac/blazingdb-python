@@ -48,6 +48,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         await self._write_chunk(stream, data["table"], data["counter"])
 
         if stream.count == 0:
+            self.logger.info("Skipping %s as no rows were retrieved", data["table"])
             return
 
         await self._load_chunk(data["connector"], data["table"], data["counter"])

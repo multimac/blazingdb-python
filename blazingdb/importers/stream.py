@@ -29,6 +29,7 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         rows = list(chunk)
 
         if not rows:
+            self.logger.info("Skipping %s as no rows were retrieved", table)
             return
 
         method = "stream '{0}'".format("".join(rows))
