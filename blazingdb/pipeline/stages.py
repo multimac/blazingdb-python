@@ -32,6 +32,7 @@ class When(flags.Flags):
     before = ()
     after = ()
 
+
 class CreateTableStage(base.BaseStage):
     """ Creates the destination table before importing data """
 
@@ -71,8 +72,8 @@ class CreateTableStage(base.BaseStage):
                 raise
 
             self.logger.debug(" ".join([
-                "QueryException caught when creating table %s, ignoring as it most likely",
-                "means the table exists"
+                "QueryException caught when creating table %s,",
+                "ignoring as it most likely means the table exists"
             ]), table)
 
             self.logger.debug(ex.response)
@@ -103,6 +104,7 @@ class CustomActionStage(base.BaseStage):
             return
 
         await self._perform_callback(data)
+
 
 class CustomCommandStage(CustomActionStage):
     """ Runs a sub-process before / after importing data """
@@ -136,10 +138,9 @@ class CustomQueryStage(CustomActionStage):
 
     async def _perform_query(self, data):
         connector = data["connector"]
-        formatted_query = self.query.format(
-            table=data["dest_table"]
-        )
+        table = data["dest_table"]
 
+        formatted_query = self.query.format(table=table)
         results = await connector.query(formatted_query)
 
         self.logger.debug("Reults for custom query stage: %s", json.dumps(results))
@@ -182,8 +183,8 @@ class DropTableStage(base.BaseStage):
                 raise
 
             self.logger.debug(" ".join([
-                "QueryException caught when dropping table %s, ignoring as it most likely",
-                "means the table doesn't exist"
+                "QueryException caught when dropping table %s,",
+                "ignoring as it most likely means the table doesn't exist"
             ]), table)
 
             self.logger.debug(ex.response)
@@ -299,8 +300,8 @@ class TruncateTableStage(base.BaseStage):
                 raise
 
             self.logger.debug(" ".join([
-                "QueryException caught when truncating table %s, ignoring as it most likely",
-                "means the table is already empty"
+                "QueryException caught when truncating table %s,",
+                "ignoring as it most likely means the table is already empty"
             ]), table)
 
             self.logger.debug(ex.response)

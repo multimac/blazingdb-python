@@ -54,11 +54,11 @@ class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pu
         load_data = self._init_load(data)
         for batch in self.batcher.batch(processed):
             import_data = {
+                "batch": batch,
                 "connector": data["connector"],
-                "dest_table": data["dest_table"],
-                "importer": self,
-                "batch": batch
+                "dest_table": data["dest_table"]
             }
 
-            async with self.pipeline.process(import_data):
-                await self._load_batch(load_data, batch)
+            with self.pipeline.process(import_data) as pipeline:
+                async for pipeline_data in pipeline:
+                    await self._load_batch(load_data, pipeline_data["batch"])

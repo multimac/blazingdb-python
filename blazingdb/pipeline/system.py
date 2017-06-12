@@ -2,61 +2,50 @@
 Defines classes involved in running stages of a pipeline
 """
 
+import functools
 import logging
 
-from .. import exceptions
+from . import base
 
 class System(object):  # pylint: disable=too-few-public-methods
     """ Wraps an array of pipeline stages """
 
-    def __init__(self, pipeline=None):
-        if pipeline is None:
-            pipeline = []
+    def __init__(self, stages=None):
+        if stages is None:
+            stages = []
 
-        self.pipeline = pipeline
+        self.stages = stages
 
     def process(self, data=None):
-        return SystemContext(self.pipeline, data)
+        return SystemContext(self.stages, data)
 
 
 class SystemContext(object):  # pylint: disable=too-few-public-methods
     """ A context manager to handle running begin/end import methods """
 
-    def __init__(self, pipeline, data):
+    def __init__(self, stages, data):
         self.logger = logging.getLogger(__name__)
 
-        self.pipeline = pipeline
-        self.data = data
+        self.pipeline = self._build(stages, data)
 
-        self.processed = []
+    def _build(self, stages, data):
+        async def _chain_stage(step, data):
+            yield from await step(data.copy())
 
-    async def __aenter__(self):
-        try:
-            await self._process_begin()
-        except:
-            await self._process_end(False)
-            raise
+        final_stage = GeneratorStage()
+        step = functools.partial(_chain_stage, final_stage.process, None)
 
-        return self
+        for stage in reversed(stages):
+            step = functools.partial(_chain_stage, step)
+            step = functools.partial(stage.process, step)
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._process_end(exc_val is None)
+        return functools.partial(step, data)
 
-    async def _process_begin(self):
-        for stage in self.pipeline:
-            await stage.before(self.data)
-            self.processed.append(stage)
+    async def __aiter__(self):
+        return await self.pipeline()
 
-    async def _process_end(self, success):
-        data = {"success": success}.update(self.data)
+class GeneratorStage(base.BaseStage):
+    """ Final stage which yields the given data object """
 
-        errors = []
-        while self.processed:
-            stage = self.processed.pop()
-            try:
-                await stage.after(data)
-            except Exception as ex:  # pylint: disable=broad-except
-                errors.append(ex)
-
-        if errors:
-            raise exceptions.PipelineException(errors)
+    async def process(self, _, data):
+        yield data
