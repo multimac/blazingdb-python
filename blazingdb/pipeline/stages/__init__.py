@@ -8,6 +8,7 @@ import flags
 
 from .base import BaseStage
 
+from .batch import ByteBatchStage, RowBatchStage
 from .custom import CustomActionStage, CustomCommandStage, CustomQueryStage
 from .database import CreateTableStage, DropTableStage, TruncateTableStage
 from .misc import DelayStage, PromptInputStage, PrefixTableStage
@@ -20,4 +21,4 @@ class When(flags.Flags):
     before = ()
     after = ()
 
-__all__ = ["base", "custom", "database", "misc", "sources"]
+__all__ = ["base", "batch", "custom", "database", "misc", "sources"]
