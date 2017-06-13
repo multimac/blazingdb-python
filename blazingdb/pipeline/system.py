@@ -33,15 +33,17 @@ class SystemContext(object):
 
     @staticmethod
     def _build(stages, data):
-        async def _chain_stage(step, data):
-            yield from await step(data.copy())
+        async def _call_step(step, old_data, data):
+            yield from await step(old_data.copy().update(data))
+
+        async def _chain_stage(func, step, data):
+            yield from await func(functools.partial(_call_step, step, data), data)
 
         final_stage = GeneratorStage()
         step = functools.partial(_chain_stage, final_stage.process, None)
 
         for stage in reversed(stages):
-            step = functools.partial(_chain_stage, step)
-            step = functools.partial(stage.process, step)
+            step = functools.partial(_chain_stage, stage.process, step)
 
         return functools.partial(step, data)
 
