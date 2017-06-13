@@ -5,9 +5,15 @@ Defines a series of pipeline stages for affecting the sources, including:
  - LimitImportStage
 """
 
+import abc
+import datetime
 import logging
+import random
+import re
+import string
 
-from blazingdb import exceptions, sources
+from blazingdb import sources
+from blazingdb.util import gen
 from . import base
 
 
@@ -59,7 +65,7 @@ class FilterColumnsStage(base.BaseStage):
             " ({0})".format(", ".join(ignored_columns)) if ignored_columns else ""
         )
 
-        data["source"] = sources.FilteredSource(data["source"], ignored_columns)
+        data["source"] = FilteredSource(data["source"], ignored_columns)
 
 
 class FilteredSource(ChainedSource):
@@ -119,7 +125,7 @@ class JumbleDataStage(base.BaseStage):
         self.logger = logging.getLogger(__name__)
 
     async def before(self, data):
-        data["source"] = sources.JumbledSource(data["source"])
+        data["source"] = JumbledSource(data["source"])
 
 
 class JumbledSource(AlteredStreamSource):
@@ -182,7 +188,7 @@ class LimitImportStage(base.BaseStage):
 
     async def before(self, data):
         """ Replaces the source with one which limits the number of rows returned """
-        data["source"] = sources.LimitedSource(data["source"], self.count)
+        data["source"] = LimitedSource(data["source"], self.count)
 
 
 class LimitedSource(AlteredStreamSource):

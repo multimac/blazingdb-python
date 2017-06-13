@@ -15,18 +15,13 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         super(StreamImporter, self).__init__(batcher, loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
-    def _init_load(self, data):
-        return {
-            "connector": data["connector"],
-            "table": data["dest_table"]
-        }
-
-    async def _load_batch(self, data, batch):
-        await self._stream_chunk(data["connector"], batch, data["table"])
-
-    async def _stream_chunk(self, connector, chunk, table):
+    async def load(self, data):
         """ Streams a chunk of data into Blazing """
-        rows = list(chunk)
+        connector = data["connector"]
+        table = data["table"]
+        fmt = data["fmt"]
+
+        rows = list(data["stream"])
 
         if not rows:
             self.logger.info("Skipping %s as no rows were retrieved", table)
@@ -35,4 +30,4 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         method = "stream '{0}'".format("".join(rows))
 
         self.logger.info("Streaming %s row(s) into %s", len(rows), table)
-        await self._perform_request(connector, method, table)
+        await self._perform_request(connector, method, fmt, table)

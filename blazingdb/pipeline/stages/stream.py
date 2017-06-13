@@ -5,8 +5,13 @@ which can be imported into BlazingDB
 
 import logging
 
+from blazingdb import importers
+from . import base
 
-class StreamProcessor(object):  # pylint: disable=too-few-public-methods
+
+# pylint: disable=too-few-public-methods
+
+class StreamGenerationStage(base.BaseStage):
     """ Processes a stream of data into rows BlazingDB can import """
 
     DEFAULT_FIELD_TERMINATOR = "|"
@@ -17,8 +22,14 @@ class StreamProcessor(object):  # pylint: disable=too-few-public-methods
         self.logger = logging.getLogger(__name__)
 
         self.field_terminator = kwargs.get("field_terminator", self.DEFAULT_FIELD_TERMINATOR)
-        self.field_wrapper = kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER)
         self.line_terminator = kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR)
+        self.field_wrapper = kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER)
+
+    def _create_stream(self, data):
+        source = data["source"]
+        table = data["dest_table"]
+
+        return source.retrieve(table)
 
     def _wrap_field(self, column):
         return self.field_wrapper + column + self.field_wrapper
@@ -43,10 +54,26 @@ class StreamProcessor(object):  # pylint: disable=too-few-public-methods
 
         return line + self.line_terminator
 
-    def process(self, stream):
+    def _process_stream(self, stream):
         """ Processes a stream of rows into lines of an import into BlazingDB """
         for row in stream:
             fields = map(self._process_column, row)
             line = self.field_terminator.join(fields)
 
             yield line + self.line_terminator
+
+    async def process(self, step, data):
+        stream = self._create_stream(data)
+        processed = self._process_stream(stream)
+
+        yield from await step({
+            "format": importers.RowFormat(
+                field_terminator=self.field_terminator,
+                line_terminator=self.line_terminator,
+                field_wrapper=self.field_wrapper
+            ),
+
+            "index": 0,
+            "source": None,
+            "stream": processed
+        })

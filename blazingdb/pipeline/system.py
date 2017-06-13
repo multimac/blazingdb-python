@@ -34,7 +34,11 @@ class SystemContext(object):
     @staticmethod
     def _build(stages, data):
         async def _call_step(step, old_data, data):
-            yield from await step(old_data.copy().update(data))
+            yield from await step({
+                k: v for k, v
+                in old_data.copy().update(data).items()
+                if v is not None
+            })
 
         async def _chain_stage(func, step, data):
             yield from await func(functools.partial(_call_step, step, data), data)

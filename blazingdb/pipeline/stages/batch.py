@@ -68,7 +68,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
             self.logger.info("Read %s rows from the stream", len(batch))
 
-            yield from await step({"batch": batch, "index": index})
+            yield from await step({"stream": stream, "index": index})
 
             if last_row is None:
                 break

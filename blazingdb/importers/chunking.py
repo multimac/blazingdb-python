@@ -35,26 +35,6 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         self.file_extension = kwargs.get("file_extension", self.DEFAULT_FILE_EXTENSION)
         self.ignore_skipdata = kwargs.get("ignore_skipdata", False)
 
-    def _init_load(self, data):
-        return {
-            "counter": 0,
-            "connector": data["connector"],
-            "table": data["dest_table"]
-        }
-
-    async def _load_batch(self, data, batch):
-        stream = gen.CountingGenerator(batch)
-
-        await self._write_chunk(stream, data["table"], data["counter"])
-
-        if stream.count == 0:
-            self.logger.info("Skipping %s as no rows were retrieved", data["table"])
-            return
-
-        await self._load_chunk(data["connector"], data["table"], data["counter"])
-
-        data["counter"] += 1
-
     def _open_file(self, filename):
         return aiofiles.open(
             filename, "w", buffering=self.buffer_size,
@@ -81,21 +61,40 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         import_path = self._get_import_path(table, chunk)
         return path.join(self.upload_folder, import_path)
 
-    async def _write_chunk(self, chunk, table, index):
+    async def _write_chunk(self, stream, data):
         """ Writes a chunk of data to disk """
+        table = data["dest_table"]
+        index = data["index"]
+
         chunk_filename = self._get_file_path(table, index)
 
         self.logger.info("Writing chunk file: %s", chunk_filename)
 
         async with self._open_file(chunk_filename) as chunk_file:
-            await chunk_file.writelines(chunk)
+            await chunk_file.writelines(stream)
 
-    async def _load_chunk(self, connector, table, chunk):
+    async def _load_chunk(self, data):
         """ Loads a chunk of data into Blazing """
-        query_filename = self._get_import_path(table, chunk)
+        connector = data["connector"]
+        table = data["dest_table"]
+        index = data["index"]
+        fmt = data["format"]
+
+        query_filename = self._get_import_path(table, index)
 
         style = "infile" if not self.ignore_skipdata else "infilenoskip"
         method = "{0} {1}".format(style, query_filename)
 
         self.logger.info("Loading chunk %s into blazing", query_filename)
-        await self._perform_request(connector, method, table)
+        await self._perform_request(connector, method, fmt, table)
+
+    async def load(self, data):
+        stream = gen.CountingGenerator(data["stream"])
+
+        await self._write_chunk(stream, data)
+
+        if stream.count == 0:
+            self.logger.info("Skipping %s as no rows were retrieved", data["dest_table"])
+            return
+
+        await self._load_chunk(data)
