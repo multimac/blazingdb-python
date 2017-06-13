@@ -13,11 +13,11 @@ class PostgresSource(base.BaseSource):
     CURSOR_NAME = __name__
     FETCH_COUNT = 50000
 
-    def __init__(self, connection, schema, **kwargs):
+    def __init__(self, pool, schema, **kwargs):
         super(PostgresSource, self).__init__()
         self.logger = logging.getLogger(__name__)
 
-        self.connection = connection
+        self.pool = pool
         self.schema = schema
 
         self.fetch_count = kwargs.get("fetch_count", self.FETCH_COUNT)
@@ -30,12 +30,13 @@ class PostgresSource(base.BaseSource):
 
     async def close(self):
         """ Closes the given source and cleans up the connection """
-        await self.connection.close()
+        await self.pool.close()
 
     async def _perform_query(self, query, *args):
-        async with self.connection.transaction():
-            async for row in self.connection.cursor(query, *args):
-                yield row
+        async with self.pool.acquire() as connection:
+            async with connection.transaction():
+                async for row in connection.cursor(query, *args):
+                    yield row
 
     async def get_tables(self):
         """ Retrieves a list of the tables in this source """

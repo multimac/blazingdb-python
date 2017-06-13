@@ -45,9 +45,8 @@ class AlteredStreamSource(ChainedSource, metaclass=abc.ABCMeta):
     async def retrieve(self, table):
         stream = self.source.retrieve(table)
 
-        with gen.GeneratorContext(stream):
-            async for row in self._alter_stream(table, stream):
-                yield row
+        async for row in self._alter_stream(table, stream):
+            yield row
 
 
 class FilterColumnsStage(base.BaseStage):
