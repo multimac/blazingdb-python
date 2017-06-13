@@ -7,9 +7,26 @@ import logging
 from . import base
 
 
+class PostgresPoolConnection(object):  # pylint: disable=too-few-public-methods
+    """ Handles retrieving and returning connections in a pool """
+
+    def __init__(self, pool):
+        self.pool = pool
+        self.connection = None
+
+    def __enter__(self):
+        self.connection = self.pool.getconn()
+        return self.connection
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.pool.putconn(self.connection)
+        self.connection = None
+
+
 class PostgresSource(base.BaseSource):
     """ Handles connecting and retrieving data from Postgres, and loading it into BlazingDB """
 
+    CURSOR_NAME = __name__
     FETCH_COUNT = 50000
 
     def __init__(self, pool, schema, **kwargs):
@@ -21,36 +38,49 @@ class PostgresSource(base.BaseSource):
 
         self.fetch_count = kwargs.get("fetch_count", self.FETCH_COUNT)
 
-    async def __aenter__(self):
+    def __enter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
-    async def close(self):
+    def close(self):
         """ Closes the given source and cleans up the connection """
-        await self.pool.close()
+        self.pool.closeall()
 
-    async def _perform_query(self, query, *args):
-        async with self.pool.acquire() as connection:
-            async with connection.transaction():
-                async for row in connection.cursor(query, *args, prefetch=self.fetch_count):
-                    yield row
+    def _create_cursor(self, connection):
+        cursor = connection.cursor(self.CURSOR_NAME)
+        cursor.itersize = self.fetch_count
 
-    async def get_tables(self):
+        return cursor
+
+    def _perform_query(self, query, *args):
+        with PostgresPoolConnection(self.pool) as connection:
+            with self._create_cursor(connection) as cursor:
+                cursor.execute(query, *args)
+
+                while True:
+                    chunk = cursor.fetchmany(self.fetch_count)
+
+                    if not chunk:
+                        break
+
+                    yield from chunk
+
+    def get_tables(self):
         """ Retrieves a list of the tables in this source """
         results = self._perform_query(" ".join([
             "SELECT DISTINCT table_name FROM information_schema.tables",
             "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
         ]))
 
-        tables = [row[0] async for row in results]
+        tables = [row[0] for row in results]
 
         self.logger.debug("Retrieved %s tables from Postgres", len(tables))
 
         return tables
 
-    async def get_columns(self, table):
+    def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
         results = self._perform_query(" ".join([
             "SELECT column_name, data_type, character_maximum_length",
@@ -59,7 +89,7 @@ class PostgresSource(base.BaseSource):
         ]))
 
         columns = []
-        async for row in results:
+        for row in results:
             datatype = convert_datatype(row[1], row[2])
             columns.append({"name": row[0], "type": datatype})
 
@@ -67,17 +97,14 @@ class PostgresSource(base.BaseSource):
 
         return columns
 
-    async def retrieve(self, table):
+    def retrieve(self, table):
         """ Retrieves data for the given table from the source """
-        columns = await self.get_columns(table)
+        columns = self.get_columns(table)
 
-        results = self._perform_query(" ".join([
+        yield from self._perform_query(" ".join([
             "SELECT {0}".format(",".join(column["name"] for column in columns)),
             "FROM {0}.{1}".format(self.schema, table)
         ]))
-
-        async for row in results:
-            yield row
 
 
 DATATYPE_MAP = {

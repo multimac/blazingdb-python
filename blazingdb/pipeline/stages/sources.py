@@ -13,7 +13,7 @@ import re
 import string
 
 from blazingdb import sources
-from blazingdb.util import aenumerate, gen
+from blazingdb.util import aenumerate
 from . import base
 
 
@@ -25,13 +25,13 @@ class ChainedSource(sources.BaseSource):
     def __init__(self, source):
         self.source = source
 
-    async def get_tables(self):
+    def get_tables(self):
         return self.source.get_tables()
 
-    async def get_columns(self, table):
+    def get_columns(self, table):
         return self.source.get_columns(table)
 
-    async def retrieve(self, table):
+    def retrieve(self, table):
         return self.source.retrieve(table)
 
 
@@ -42,10 +42,10 @@ class AlteredStreamSource(ChainedSource, metaclass=abc.ABCMeta):
     def _alter_stream(self, table, stream):
         pass
 
-    async def retrieve(self, table):
+    def retrieve(self, table):
         stream = self.source.retrieve(table)
 
-        async for row in self._alter_stream(table, stream):
+        for row in self._alter_stream(table, stream):
             yield row
 
 
@@ -80,16 +80,16 @@ class FilteredSource(ChainedSource):
     def _not_filtered(self, column):
         return column["name"] not in self.columns
 
-    async def get_columns(self, table):
-        columns = await self.source.get_columns(table)
+    def get_columns(self, table):
+        columns = self.source.get_columns(table)
 
         return list(filter(self._not_filtered, columns))
 
-    async def retrieve(self, table):
+    def retrieve(self, table):
         current_start = None
         slices = []
 
-        columns = await self.get_columns(table)
+        columns = self.get_columns(table)
         for index, column in enumerate(columns):
             if self._not_filtered(column):
                 if current_start is None:
@@ -109,7 +109,11 @@ class FilteredSource(ChainedSource):
             len(slices), table
         )
 
-        async for row in self.source.retrieve(table):
+        for row in self.source.retrieve(table):
+            if len(slices) == 1:
+                yield row
+                continue
+
             filtered_row = []
 
             for row_slice in slices:
@@ -172,11 +176,11 @@ class JumbledSource(AlteredStreamSource):
 
         return func
 
-    async def _alter_stream(self, table, stream):
-        types = [t["type"] for t in await self.source.get_columns(table)]
+    def _alter_stream(self, table, stream):
+        types = [t["type"] for t in self.source.get_columns(table)]
         type_funcs = [self._get_random_func(t) for t in types]
 
-        async for _ in stream:
+        for _ in stream:
             yield (func() for func in type_funcs)
 
 
@@ -200,8 +204,8 @@ class LimitedSource(AlteredStreamSource):
         self.logger = logging.getLogger(__name__)
         self.count = count
 
-    async def _alter_stream(self, table, stream):
-        async for index, row in aenumerate(stream):
+    def _alter_stream(self, table, stream):
+        for index, row in aenumerate(stream):
             if index >= self.count:
                 message = "Reached %s row limit, not returning any more rows"
 

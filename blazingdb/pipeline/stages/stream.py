@@ -55,9 +55,9 @@ class StreamGenerationStage(base.BaseStage):
 
         return line + self.line_terminator
 
-    async def _process_stream(self, stream):
+    def _process_stream(self, stream):
         """ Processes a stream of rows into lines of an import into BlazingDB """
-        async for row in stream:
+        for row in stream:
             fields = map(self._process_column, row)
             line = self.field_terminator.join(fields)
 

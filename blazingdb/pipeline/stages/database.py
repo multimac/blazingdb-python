@@ -21,11 +21,11 @@ class CreateTableStage(base.BaseStage):
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod
-    async def _get_columns(data):
+    def _get_columns(data):
         source = data["source"]
         table = data["src_table"]
 
-        return await source.get_columns(table)
+        return source.get_columns(table)
 
     @staticmethod
     async def _create_table(connector, table, column_data):
@@ -41,7 +41,7 @@ class CreateTableStage(base.BaseStage):
         connector = data["connector"]
         table = data["dest_table"]
 
-        columns = await self._get_columns(data)
+        columns = self._get_columns(data)
 
         self.logger.info("Creating table %s with %s column(s)", table, len(columns))
 
