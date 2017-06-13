@@ -33,6 +33,10 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
         """ Called to check if a batch has reached the limit and should be returned """
 
     @abc.abstractmethod
+    def _log_complete(self, data):
+        """ Called upon completion of a batch to perform a final log message """
+
+    @abc.abstractmethod
     def _log_progress(self, data):
         """ Called periodically to monitor the progress of a batch """
 
@@ -54,7 +58,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
                 self._update_batch(batch_data, row)
                 yield row
 
-        self._log_progress(batch_data)
+        self._log_complete(batch_data)
 
     async def process(self, step, data):
         """ Generates a series of batches from the stream """
@@ -116,6 +120,13 @@ class ByteBatchStage(BaseBatchStage):
     def _reached_limit(self, data):
         return data["byte_count"] >= self.size
 
+    def _log_complete(self, data):
+        self.logger.info(
+            "Read %s (%s row(s)) from the stream",
+            self._format_size(data["byte_count"]),
+            data["batch_length"]
+        )
+
     def _log_progress(self, data):
         if data["byte_count"] == data["last_count"]:
             return
@@ -150,6 +161,12 @@ class RowBatchStage(BaseBatchStage):
 
     def _reached_limit(self, data):
         return data["batch_length"] >= self.count
+
+    def _log_complete(self, data):
+        self.logger.info(
+            "Read %s row(s) from the stream",
+            data["batch_length"]
+        )
 
     def _log_progress(self, data):
         if data["batch_length"] == data["last_count"]:
