@@ -36,43 +36,42 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
     def _log_progress(self, data):
         """ Called periodically to monitor the progress of a batch """
 
+    def _generate_batch(self, data):
+        batch_data = self._init_batch()
+        stream = data["stream"]
+
+        with timer.RepeatedTimer(10, self._log_progress, batch_data):
+            if data["last_row"] is not None:
+                self._update_batch(batch_data, data["last_row"])
+                yield data["last_row"]
+
+            data["last_row"] = None
+            for row in stream:
+                if self._reached_limit(batch_data):
+                    data["last_row"] = row
+                    break
+
+                self._update_batch(batch_data, row)
+                yield row
+
+        self._log_progress(batch_data)
+
     async def process(self, step, data):
         """ Generates a series of batches from the stream """
 
-        def _add_row(batch, data, row):
-            self._update_batch(data, row)
-            batch.append(row)
-
-        stream = data["stream"]
+        batch_data = {
+            "stream": data["stream"],
+            "last_row": None
+        }
 
         index = 0
-        last_row = None
         while True:
-            batch = []
-            batch_data = self._init_batch()
-
-            with timer.RepeatedTimer(10, self._log_progress, batch_data):
-                if last_row is not None:
-                    _add_row(batch, batch_data, last_row)
-
-                last_row = None
-                for row in stream:
-                    if not batch:
-                        _add_row(batch, batch_data, row)
-                        continue
-
-                    if self._reached_limit(batch_data):
-                        last_row = row
-                        break
-
-                    _add_row(batch, batch_data, row)
-
-            self.logger.info("Read %s rows from the stream", len(batch))
+            batch = self._generate_batch(batch_data)
 
             async for item in step({"stream": batch, "index": index}):
                 yield item
 
-            if last_row is None:
+            if batch_data["last_row"] is None:
                 break
 
             index += 1
@@ -122,7 +121,7 @@ class ByteBatchStage(BaseBatchStage):
             return
 
         self.logger.info(
-            "Read %s of %s bytes (%s row(s)) from the stream",
+            "Read %s of %s (%s row(s)) from the stream",
             self._format_size(data["byte_count"]),
             self._format_size(self.size),
             data["batch_length"]
