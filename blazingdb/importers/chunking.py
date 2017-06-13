@@ -59,8 +59,9 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         import_path = self._get_import_path(table, chunk)
         return path.join(self.upload_folder, import_path)
 
-    async def _write_chunk(self, stream, data):
+    async def _write_chunk(self, data):
         """ Writes a chunk of data to disk """
+        stream = gen.CountingGenerator(data["stream"])
         table = data["dest_table"]
         index = data["index"]
 
@@ -70,6 +71,8 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
         async with self._open_file(chunk_filename) as chunk_file:
             await chunk_file.writelines(stream)
+
+        return stream.count
 
     async def _load_chunk(self, data):
         """ Loads a chunk of data into Blazing """
@@ -87,12 +90,8 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         await self._perform_request(connector, method, fmt, table)
 
     async def load(self, data):
-        stream = gen.CountingGenerator(data["stream"])
-
-        await self._write_chunk(stream, data)
-
-        if stream.count == 0:
-            self.logger.info("Skipping %s as no rows were retrieved", data["dest_table"])
+        if await self._write_chunk(data) == 0:
+            self.logger.info("Skipping %s as no rows were retrieved", data["src_table"])
             return
 
         await self._load_chunk(data)
