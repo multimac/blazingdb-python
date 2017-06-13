@@ -6,19 +6,14 @@ Package containing all pre-defined pipeline stages
 
 import flags
 
-from .base import BaseStage
+from .base import BaseStage, When
 
 from .batch import ByteBatchStage, RowBatchStage
 from .custom import CustomActionStage, CustomCommandStage, CustomQueryStage
 from .database import CreateTableStage, DropTableStage, TruncateTableStage
 from .misc import DelayStage, PromptInputStage, PrefixTableStage
 from .sources import FilterColumnsStage, JumbleDataStage, LimitImportStage
+from .stream import StreamGenerationStage
 
-
-class When(flags.Flags):
-    """ Defines the stages at which a custom query can be executed """
-
-    before = ()
-    after = ()
 
 __all__ = ["base", "batch", "custom", "database", "misc", "sources"]

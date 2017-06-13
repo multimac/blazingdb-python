@@ -4,7 +4,7 @@ Package containing all classes related to building and running a pipeline
 
 import flags
 
-from .stages import *  # pylint: disable=wildcard-import
+from . import stages
 from .system import System
 
 

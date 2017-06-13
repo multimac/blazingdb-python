@@ -11,6 +11,7 @@ import logging
 
 from . import base, When
 
+
 class CustomActionStage(base.BaseStage):
     """ Performs a custom callback before / after importing data """
 

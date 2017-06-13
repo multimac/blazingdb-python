@@ -8,6 +8,7 @@ import logging
 from blazingdb.util import timer
 from . import base
 
+
 # pragma pylint: disable=too-few-public-methods
 
 class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
@@ -68,7 +69,8 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
             self.logger.info("Read %s rows from the stream", len(batch))
 
-            yield from await step({"stream": stream, "index": index})
+            async for item in step({"stream": stream, "index": index}):
+                yield item
 
             if last_row is None:
                 break

@@ -20,18 +20,16 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
     DEFAULT_FILE_EXTENSION = "dat"
     DEFAULT_USER_FOLDER = "data"
 
-    def __init__(self, batcher, upload_folder, user, loop=None, **kwargs):
-        super(ChunkingImporter, self).__init__(batcher, loop, **kwargs)
+    def __init__(self, upload_folder, user, loop=None, **kwargs):
+        super(ChunkingImporter, self).__init__(loop, **kwargs)
         self.logger = logging.getLogger(__name__)
         self.loop = loop
 
         self.upload_folder = path.join(upload_folder, user)
         self.user_folder = kwargs.get("user_folder", self.DEFAULT_USER_FOLDER)
 
-        default_encoding = getattr(batcher, "encoding", self.DEFAULT_FILE_ENCODING)
-        self.encoding = kwargs.get("encoding", default_encoding)
-
         self.buffer_size = kwargs.get("buffer_size", self.DEFAULT_BUFFER_SIZE)
+        self.encoding = kwargs.get("encoding", self.DEFAULT_FILE_ENCODING)
         self.file_extension = kwargs.get("file_extension", self.DEFAULT_FILE_EXTENSION)
         self.ignore_skipdata = kwargs.get("ignore_skipdata", False)
 

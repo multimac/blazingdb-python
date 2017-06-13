@@ -34,14 +34,20 @@ class SystemContext(object):
     @staticmethod
     def _build(stages, data):
         async def _call_step(step, old_data, data):
-            yield from await step({
+            next_data = {
                 k: v for k, v
-                in old_data.copy().update(data).items()
+                in {**old_data, **data}.items()
                 if v is not None
-            })
+            }
+
+            async for item in step(next_data):
+                yield item
 
         async def _chain_stage(func, step, data):
-            yield from await func(functools.partial(_call_step, step, data), data)
+            next_step = functools.partial(_call_step, step, data)
+
+            async for item in func(next_step, data):
+                yield item
 
         final_stage = GeneratorStage()
         step = functools.partial(_chain_stage, final_stage.process, None)
@@ -52,7 +58,7 @@ class SystemContext(object):
         return functools.partial(step, data)
 
     async def __aiter__(self):
-        return await self.pipeline()
+        return self.pipeline()
 
 class GeneratorStage(base.BaseStage):
     """ Final stage which yields the given data object """

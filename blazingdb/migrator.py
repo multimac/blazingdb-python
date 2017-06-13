@@ -58,9 +58,8 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
             "src_table": table
         }
 
-        with self.pipeline.process(import_data) as pipeline:
-            async for pipeline_data in pipeline:
-                await pipeline_data["importer"].load(pipeline_data)
+        async for pipeline_data in self.pipeline.process(import_data):
+            await pipeline_data["importer"].load(pipeline_data)
 
         self.logger.info("Successfully imported table %s", table)
 

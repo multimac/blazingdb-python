@@ -25,9 +25,10 @@ class StreamGenerationStage(base.BaseStage):
         self.line_terminator = kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR)
         self.field_wrapper = kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER)
 
-    def _create_stream(self, data):
+    @staticmethod
+    def _create_stream(data):
         source = data["source"]
-        table = data["dest_table"]
+        table = data["src_table"]
 
         return source.retrieve(table)
 
@@ -66,7 +67,7 @@ class StreamGenerationStage(base.BaseStage):
         stream = self._create_stream(data)
         processed = self._process_stream(stream)
 
-        yield from await step({
+        generator = step({
             "format": importers.RowFormat(
                 field_terminator=self.field_terminator,
                 line_terminator=self.line_terminator,
@@ -77,3 +78,6 @@ class StreamGenerationStage(base.BaseStage):
             "source": None,
             "stream": processed
         })
+
+        async for item in generator:
+            yield item

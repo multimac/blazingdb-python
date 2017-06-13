@@ -11,8 +11,8 @@ from . import base
 class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-methods
     """ Handles the loading of data into Blazing using a stream """
 
-    def __init__(self, batcher, loop=None, **kwargs):
-        super(StreamImporter, self).__init__(batcher, loop, **kwargs)
+    def __init__(self, loop=None, **kwargs):
+        super(StreamImporter, self).__init__(loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
     async def load(self, data):

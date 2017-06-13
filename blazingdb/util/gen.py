@@ -3,7 +3,10 @@ Defines a context manager to close a generator upon exiting.
 """
 
 
+# pragma pylint: disable=too-few-public-methods
+
 class CountingGenerator(object):
+    """ Counts the number of items yielded from a generator """
 
     def __init__(self, generator):
         self.generator = generator
@@ -22,7 +25,7 @@ class CountingGenerator(object):
         return item
 
 
-class GeneratorContext(object):  # pylint: disable=too-few-public-methods
+class GeneratorContext(object):
     """ Wraps a generator and closes it upon exiting """
 
     def __init__(self, generator):
