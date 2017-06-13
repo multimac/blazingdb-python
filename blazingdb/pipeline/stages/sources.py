@@ -1,19 +1,19 @@
 """
-Defines a set of custom importers used by pipeline stages
+Defines a series of pipeline stages for affecting the sources, including:
+ - FilterColumnsStage
+ - JumbleDataStage
+ - LimitImportStage
 """
 
-import abc
-import datetime
 import logging
-import random
-import re
-import string
 
-from ..sources import base
-from ..util import gen
+from blazingdb import exceptions, sources
+from . import base
 
 
-class ChainedSource(base.BaseSource):
+# pragma pylint: disable=too-few-public-methods
+
+class ChainedSource(sources.BaseSource):
     """ A custom source used to override methods on the given source """
 
     def __init__(self, source):
@@ -41,6 +41,25 @@ class AlteredStreamSource(ChainedSource, metaclass=abc.ABCMeta):
 
         with gen.GeneratorContext(stream):
             yield from self._alter_stream(table, stream)
+
+
+class FilterColumnsStage(base.BaseStage):
+    """ Filters the given columns from the imported data """
+
+    def __init__(self, tables):
+        self.logger = logging.getLogger(__name__)
+        self.tables = tables
+
+    async def before(self, data):
+        """ Replaces the stream with one which filters the columns """
+        ignored_columns = self.tables.get(data["src_table"], [])
+
+        self.logger.info(
+            "Filtering %s columns from %s%s", len(ignored_columns), data["src_table"],
+            " ({0})".format(", ".join(ignored_columns)) if ignored_columns else ""
+        )
+
+        data["source"] = sources.FilteredSource(data["source"], ignored_columns)
 
 
 class FilteredSource(ChainedSource):
@@ -93,6 +112,16 @@ class FilteredSource(ChainedSource):
             yield tuple(filtered_row)
 
 
+class JumbleDataStage(base.BaseStage):
+    """ Jumbles the data being loaded to obfuscate any sensitive information """
+
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+
+    async def before(self, data):
+        data["source"] = sources.JumbledSource(data["source"])
+
+
 class JumbledSource(AlteredStreamSource):
     """ Jumbles the data being retrieved from the source to obscure sensitive information """
 
@@ -143,6 +172,17 @@ class JumbledSource(AlteredStreamSource):
 
         for _ in stream:
             yield (func() for func in type_funcs)
+
+
+class LimitImportStage(base.BaseStage):
+    """ Limits the number of rows imported from the source """
+
+    def __init__(self, count):
+        self.count = count
+
+    async def before(self, data):
+        """ Replaces the source with one which limits the number of rows returned """
+        data["source"] = sources.LimitedSource(data["source"], self.count)
 
 
 class LimitedSource(AlteredStreamSource):

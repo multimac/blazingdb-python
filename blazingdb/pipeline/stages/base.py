@@ -2,7 +2,7 @@
 Defines the base stage class for use during data migration
 """
 
-class BaseStage(object):
+class BaseStage(object): # pylint: disable=too-few-public-methods
     """ Base class for all pipeline stages """
 
     async def _call(self, method, data):

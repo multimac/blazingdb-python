@@ -5,9 +5,12 @@ Defines classes involved in running stages of a pipeline
 import functools
 import logging
 
-from . import base
+from .stages import base
 
-class System(object):  # pylint: disable=too-few-public-methods
+
+# pragma pylint: disable=too-few-public-methods
+
+class System(object):
     """ Wraps an array of pipeline stages """
 
     def __init__(self, stages=None):
@@ -20,7 +23,7 @@ class System(object):  # pylint: disable=too-few-public-methods
         return SystemContext(self.stages, data)
 
 
-class SystemContext(object):  # pylint: disable=too-few-public-methods
+class SystemContext(object):
     """ A context manager to handle running begin/end import methods """
 
     def __init__(self, stages, data):
@@ -28,7 +31,8 @@ class SystemContext(object):  # pylint: disable=too-few-public-methods
 
         self.pipeline = self._build(stages, data)
 
-    def _build(self, stages, data):
+    @staticmethod
+    def _build(stages, data):
         async def _chain_stage(step, data):
             yield from await step(data.copy())
 
