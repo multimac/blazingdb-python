@@ -10,7 +10,6 @@ from . import base
 class PostgresSource(base.BaseSource):
     """ Handles connecting and retrieving data from Postgres, and loading it into BlazingDB """
 
-    CURSOR_NAME = __name__
     FETCH_COUNT = 50000
 
     def __init__(self, pool, schema, **kwargs):
@@ -35,7 +34,7 @@ class PostgresSource(base.BaseSource):
     async def _perform_query(self, query, *args):
         async with self.pool.acquire() as connection:
             async with connection.transaction():
-                async for row in connection.cursor(query, *args):
+                async for row in connection.cursor(query, *args, prefetch=self.fetch_count):
                     yield row
 
     async def get_tables(self):
