@@ -36,7 +36,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
     def _log_progress(self, data):
         """ Called periodically to monitor the progress of a batch """
 
-    def _generate_batch(self, data):
+    async def _generate_batch(self, data):
         batch_data = self._init_batch()
         stream = data["stream"]
 
@@ -46,7 +46,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
                 yield data["last_row"]
 
             data["last_row"] = None
-            for row in stream:
+            async for row in stream:
                 if self._reached_limit(batch_data):
                     data["last_row"] = row
                     break

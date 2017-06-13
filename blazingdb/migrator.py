@@ -28,8 +28,8 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         self.pipeline = pipeline
         self.source = source
 
-    def _retrieve_tables(self, included_tables, excluded_tables):
-        source_tables = self.source.get_tables()
+    async def _retrieve_tables(self, included_tables, excluded_tables):
+        source_tables = await self.source.get_tables()
         migrate_tables = set()
 
         if included_tables is not None:
@@ -98,7 +98,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         else:
             migrate = partial(self._safe_migrate_table, raise_exception)
 
-        tables = self._retrieve_tables(included_tables, excluded_tables)
+        tables = await self._retrieve_tables(included_tables, excluded_tables)
 
         self.logger.info("Tables to be imported: %s", ", ".join(tables))
 

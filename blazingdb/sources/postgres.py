@@ -22,48 +22,35 @@ class PostgresSource(base.BaseSource):
 
         self.fetch_count = kwargs.get("fetch_count", self.FETCH_COUNT)
 
-    def __enter__(self):
+    async def __aenter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
 
-    def close(self):
+    async def close(self):
         """ Closes the given source and cleans up the connection """
-        self.connection.close()
+        await self.connection.close()
 
-    def _create_cursor(self):
-        cursor = self.connection.cursor(self.CURSOR_NAME)
-        cursor.itersize = self.fetch_count
+    async def _perform_query(self, query, *args):
+        async with self.connection.transaction():
+            async for row in self.connection.cursor(query, *args):
+                yield row
 
-        return cursor
-
-    def _perform_query(self, query):
-        with self._create_cursor() as cursor:
-            cursor.execute(query)
-
-            while True:
-                chunk = cursor.fetchmany(self.fetch_count)
-
-                if not chunk:
-                    break
-
-                yield from chunk
-
-    def get_tables(self):
+    async def get_tables(self):
         """ Retrieves a list of the tables in this source """
         results = self._perform_query(" ".join([
             "SELECT DISTINCT table_name FROM information_schema.tables",
             "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
         ]))
 
-        tables = [row[0] for row in results]
+        tables = [row[0] async for row in results]
 
         self.logger.debug("Retrieved %s tables from Postgres", len(tables))
 
         return tables
 
-    def get_columns(self, table):
+    async def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
         results = self._perform_query(" ".join([
             "SELECT column_name, data_type, character_maximum_length",
@@ -72,7 +59,7 @@ class PostgresSource(base.BaseSource):
         ]))
 
         columns = []
-        for row in results:
+        async for row in results:
             datatype = convert_datatype(row[1], row[2])
             columns.append({"name": row[0], "type": datatype})
 
@@ -80,14 +67,17 @@ class PostgresSource(base.BaseSource):
 
         return columns
 
-    def retrieve(self, table):
+    async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
-        columns = self.get_columns(table)
+        columns = await self.get_columns(table)
 
-        yield from self._perform_query(" ".join([
+        results = self._perform_query(" ".join([
             "SELECT {0}".format(",".join(column["name"] for column in columns)),
             "FROM {0}.{1}".format(self.schema, table)
         ]))
+
+        async for row in results:
+            yield row
 
 
 DATATYPE_MAP = {

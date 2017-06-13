@@ -9,7 +9,6 @@ from os import path
 import aiofiles
 
 from . import base
-from ..util import gen
 
 
 class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
@@ -61,7 +60,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
     async def _write_chunk(self, data):
         """ Writes a chunk of data to disk """
-        stream = gen.CountingGenerator(data["stream"])
+        stream = data["stream"]
         table = data["dest_table"]
         index = data["index"]
 
@@ -69,10 +68,13 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
         self.logger.info("Writing chunk file: %s", chunk_filename)
 
+        count = 0
         async with self._open_file(chunk_filename) as chunk_file:
-            await chunk_file.writelines(stream)
+            async for row in stream:
+                await chunk_file.write(row)
+                count += 1
 
-        return stream.count
+        return count
 
     async def _load_chunk(self, data):
         """ Loads a chunk of data into Blazing """
