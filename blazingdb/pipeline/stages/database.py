@@ -153,11 +153,11 @@ class SourceComparisonStage(base.BaseStage):
             return
 
         connector = data["connector"]
-        dest_table = data["dest_table"]
-        src_table = data["src_table"]
         source = data["source"]
 
-        column = source.get_columns(src_table)[0]["name"]
+        dest_table = data["dest_table"]
+        src_table = ".".join([source.schema, data["src_table"]])
+        column = source.get_columns(data["src_table"])[0]["name"]
 
         blazing_results = await self._perform_query(connector, dest_table, column)
         source_results = self._perform_query(source, src_table, column)
@@ -167,7 +167,7 @@ class SourceComparisonStage(base.BaseStage):
         if not different:
             return
 
-        self.logger.warning("".join([
+        self.logger.warning(" ".join([
             "Comparison query on table %s differed",
             "between BlazingDB and the source"
         ]), src_table)
