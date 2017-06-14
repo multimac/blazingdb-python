@@ -81,7 +81,7 @@ class FilteredSource(ChainedSource):
         self.columns = columns
 
     def _not_filtered(self, column):
-        return column["name"] not in self.columns
+        return column.name not in self.columns
 
     def get_columns(self, table):
         columns = self.source.get_columns(table)
@@ -180,7 +180,7 @@ class JumbledSource(AlteredStreamSource):
         return func
 
     def _alter_stream(self, table, stream):
-        types = [t["type"] for t in self.source.get_columns(table)]
+        types = [col.type for col in self.source.get_columns(table)]
         type_funcs = [self._get_random_func(t) for t in types]
 
         for _ in stream:

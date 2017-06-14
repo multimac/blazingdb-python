@@ -3,10 +3,13 @@ Defines the base class for data sources
 """
 
 import abc
+from collections import namedtuple
 
 
 class BaseSource(object, metaclass=abc.ABCMeta):
     """ Handles retrieving data from a given source (eg. PostgreSQL) """
+
+    Column = namedtuple("Column", ["name", "type", "size"])
 
     @abc.abstractmethod
     def get_tables(self):

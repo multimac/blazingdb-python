@@ -4,6 +4,7 @@ Defines the Postgres migrator for moving data into BlazingDB from Postgres
 
 import logging
 
+from blazingdb.util.blazing import parse_value
 from . import base
 
 
@@ -77,8 +78,8 @@ class PostgresSource(base.BaseSource):
 
         columns = []
         for row in results:
-            datatype = convert_datatype(row[1], row[2])
-            columns.append({"name": row[0], "type": datatype})
+            column = self.Column(name=row[0], type=convert_datatype(row[1]), size=row[2])
+            columns.append(column)
 
         self.logger.debug("Retrieved %s columns for table %s from Postgres", len(columns), table)
 
@@ -102,31 +103,33 @@ class PostgresSource(base.BaseSource):
         """ Retrieves data for the given table from the source """
         columns = self.get_columns(table)
 
-        yield from self.query(" ".join([
-            "SELECT {0}".format(",".join(column["name"] for column in columns)),
+        results = self.query(" ".join([
+            "SELECT {0}".format(",".join(column.name for column in columns)),
             "FROM {0}.{1}".format(self.schema, table)
         ]))
 
+        for row in results:
+            yield [parse_value(col.type, val) for col, val in zip(columns, row)]
+
 
 DATATYPE_MAP = {
-    'bit': 'long', 'boolean': 'long', 'smallint': 'long',
-    'integer': 'long', 'bigint': 'long',
+    "bit": "long", "boolean": "long", "smallint": "long",
+    "integer": "long", "bigint": "long",
 
-    'double precision': 'double', 'money': 'double',
-    'numeric': 'double', 'real': 'double',
+    "double precision": "double", "money": "double",
+    "numeric": "double", "real": "double",
 
-    'character': 'string({0})',
-    'character varying': 'string({0})',
-    'text': 'string({0})',
+    "character": "string",
+    "character varying": "string",
+    "text": "string",
 
-    'date': 'date',
-    'time with time zone': 'date',
-    'time without time zone': 'date',
-    'timestamp with time zone': 'date',
-    'timestamp without time zone': 'date'
+    "date": "date",
+    "time with time zone": "date",
+    "time without time zone": "date",
+    "timestamp with time zone": "date",
+    "timestamp without time zone": "date"
 }
 
-
-def convert_datatype(datatype, size):
+def convert_datatype(datatype):
     """ Converts a PostgreSQL data type into a BlazingDB data type """
-    return DATATYPE_MAP.get(datatype).format(size)
+    return DATATYPE_MAP[datatype]

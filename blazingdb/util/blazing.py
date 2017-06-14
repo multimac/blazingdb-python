@@ -1,0 +1,58 @@
+"""
+Utility methods for BlazingDB
+"""
+
+import datetime
+
+
+# pragma pylint: disable=multiple-statements
+
+DATATYPES = [
+    "bool", "date", "float", "double",
+    "char", "short", "int", "long",
+    "string"
+]
+
+def _parse_bool(value): return bool(value)
+def _parse_float(value): return float(value)
+def _parse_int(value): return int(value)
+def _parse_string(value): return str(value)
+
+def _parse_date(value):
+    if isinstance(value, datetime.date):
+        return value
+    elif isinstance(value, datetime.datetime):
+        return value.date()
+
+    raise TypeError()
+
+
+DATATYPE_BUILDERS = {
+    **{
+        datatype: lambda column: column.type
+        for datatype in DATATYPES
+    },
+
+    "string": "string({size})"
+}
+DATATYPE_PARSERS = {
+    "bool": _parse_bool, "date": _parse_date,
+
+    "float": _parse_float, "double": _parse_float,
+
+    "char": _parse_int, "short": _parse_int,
+    "int": _parse_int, "long": _parse_int,
+
+    "string": _parse_string
+}
+
+assert all(k in DATATYPE_PARSERS for k in DATATYPES)
+assert all(k in DATATYPE_BUILDERS for k in DATATYPES)
+
+
+def build_datatype(column):
+    format_str = DATATYPE_BUILDERS.get(column.type, column.type)
+    return format_str.format(**column._asdict())
+
+def parse_value(datatype, value):
+    return DATATYPE_PARSERS[datatype](value)
