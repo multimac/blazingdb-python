@@ -128,6 +128,9 @@ class SourceComparisonStage(base.BaseStage):
 
     @staticmethod
     def _compare_rows(left, right):
+        if len(left) != len(right):
+            return False
+
         different = False
         for left_cell, right_cell in zip(left, right):
             different |= (left_cell != right_cell)
@@ -135,16 +138,26 @@ class SourceComparisonStage(base.BaseStage):
         return different
 
     def _compare_results(self, left, right):
+        if len(left) != len(right):
+            return False
+
         different = False
         for left_row, right_row in zip(left, right):
             different |= self._compare_rows(left_row, right_row)
 
         return different
 
-    def _perform_query(self, queryable, table, column):
+    async def _query_blazing(self, connector, table, column):
         formatted_query = self.query.format(table=table, column=column)
+        response = await connector.query(formatted_query)
 
-        return queryable.query(formatted_query)
+        return list(response["rows"])
+
+    def _query_source(self, source, table, column):
+        identifier = ".".join([source.schema, table])
+        formatted_query = self.query.format(table=identifier, column=column)
+
+        return list(source.query(formatted_query))
 
     async def after(self, data):
         """ Performs the queries after data has been imported """
@@ -156,13 +169,15 @@ class SourceComparisonStage(base.BaseStage):
         source = data["source"]
 
         dest_table = data["dest_table"]
-        src_table = ".".join([source.schema, data["src_table"]])
-        column = source.get_columns(data["src_table"])[0]["name"]
+        src_table = data["src_table"]
 
-        blazing_results = await self._perform_query(connector, dest_table, column)
-        source_results = self._perform_query(source, src_table, column)
+        columns = source.get_columns(src_table)
+        misc_column = columns[0]["name"]
 
-        different = self._compare_results(blazing_results["rows"], source_results)
+        blazing_results = await self._query_blazing(connector, dest_table, misc_column)
+        source_results = self._query_source(source, src_table, misc_column)
+
+        different = self._compare_results(blazing_results, source_results)
 
         if not different:
             return
@@ -171,6 +186,9 @@ class SourceComparisonStage(base.BaseStage):
             "Comparison query on table %s differed",
             "between BlazingDB and the source"
         ]), src_table)
+
+        self.logger.debug("Blazing: %s", blazing_results)
+        self.logger.debug("Source: %s", source_results)
 
 
 class TruncateTableStage(base.BaseStage):
