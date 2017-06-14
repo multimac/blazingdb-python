@@ -54,22 +54,9 @@ class PostgresSource(base.BaseSource):
 
         return cursor
 
-    def _perform_query(self, query, *args):
-        with PostgresPoolConnection(self.pool) as connection:
-            with self._create_cursor(connection) as cursor:
-                cursor.execute(query, *args)
-
-                while True:
-                    chunk = cursor.fetchmany(self.fetch_count)
-
-                    if not chunk:
-                        break
-
-                    yield from chunk
-
     def get_tables(self):
         """ Retrieves a list of the tables in this source """
-        results = self._perform_query(" ".join([
+        results = self.query(" ".join([
             "SELECT DISTINCT table_name FROM information_schema.tables",
             "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
         ]))
@@ -82,7 +69,7 @@ class PostgresSource(base.BaseSource):
 
     def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
-        results = self._perform_query(" ".join([
+        results = self.query(" ".join([
             "SELECT column_name, data_type, character_maximum_length",
             "FROM information_schema.columns",
             "WHERE table_schema = '{0}' AND table_name = '{1}'".format(self.schema, table)
@@ -97,11 +84,25 @@ class PostgresSource(base.BaseSource):
 
         return columns
 
+    def query(self, query, *args):
+        """ Performs a custom query against the source """
+        with PostgresPoolConnection(self.pool) as connection:
+            with self._create_cursor(connection) as cursor:
+                cursor.execute(query, *args)
+
+                while True:
+                    chunk = cursor.fetchmany(self.fetch_count)
+
+                    if not chunk:
+                        break
+
+                    yield from chunk
+
     def retrieve(self, table):
         """ Retrieves data for the given table from the source """
         columns = self.get_columns(table)
 
-        yield from self._perform_query(" ".join([
+        yield from self.query(" ".join([
             "SELECT {0}".format(",".join(column["name"] for column in columns)),
             "FROM {0}.{1}".format(self.schema, table)
         ]))

@@ -31,6 +31,9 @@ class ChainedSource(sources.BaseSource):
     def get_columns(self, table):
         return self.source.get_columns(table)
 
+    def query(self, query, *args):
+        return self.source.query(query, *args)
+
     def retrieve(self, table):
         return self.source.retrieve(table)
 

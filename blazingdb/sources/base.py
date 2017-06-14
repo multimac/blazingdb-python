@@ -17,5 +17,9 @@ class BaseSource(object, metaclass=abc.ABCMeta):
         """ Retrieves a list of columns for the given table from the source """
 
     @abc.abstractmethod
+    def query(self, query, *args):
+        """ Performs a custom query against the source """
+
+    @abc.abstractmethod
     def retrieve(self, table):
         """ Retrieves data for the given table from the source """
