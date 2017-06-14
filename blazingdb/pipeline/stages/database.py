@@ -119,11 +119,10 @@ class PostImportHackStage(base.BaseStage):
 class SourceComparisonStage(base.BaseStage):
     """ Performs queries against both BlazingDB and the given source, and compares the results """
 
-    def __init__(self, query, *args, **kwargs):
+    def __init__(self, query, **kwargs):
         self.logger = logging.getLogger(__name__)
 
         self.query = query
-        self.args = args
 
         self.perform_on_failure = kwargs.get("perform_on_failure", False)
 
@@ -144,7 +143,8 @@ class SourceComparisonStage(base.BaseStage):
 
     def _perform_query(self, queryable, table, column):
         formatted_query = self.query.format(table=table, column=column)
-        return queryable.query(formatted_query, self.args)
+
+        return queryable.query(formatted_query)
 
     async def after(self, data):
         """ Performs the queries after data has been imported """
