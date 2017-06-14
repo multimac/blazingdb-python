@@ -7,6 +7,7 @@ Defines a series of miscellaneous pipeline stages, including:
 
 import asyncio
 
+from blazingdb import exceptions
 from . import base, custom
 
 
@@ -45,3 +46,10 @@ class PromptInputStage(custom.CustomActionStage):
 
     async def _prompt(self, data):  # pylint: disable=unused-argument
         input(self.prompt)
+
+class SkipImportStage(base.BaseStage):
+    """ Skips the import if this stage is reached """
+
+    async def before(self, data):  # pylint: disable=unused-argument
+        """ Raises a SkipImportException to skip the import of data """
+        raise exceptions.SkipImportException()
