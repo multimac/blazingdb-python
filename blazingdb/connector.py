@@ -99,11 +99,11 @@ class Connector(object):
         if result_token == "fail":
             raise exceptions.QueryException(query, None)
 
-        result = await self._perform_get_results(login_token, result_token)
-        if result["status"] == "fail":
-            raise exceptions.QueryException(query, result)
+        results = await self._perform_get_results(login_token, result_token)
+        if results["status"] == "fail":
+            raise exceptions.QueryException(query, results)
 
-        return result
+        return results
 
     async def query(self, query):
         """ Performs a query against Blazing """
