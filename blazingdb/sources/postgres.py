@@ -55,7 +55,11 @@ class PostgresSource(base.BaseSource):
 
         return cursor
 
-    def get_tables(self):
+    def get_identifier(self, table, schema=None):
+        schema = self.schema if schema is None else schema
+        return ".".join([schema, table])
+
+    async def get_tables(self):
         """ Retrieves a list of the tables in this source """
         results = self.query(" ".join([
             "SELECT DISTINCT table_name FROM information_schema.tables",
@@ -68,7 +72,7 @@ class PostgresSource(base.BaseSource):
 
         return tables
 
-    def get_columns(self, table):
+    async def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
         results = self.query(" ".join([
             "SELECT column_name, data_type, character_maximum_length",
@@ -85,7 +89,7 @@ class PostgresSource(base.BaseSource):
 
         return columns
 
-    def query(self, query, *args):
+    async def query(self, query, *args):
         """ Performs a custom query against the source """
         with PostgresPoolConnection(self.pool) as connection:
             with self._create_cursor(connection) as cursor:
@@ -97,15 +101,16 @@ class PostgresSource(base.BaseSource):
                     if not chunk:
                         break
 
-                    yield from chunk
+                    for row in chunk:
+                        yield row
 
-    def retrieve(self, table):
+    async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
         columns = self.get_columns(table)
 
         results = self.query(" ".join([
             "SELECT {0}".format(",".join(column.name for column in columns)),
-            "FROM {0}.{1}".format(self.schema, table)
+            "FROM {0}".format(self.get_identifier(table))
         ]))
 
         for row in results:

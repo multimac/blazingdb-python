@@ -12,17 +12,21 @@ class BaseSource(object, metaclass=abc.ABCMeta):
     Column = namedtuple("Column", ["name", "type", "size"])
 
     @abc.abstractmethod
-    def get_tables(self):
+    def get_identifier(self, table, schema=None):
+        """ Creates an identifier for the given schema and table """
+
+    @abc.abstractmethod
+    async def get_tables(self):
         """ Retrieves a list of the tables in this source """
 
     @abc.abstractmethod
-    def get_columns(self, table):
+    async def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
 
     @abc.abstractmethod
-    def query(self, query, *args):
+    async def query(self, query, *args):
         """ Performs a custom query against the source """
 
     @abc.abstractmethod
-    def retrieve(self, table):
+    async def retrieve(self, table):
         """ Retrieves data for the given table from the source """

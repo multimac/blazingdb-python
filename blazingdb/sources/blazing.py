@@ -20,19 +20,33 @@ class BlazingSource(base.BaseSource):
 
         self.separator = kwargs.get("separator", "$")
 
-    def get_tables(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def close(self):
+        """ Closes the given source and cleans up the connector """
+        self.connector.close()
+
+    def get_identifier(self, table, schema=None):
+        schema = self.schema if schema is None else schema
+        return self.separator.join([schema, table])
+
+    async def get_tables(self):
         """ Retrieves a list of the tables in this source """
-        results = self.query("LIST TABLES")
+        results = await self.query("LIST TABLES")
         tables = [row[0] for row in results]
 
         self.logger.debug("Retrieved %s tables from Blazing", len(tables))
 
         return tables
 
-    def get_columns(self, table):
+    async def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
-        identifier = self.separator.join([self.schema, table])
-        results = self.query("DESCRIBE TABLE {0}".format(identifier))
+        identifier = self.get_identifier(table)
+        results = await self.query("DESCRIBE TABLE {0}".format(identifier))
 
         columns = []
         for row in results:
@@ -43,21 +57,22 @@ class BlazingSource(base.BaseSource):
 
         return columns
 
-    def query(self, query, *args):
+    async def query(self, query, *args):
         """ Performs a custom query against the source """
         if args:
             raise NotImplementedError("Parameterized queries are unsupported by Blazing")
 
-        yield from self.connector.query(query)["rows"]
+        results = await self.connector.query(query)
+        for row in results["rows"]:
+            yield row
 
-    def retrieve(self, table):
+    async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
         columns = self.get_columns(table)
-        identifier = self.separator.join([self.schema, table])
 
         results = self.query(" ".join([
             "SELECT {0}".format(",".join(col.name for col in columns)),
-            "FROM {0}".format(identifier)
+            "FROM {0}".format(self.get_identifier(table))
         ]))
 
         for row in results:
