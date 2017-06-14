@@ -10,8 +10,8 @@ from .base import BaseStage, When
 
 from .batch import ByteBatchStage, RowBatchStage
 from .custom import CustomActionStage, CustomCommandStage, CustomQueryStage
-from .database import CreateTableStage, DropTableStage, TruncateTableStage
-from .misc import DelayStage, PromptInputStage, PrefixTableStage
+from .database import CreateTableStage, DropTableStage, SourceComparisonStage, TruncateTableStage
+from .misc import DelayStage, PromptInputStage, PrefixTableStage, SkipImportStage
 from .sources import FilterColumnsStage, JumbleDataStage, LimitImportStage
 from .stream import StreamGenerationStage
 
