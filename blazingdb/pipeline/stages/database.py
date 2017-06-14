@@ -8,6 +8,7 @@ Defines a series of pipeline stages for affecting database tables, including:
 import logging
 
 from blazingdb import exceptions
+from blazingdb.util.blazing import build_datatype
 from . import base
 
 
@@ -21,32 +22,32 @@ class CreateTableStage(base.BaseStage):
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod
-    def _get_columns(data):
-        source = data["source"]
-        table = data["src_table"]
-
-        return source.get_columns(table)
+    async def _get_columns(data):
+        return await data["source"].get_columns(data["src_table"])
 
     @staticmethod
-    async def _create_table(connector, table, column_data):
+    async def _create_table(destination, table, column_data):
         columns = ", ".join([
-            "{0} {1}".format(column["name"], column["type"])
+            "{0} {1}".format(column.name, build_datatype(column))
             for column in column_data
         ])
 
-        await connector.query("CREATE TABLE {0} ({1})".format(table, columns))
+        identifier = destination.get_identifier(table)
+        query = "CREATE TABLE {0} ({1})".format(identifier, columns)
+
+        await destination.query(query)
 
     async def before(self, data):
         """ Triggers the creation of the destination table """
-        connector = data["connector"]
+        destination = data["destination"]
         table = data["dest_table"]
 
-        columns = self._get_columns(data)
+        columns = await self._get_columns(data)
 
         self.logger.info("Creating table %s with %s column(s)", table, len(columns))
 
         try:
-            await self._create_table(connector, table, columns)
+            await self._create_table(destination, table, columns)
         except exceptions.QueryException as ex:
             if not self.quiet:
                 raise
@@ -67,18 +68,19 @@ class DropTableStage(base.BaseStage):
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod
-    async def _drop_table(connector, table):
-        await connector.query("DROP TABLE {0}".format(table))
+    async def _drop_table(destination, table):
+        identifier = destination.get_identifier(table)
+        await destination.query("DROP TABLE {0}".format(identifier))
 
     async def before(self, data):
         """ Triggers the dropping of the destination table """
-        connector = data["connector"]
+        destination = data["destination"]
         table = data["dest_table"]
 
         self.logger.info("Dropping table %s", table)
 
         try:
-            await self._drop_table(connector, table)
+            await self._drop_table(destination, table)
         except exceptions.QueryException as ex:
             if not self.quiet:
                 raise
@@ -99,9 +101,11 @@ class PostImportHackStage(base.BaseStage):
         self.perform_on_failure = kwargs.get("perform_on_failure", False)
 
     @staticmethod
-    async def _perform_post_import_queries(connector, table):
-        await connector.query("POST-OPTIMIZE TABLE {0}".format(table))
-        await connector.query("GENERATE SKIP-DATA FOR {0}".format(table))
+    async def _perform_post_import_queries(destination, table):
+        identifier = destination.get_identifier(table)
+
+        await destination.query("POST-OPTIMIZE TABLE {0}".format(identifier))
+        await destination.query("GENERATE SKIP-DATA FOR {0}".format(identifier))
 
     async def after(self, data):
         """ Triggers the series of queries required to fix the issue """
@@ -109,11 +113,11 @@ class PostImportHackStage(base.BaseStage):
         if failed and not self.perform_on_failure:
             return
 
-        connector = data["connector"]
+        destination = data["destination"]
         table = data["dest_table"]
 
         self.logger.info("Performing post-optimize on table %s", table)
-        await self._perform_post_import_queries(connector, table)
+        await self._perform_post_import_queries(destination, table)
 
 
 class SourceComparisonStage(base.BaseStage):
@@ -147,17 +151,11 @@ class SourceComparisonStage(base.BaseStage):
 
         return different
 
-    async def _query_blazing(self, connector, table, column):
-        formatted_query = self.query.format(table=table, column=column)
-        response = await connector.query(formatted_query)
-
-        return list(response["rows"])
-
-    def _query_source(self, source, table, column):
-        identifier = ".".join([source.schema, table])
+    async def _query_source(self, source, table, column):
+        identifier = source.get_identifier(table)
         formatted_query = self.query.format(table=identifier, column=column)
 
-        return list(source.query(formatted_query))
+        return list(await source.query(formatted_query))
 
     async def after(self, data):
         """ Performs the queries after data has been imported """
@@ -165,19 +163,17 @@ class SourceComparisonStage(base.BaseStage):
         if failed and not self.perform_on_failure:
             return
 
-        connector = data["connector"]
-        source = data["source"]
-
+        destination = data["destination"]
         dest_table = data["dest_table"]
         src_table = data["src_table"]
+        source = data["source"]
 
-        columns = source.get_columns(src_table)
-        misc_column = columns[0]["name"]
+        misc_column = destination.get_columns(src_table)[0].name
 
-        blazing_results = await self._query_blazing(connector, dest_table, misc_column)
-        source_results = self._query_source(source, src_table, misc_column)
+        dest_results = await self._query_source(destination, dest_table, misc_column)
+        src_results = await self._query_source(source, src_table, misc_column)
 
-        different = self._compare_results(blazing_results, source_results)
+        different = self._compare_results(dest_results, src_results)
 
         if not different:
             return
@@ -187,8 +183,8 @@ class SourceComparisonStage(base.BaseStage):
             "between BlazingDB and the source"
         ]), src_table)
 
-        self.logger.debug("Blazing: %s", blazing_results)
-        self.logger.debug("Source: %s", source_results)
+        self.logger.debug("Destination: %s", dest_results)
+        self.logger.debug("Source: %s", src_results)
 
 
 class TruncateTableStage(base.BaseStage):
@@ -199,18 +195,19 @@ class TruncateTableStage(base.BaseStage):
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod
-    async def _truncate_table(connector, table):
-        await connector.query("DELETE FROM {0}".format(table))
+    async def _truncate_table(destination, table):
+        identifier = destination.get_identifier(table)
+        await destination.query("DELETE FROM {0}".format(identifier))
 
     async def before(self, data):
         """ Triggers the truncation of the destination table """
-        connector = data["connector"]
+        destination = data["destination"]
         table = data["dest_table"]
 
         self.logger.info("Truncating table %s", table)
 
         try:
-            await self._truncate_table(connector, table)
+            await self._truncate_table(destination, table)
         except exceptions.QueryException as ex:
             if not self.quiet:
                 raise

@@ -15,7 +15,7 @@ from . import exceptions
 class Migrator(object):  # pylint: disable=too-few-public-methods
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, connector, source, pipeline, importer, loop=None, **kwargs):  # pylint: disable=too-many-arguments
+    def __init__(self, source, pipeline, importer, destination, loop=None, **kwargs):  # pylint: disable=too-many-arguments
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop
@@ -23,7 +23,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
             kwargs.get("import_limit", 5), loop=loop
         )
 
-        self.connector = connector
+        self.destination = destination
         self.importer = importer
         self.pipeline = pipeline
         self.source = source
@@ -51,9 +51,10 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         self.logger.info("Importing table %s...", table)
 
         import_data = {
-            "connector": self.connector,
-            "importer": self.importer,
             "source": self.source,
+            "importer": self.importer,
+            "destination": self.destination,
+
             "dest_table": table,
             "src_table": table
         }

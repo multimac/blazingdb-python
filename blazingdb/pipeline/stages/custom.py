@@ -70,10 +70,12 @@ class CustomQueryStage(CustomActionStage):
         self.query = query
 
     async def _perform_query(self, data):
-        connector = data["connector"]
+        destination = data["destination"]
         table = data["dest_table"]
 
-        formatted_query = self.query.format(table=table)
-        results = await connector.query(formatted_query)
+        identifier = destination.get_identifier(table)
+        formatted_query = self.query.format(table=identifier)
+
+        results = await destination.query(formatted_query)
 
         self.logger.debug("Reults for custom query stage: %s", json.dumps(results))

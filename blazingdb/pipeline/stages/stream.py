@@ -6,6 +6,7 @@ which can be imported into BlazingDB
 import logging
 
 from blazingdb import importers
+from blazingdb.util.blazing import DATE_FORMAT
 from . import base
 
 
@@ -26,11 +27,11 @@ class StreamGenerationStage(base.BaseStage):
         self.field_wrapper = kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER)
 
     @staticmethod
-    def _create_stream(data):
+    async def _create_stream(data):
         source = data["source"]
         table = data["src_table"]
 
-        return source.retrieve(table)
+        return await source.retrieve(table)
 
     def _wrap_field(self, column):
         return self.field_wrapper + column + self.field_wrapper
@@ -42,7 +43,7 @@ class StreamGenerationStage(base.BaseStage):
             return self._wrap_field(column)
 
         try:
-            return column.strftime("%Y-%m-%d")
+            return column.strftime(DATE_FORMAT)
         except AttributeError:
             pass
 
@@ -64,7 +65,7 @@ class StreamGenerationStage(base.BaseStage):
             yield line + self.line_terminator
 
     async def process(self, step, data):
-        stream = self._create_stream(data)
+        stream = await self._create_stream(data)
         processed = self._process_stream(stream)
 
         generator = step({

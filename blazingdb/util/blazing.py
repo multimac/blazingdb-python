@@ -7,6 +7,8 @@ import datetime
 
 # pragma pylint: disable=multiple-statements
 
+DATE_FORMAT = "%Y-%m-%d"
+
 DATATYPES = [
     "bool", "date", "float", "double",
     "char", "short", "int", "long",
@@ -23,6 +25,8 @@ def _parse_date(value):
         return value
     elif isinstance(value, datetime.datetime):
         return value.date()
+    elif isinstance(value, str):
+        return datetime.date.strptime(DATE_FORMAT)
 
     raise TypeError()
 

@@ -25,16 +25,19 @@ class ChainedSource(sources.BaseSource):
     def __init__(self, source):
         self.source = source
 
-    def get_tables(self):
+    def get_identifier(self, table, schema=None):
+        return self.source.get_identifier(table, schema)
+
+    async def get_tables(self):
         return self.source.get_tables()
 
-    def get_columns(self, table):
+    async def get_columns(self, table):
         return self.source.get_columns(table)
 
-    def query(self, query, *args):
+    async def query(self, query, *args):
         return self.source.query(query, *args)
 
-    def retrieve(self, table):
+    async def retrieve(self, table):
         return self.source.retrieve(table)
 
 
@@ -42,13 +45,14 @@ class AlteredStreamSource(ChainedSource, metaclass=abc.ABCMeta):
     """ A custom source used to override the stream of rows from the given source """
 
     @abc.abstractmethod
-    def _alter_stream(self, table, stream):
+    async def _alter_stream(self, table, stream):
         pass
 
-    def retrieve(self, table):
-        stream = self.source.retrieve(table)
+    async def retrieve(self, table):
+        stream = await self.source.retrieve(table)
+        results = await self._alter_stream(table, stream)
 
-        for row in self._alter_stream(table, stream):
+        for row in results:
             yield row
 
 
@@ -83,16 +87,16 @@ class FilteredSource(ChainedSource):
     def _not_filtered(self, column):
         return column.name not in self.columns
 
-    def get_columns(self, table):
-        columns = self.source.get_columns(table)
+    async def get_columns(self, table):
+        columns = await self.source.get_columns(table)
 
         return list(filter(self._not_filtered, columns))
 
-    def retrieve(self, table):
+    async def retrieve(self, table):
         current_start = None
         slices = []
 
-        columns = self.get_columns(table)
+        columns = await self.get_columns(table)
         for index, column in enumerate(columns):
             if self._not_filtered(column):
                 if current_start is None:
@@ -112,7 +116,8 @@ class FilteredSource(ChainedSource):
             len(slices), table
         )
 
-        for row in self.source.retrieve(table):
+        results = await self.source.retrieve(table)
+        for row in results:
             if len(slices) == 1:
                 yield row
                 continue
@@ -163,24 +168,22 @@ class JumbledSource(AlteredStreamSource):
         rand_char = lambda: random.choice(string.ascii_lowercase + " ")
         return "".join(rand_char() for _ in range(length)).title()
 
-    def _get_random_func(self, col_type):
-        if col_type == "date":
+    def _get_random_func(self, col):
+        if col.type == "date":
             func = self._random_date
-        elif col_type == "double":
+        elif col.type == "double":
             func = self._random_double
-        elif col_type == "long":
+        elif col.type == "long":
             func = self._random_long
-        else:
-            match = re.fullmatch(r"string\([0-9]+\)", col_type)
-
-            if match:
-                length = min(int(match.group(1)), 12)
-                func = self._random_string(length)
+        elif col.type == "string":
+            func = self._random_string(col.size)
 
         return func
 
-    def _alter_stream(self, table, stream):
-        types = [col.type for col in self.source.get_columns(table)]
+    async def _alter_stream(self, table, stream):
+        columns = await self.source.get_columns(table)
+
+        types = [col.type for col in columns]
         type_funcs = [self._get_random_func(t) for t in types]
 
         for _ in stream:
@@ -207,7 +210,7 @@ class LimitedSource(AlteredStreamSource):
         self.logger = logging.getLogger(__name__)
         self.count = count
 
-    def _alter_stream(self, table, stream):
+    async def _alter_stream(self, table, stream):
         for index, row in aenumerate(stream):
             if index >= self.count:
                 message = "Reached %s row limit, not returning any more rows"

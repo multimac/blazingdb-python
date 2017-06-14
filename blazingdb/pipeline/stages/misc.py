@@ -25,18 +25,6 @@ class DelayStage(custom.CustomActionStage):
         await asyncio.sleep(self.delay)
 
 
-class PrefixTableStage(base.BaseStage):
-    """ Prefixes the destination tables """
-
-    def __init__(self, prefix, separator="$"):
-        self.prefix = prefix
-        self.separator = separator
-
-    async def before(self, data):
-        """ Prefixes the destination table with the given prefix """
-        data["dest_table"] = self.separator.join([self.prefix, data["dest_table"]])
-
-
 class PromptInputStage(custom.CustomActionStage):
     """ Prompts for user input to continue before / after importing data """
 
