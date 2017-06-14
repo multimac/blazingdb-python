@@ -94,8 +94,9 @@ class DropTableStage(base.BaseStage):
 class PostImportHackStage(base.BaseStage):
     """ Performs a series of queries to help fix an issue with importing data """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         self.logger = logging.getLogger(__name__)
+        self.perform_on_failure = kwargs.get("perform_on_failure", False)
 
     @staticmethod
     async def _perform_post_import_queries(connector, table):
@@ -104,6 +105,10 @@ class PostImportHackStage(base.BaseStage):
 
     async def after(self, data):
         """ Triggers the series of queries required to fix the issue """
+        failed = not(data["success"] or data["skipped"])
+        if failed and not self.perform_on_failure:
+            return
+
         connector = data["connector"]
         table = data["dest_table"]
 
