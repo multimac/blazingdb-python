@@ -137,6 +137,10 @@ class SourceComparisonStage(base.BaseStage):
 
         return different
 
+    def _perform_query(self, queryable, table, column):
+        formatted_query = self.query.format(table=table, column=column)
+        return queryable.query(formatted_query, self.args)
+
     async def after(self, data):
         """ Performs the queries after data has been imported """
         failed = not (data["success"] or data["skipped"])
@@ -148,8 +152,10 @@ class SourceComparisonStage(base.BaseStage):
         src_table = data["src_table"]
         source = data["source"]
 
-        blazing_results = await connector.query(self.query.format(table=dest_table), self.args)
-        source_results = source.query(self.query.format(table=src_table), self.args)
+        column = source.get_columns(src_table)[0]["name"]
+
+        blazing_results = await self._perform_query(connector, dest_table, column)
+        source_results = self._perform_query(source, src_table, column)
 
         different = self._compare_results(blazing_results["rows"], source_results)
 
