@@ -111,6 +111,57 @@ class PostImportHackStage(base.BaseStage):
         await self._perform_post_import_queries(connector, table)
 
 
+class SourceComparisonStage(base.BaseStage):
+    """ Performs queries against both BlazingDB and the given source, and compares the results """
+
+    def __init__(self, query, *args, **kwargs):
+        self.logger = logging.getLogger(__name__)
+
+        self.query = query
+        self.args = args
+
+        self.perform_on_failure = kwargs.get("perform_on_failure", False)
+
+    @staticmethod
+    def _compare_rows(left, right):
+        different = False
+        for left_cell, right_cell in zip(left, right):
+            different |= (left_cell != right_cell)
+
+        return different
+
+    def _compare_results(self, left, right):
+        different = False
+        for left_row, right_row in zip(left, right):
+            different |= self._compare_rows(left_row, right_row)
+
+        return different
+
+    async def after(self, data):
+        """ Performs the queries after data has been imported """
+        failed = not (data["success"] or data["skipped"])
+        if failed and not self.perform_on_failure:
+            return
+
+        connector = data["connector"]
+        dest_table = data["dest_table"]
+        src_table = data["src_table"]
+        source = data["source"]
+
+        blazing_results = await connector.query(self.query.format(table=dest_table), self.args)
+        source_results = source.query(self.query.format(table=src_table), self.args)
+
+        different = self._compare_results(blazing_results["rows"], source_results)
+
+        if not different:
+            return
+
+        self.logger.warning("".join([
+            "Comparison query on table %s differed",
+            "between BlazingDB and the source"
+        ]), src_table)
+
+
 class TruncateTableStage(base.BaseStage):
     """ Deletes all rows in the destination table before importing data """
 
