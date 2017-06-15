@@ -30,7 +30,7 @@ class Connector(object):
         request_limit = kwargs.get("request_limit", self.DEFAULT_REQUEST_LIMIT)
 
         self.baseurl = "{0}://{1}:{2}".format(protocol, host, port)
-        self.semaphore = asyncio.BoundedSemaphore(request_limit)
+        self.semaphore = asyncio.BoundedSemaphore(request_limit, loop=loop)
 
     def __enter__(self):
         return self
