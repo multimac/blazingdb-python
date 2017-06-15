@@ -72,11 +72,9 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
                 try:
                     await self._migrate_table(table)
                     return
-                except Exception as ex:  # pylint: disable=broad-except
+                except exceptions.BlazingException as ex:
                     if isinstance(ex, exceptions.SkipImportException):
                         return
-                    elif isinstance(ex, concurrent.futures.CancelledError):
-                        raise
 
                     self.logger.error("Failed to import table %s (%s): %s", table, type(ex), ex)
 
@@ -112,4 +110,3 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
             self.logger.exception("Failed to migrate all tables")
 
             gather_task.cancel()
-            await asyncio.sleep(0)

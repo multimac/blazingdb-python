@@ -3,6 +3,7 @@ Defines the base stage class for use during data migration
 """
 
 import flags
+import logging
 
 from blazingdb import exceptions
 
@@ -15,6 +16,9 @@ class When(flags.Flags):
 
 class BaseStage(object): # pylint: disable=too-few-public-methods
     """ Base class for all pipeline stages """
+
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
 
     async def _call(self, method, data):
         if hasattr(self, method):
@@ -31,7 +35,12 @@ class BaseStage(object): # pylint: disable=too-few-public-methods
             skipped = isinstance(ex, exceptions.SkipImportException)
             extra_data = {"skipped": skipped, "success": False}
 
-            await self._call("after", {**data, **extra_data})
+            try:
+                await self._call("after", {**data, **extra_data})
+            except Exception:  # pylint: disable=broad-except
+                self.logger.exception("Failed calling 'after' during exception handler")
+
             raise
 
-        await self._call("after", {**data, "success": True})
+        extra_data = {"skipped": False, "success": True}
+        await self._call("after", {**data, **extra_data})

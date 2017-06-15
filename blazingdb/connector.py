@@ -3,7 +3,6 @@ Defines the Connector class to use when connecting to and querying BlazingDB
 """
 
 import asyncio
-import concurrent
 import logging
 
 import aiohttp
@@ -109,10 +108,5 @@ class Connector(object):
         """ Performs a query against Blazing """
         try:
             return await self._query(query)
-        except Exception as ex:
-            if isinstance(ex, exceptions.QueryException):
-                raise
-            elif isinstance(ex, concurrent.futures.CancelledError):
-                raise
-
+        except aiohttp.ClientError as ex:
             raise exceptions.QueryException(query, None) from ex
