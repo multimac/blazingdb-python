@@ -32,10 +32,7 @@ def _parse_date(value):
 
 
 DATATYPE_BUILDERS = {
-    **{
-        datatype: lambda column: column.type
-        for datatype in DATATYPES
-    },
+    **{datatype: datatype for datatype in DATATYPES},
 
     "string": "string({size})"
 }
