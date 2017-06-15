@@ -77,7 +77,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
     async def _load_chunk(self, data):
         """ Loads a chunk of data into Blazing """
-        connector = data["connector"]
+        destination = data["destination"]
         table = data["dest_table"]
         index = data["index"]
         fmt = data["format"]
@@ -88,7 +88,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         method = "{0} {1}".format(style, query_filename)
 
         self.logger.info("Loading chunk %s into blazing", query_filename)
-        await self._perform_request(connector, method, fmt, table)
+        await self._perform_request(destination, method, fmt, table)
 
     async def load(self, data):
         if await self._write_chunk(data) == 0:

@@ -17,7 +17,7 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
 
     async def load(self, data):
         """ Streams a chunk of data into Blazing """
-        connector = data["connector"]
+        destination = data["destination"]
         table = data["table"]
         fmt = data["fmt"]
 
@@ -30,4 +30,4 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         method = "stream '{0}'".format("".join(rows))
 
         self.logger.info("Streaming %s row(s) into %s", len(rows), table)
-        await self._perform_request(connector, method, fmt, table)
+        await self._perform_request(destination, method, fmt, table)

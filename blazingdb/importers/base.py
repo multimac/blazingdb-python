@@ -12,7 +12,7 @@ class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pu
         self.loop = loop
         self.timeout = kwargs.get("timeout", None)
 
-    async def _perform_request(self, connector, method, fmt, table):
+    async def _perform_request(self, destination, method, fmt, table):
         query = " ".join([
             "load data {0} into table {1}".format(method, table),
             "fields terminated by '{0}'".format(fmt.field_terminator),
@@ -21,7 +21,7 @@ class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pu
         ])
 
         with async_timeout.timeout(self.timeout, loop=self.loop):
-            await connector.query(query)
+            await destination.execute(query)
 
     @abc.abstractmethod
     async def load(self, data):
