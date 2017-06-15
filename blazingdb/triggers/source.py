@@ -18,4 +18,5 @@ class SourceTrigger(base.BaseTrigger):  # pylint: disable=too-few-public-methods
 
         self.logger.info("Tables to be imported: %s", ", ".join(tables))
 
-        return tables
+        for table in tables:
+            yield table
