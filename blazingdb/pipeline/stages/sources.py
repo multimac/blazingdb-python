@@ -9,7 +9,6 @@ import abc
 import datetime
 import logging
 import random
-import re
 import string
 
 from blazingdb import sources
