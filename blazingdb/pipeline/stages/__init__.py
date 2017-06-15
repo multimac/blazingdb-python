@@ -12,7 +12,8 @@ from .batch import ByteBatchStage, RowBatchStage
 from .custom import CustomActionStage, CustomCommandStage, CustomQueryStage
 from .database import CreateTableStage, DropTableStage, PostImportHackStage
 from .database import SourceComparisonStage, TruncateTableStage
-from .misc import DelayStage, PromptInputStage, SkipImportStage
+from .misc import DelayStage, PromptInputStage, SemaphoreStage
+from .misc import SkipImportStage, SkipTableStage
 from .sources import FilterColumnsStage, JumbleDataStage, LimitImportStage
 from .stream import StreamGenerationStage
 

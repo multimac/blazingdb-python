@@ -14,4 +14,4 @@ if __name__ == "__main__":
     sys.exit(main.main())
 
 
-__all__ = ["connector", "exceptions", "importers", "migrator", "pipeline", "sources", "util"]
+__all__ = ["connector", "exceptions", "importers", "migrator", "pipeline", "sources", "triggers"]
