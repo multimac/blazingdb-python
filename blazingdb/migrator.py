@@ -3,8 +3,6 @@ Defines the Migrator class which can be used for migrating data into BlazingDB
 """
 
 import asyncio
-import concurrent
-import fnmatch
 import logging
 
 from functools import partial
@@ -12,10 +10,11 @@ from functools import partial
 from . import exceptions
 
 
-class Migrator(object):  # pylint: disable=too-few-public-methods
+class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
+
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, source, pipeline, importer, destination, loop=None, **kwargs):  # pylint: disable=too-many-arguments
+    def __init__(self, triggers, source, pipeline, importer, destination, loop=None, **kwargs):  # pylint: disable=too-many-arguments
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop
@@ -27,24 +26,11 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         self.importer = importer
         self.pipeline = pipeline
         self.source = source
+        self.triggers = triggers
 
-    async def _retrieve_tables(self, included_tables, excluded_tables):
-        source_tables = await self.source.get_tables()
-        migrate_tables = set()
-
-        if included_tables is not None:
-            for pattern in included_tables:
-                matches = fnmatch.filter(source_tables, pattern)
-                migrate_tables.update(matches)
-        else:
-            migrate_tables.update(source_tables)
-
-        if excluded_tables is not None:
-            for pattern in excluded_tables:
-                matches = fnmatch.filter(migrate_tables, pattern)
-                migrate_tables.difference_update(matches)
-
-        return migrate_tables
+    def close(self):
+        self.destination.close()
+        self.source.close()
 
     async def _migrate_table(self, table):
         """ Imports an individual table into BlazingDB """
@@ -64,10 +50,9 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
 
         self.logger.info("Successfully imported table %s", table)
 
-    async def _safe_migrate_table(self, retry_handler, table):
+    async def _safe_migrate_table(self, retry_handler, trigger):
         """ Imports an individual table into BlazingDB, but handles exceptions if they occur """
-
-        while True:
+        async for table in trigger:
             async with self.semaphore:
                 try:
                     await self._migrate_table(table)
@@ -81,7 +66,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
                     if not await retry_handler(table, ex):
                         return
 
-    async def migrate(self, included_tables=None, excluded_tables=None, **kwargs):
+    async def migrate(self, **kwargs):
         """
         Migrates the given list of tables from the source into BlazingDB. If tables is not
         specified, all tables in the source are migrated
@@ -97,11 +82,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods
         else:
             migrate = partial(self._safe_migrate_table, raise_exception)
 
-        tables = await self._retrieve_tables(included_tables, excluded_tables)
-
-        self.logger.info("Tables to be imported: %s", ", ".join(tables))
-
-        tasks = [migrate(table) for table in tables]
+        tasks = [migrate(trigger) for trigger in self.triggers]
         gather_task = asyncio.gather(*tasks, loop=self.loop)
 
         try:

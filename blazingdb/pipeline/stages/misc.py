@@ -6,6 +6,7 @@ Defines a series of miscellaneous pipeline stages, including:
 """
 
 import asyncio
+import fnmatch
 
 from blazingdb import exceptions
 from . import base, custom
@@ -55,3 +56,27 @@ class SkipImportStage(base.BaseStage):
     async def before(self, data):  # pylint: disable=unused-argument
         """ Raises a SkipImportException to skip the import of data """
         raise exceptions.SkipImportException()
+
+
+class SkipTableStage(base.BaseStage):
+    """ Skips tables based on a given set of inclusions and exclusions """
+
+    def __init__(self, included=None, excluded=None):
+        super(SkipTableStage, self).__init__()
+        self.included = included
+        self.excluded = excluded
+
+    def _filter_table(self, table):
+        if self.excluded is not None:
+            for pattern in self.excluded:
+                if fnmatch.fnmatch(table, pattern):
+                    return False
+
+        if self.included is None:
+            return True
+
+        for pattern in self.included:
+            if fnmatch.fnmatch(table, pattern):
+                return True
+
+        return False
