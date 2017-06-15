@@ -30,3 +30,10 @@ class BaseSource(object, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
+
+    async def execute(self, query, *args):
+        """ Executes a custom query against the source, ignoring the results """
+        results = self.query(query, *args)
+
+        async for item in results:
+            return

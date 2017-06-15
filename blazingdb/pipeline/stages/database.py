@@ -35,7 +35,7 @@ class CreateTableStage(base.BaseStage):
         identifier = destination.get_identifier(table)
         query = "CREATE TABLE {0} ({1})".format(identifier, columns)
 
-        await destination.query(query)
+        await destination.execute(query)
 
     async def before(self, data):
         """ Triggers the creation of the destination table """
@@ -70,7 +70,7 @@ class DropTableStage(base.BaseStage):
     @staticmethod
     async def _drop_table(destination, table):
         identifier = destination.get_identifier(table)
-        await destination.query("DROP TABLE {0}".format(identifier))
+        await destination.execute("DROP TABLE {0}".format(identifier))
 
     async def before(self, data):
         """ Triggers the dropping of the destination table """
@@ -104,8 +104,8 @@ class PostImportHackStage(base.BaseStage):
     async def _perform_post_import_queries(destination, table):
         identifier = destination.get_identifier(table)
 
-        await destination.query("POST-OPTIMIZE TABLE {0}".format(identifier))
-        await destination.query("GENERATE SKIP-DATA FOR {0}".format(identifier))
+        await destination.execute("POST-OPTIMIZE TABLE {0}".format(identifier))
+        await destination.execute("GENERATE SKIP-DATA FOR {0}".format(identifier))
 
     async def after(self, data):
         """ Triggers the series of queries required to fix the issue """
@@ -197,7 +197,7 @@ class TruncateTableStage(base.BaseStage):
     @staticmethod
     async def _truncate_table(destination, table):
         identifier = destination.get_identifier(table)
-        await destination.query("DELETE FROM {0}".format(identifier))
+        await destination.execute("DELETE FROM {0}".format(identifier))
 
     async def before(self, data):
         """ Triggers the truncation of the destination table """
