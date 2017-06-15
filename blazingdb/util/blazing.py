@@ -59,8 +59,13 @@ assert all(k in DATATYPE_BUILDERS for k in DATATYPES)
 
 
 def build_datatype(column):
+    """ Builds the data type identifier for the given column """
     format_str = DATATYPE_BUILDERS.get(column.type, column.type)
     return format_str.format(**column._asdict())
 
 def parse_value(datatype, value):
+    """ Parses a value as the given data type """
+    if value is None:
+        return value
+
     return DATATYPE_PARSERS[datatype](value)
