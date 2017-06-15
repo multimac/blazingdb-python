@@ -168,7 +168,8 @@ class SourceComparisonStage(base.BaseStage):
         src_table = data["src_table"]
         source = data["source"]
 
-        misc_column = destination.get_columns(src_table)[0].name
+        columns = await destination.get_columns(src_table)
+        misc_column = columns[0].name
 
         dest_results = await self._query_source(destination, dest_table, misc_column)
         src_results = await self._query_source(source, src_table, misc_column)
