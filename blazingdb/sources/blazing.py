@@ -63,8 +63,10 @@ class BlazingSource(base.BaseSource):
             raise NotImplementedError("Parameterized queries are unsupported by Blazing")
 
         results = await self.connector.query(query)
+
+        columns = results["columnTypes"]
         for row in results["rows"]:
-            yield row
+            yield [parse_value(datatype, val) for datatype, val in zip(columns, row)]
 
     async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
@@ -77,4 +79,4 @@ class BlazingSource(base.BaseSource):
         ]))
 
         async for row in results:
-            yield [parse_value(col.type, val) for col, val in zip(columns, row)]
+            yield row

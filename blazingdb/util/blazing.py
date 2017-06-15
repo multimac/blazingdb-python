@@ -15,10 +15,17 @@ DATATYPES = [
     "string"
 ]
 
-def _parse_bool(value): return bool(value)
 def _parse_float(value): return float(value)
 def _parse_int(value): return int(value)
 def _parse_string(value): return str(value)
+
+def _parse_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() == "true"
+
+    raise TypeError()
 
 def _parse_date(value):
     if isinstance(value, datetime.date):
