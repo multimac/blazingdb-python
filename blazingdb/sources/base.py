@@ -35,5 +35,5 @@ class BaseSource(object, metaclass=abc.ABCMeta):
         """ Executes a custom query against the source, ignoring the results """
         results = self.query(query, *args)
 
-        async for item in results:
+        async for _ in results:
             return
