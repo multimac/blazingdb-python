@@ -29,7 +29,7 @@ class BaseStage(object): # pylint: disable=too-few-public-methods
         await self._call("before", data)
 
         try:
-            async for item in step(data):
+            async for item in step():
                 yield item
         except Exception as ex:
             skipped = isinstance(ex, exceptions.SkipImportException)

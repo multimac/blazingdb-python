@@ -33,7 +33,9 @@ class SystemContext(object):
 
     @staticmethod
     def _build(stages, data):
-        async def _call_step(step, old_data, data):
+        async def _call_step(step, old_data, data=None):
+            data = data if data is not None else dict()
+
             next_data = {
                 k: v for k, v
                 in {**old_data, **data}.items()
