@@ -18,7 +18,9 @@ class CreateTableStage(base.BaseStage):
     """ Creates the destination table before importing data """
 
     def __init__(self, **kwargs):
+        super(CreateTableStage, self).__init__()
         self.logger = logging.getLogger(__name__)
+
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod
@@ -64,7 +66,9 @@ class DropTableStage(base.BaseStage):
     """ Drops the destination table before importing data """
 
     def __init__(self, **kwargs):
+        super(DropTableStage, self).__init__()
         self.logger = logging.getLogger(__name__)
+
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod
@@ -97,7 +101,9 @@ class PostImportHackStage(base.BaseStage):
     """ Performs a series of queries to help fix an issue with importing data """
 
     def __init__(self, **kwargs):
+        super(PostImportHackStage, self).__init__()
         self.logger = logging.getLogger(__name__)
+
         self.perform_on_failure = kwargs.get("perform_on_failure", False)
 
     @staticmethod
@@ -124,6 +130,7 @@ class SourceComparisonStage(base.BaseStage):
     """ Performs queries against both BlazingDB and the given source, and compares the results """
 
     def __init__(self, query, **kwargs):
+        super(SourceComparisonStage, self).__init__()
         self.logger = logging.getLogger(__name__)
 
         self.query = query
@@ -192,7 +199,9 @@ class TruncateTableStage(base.BaseStage):
     """ Deletes all rows in the destination table before importing data """
 
     def __init__(self, **kwargs):
+        super(TruncateTableStage, self).__init__()
         self.logger = logging.getLogger(__name__)
+
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod

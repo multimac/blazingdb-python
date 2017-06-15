@@ -59,7 +59,9 @@ class FilterColumnsStage(base.BaseStage):
     """ Filters the given columns from the imported data """
 
     def __init__(self, tables):
+        super(FilterColumnsStage, self).__init__()
         self.logger = logging.getLogger(__name__)
+
         self.tables = tables
 
     async def before(self, data):
@@ -132,9 +134,6 @@ class FilteredSource(ChainedSource):
 class JumbleDataStage(base.BaseStage):
     """ Jumbles the data being loaded to obfuscate any sensitive information """
 
-    def __init__(self):
-        self.logger = logging.getLogger(__name__)
-
     async def before(self, data):
         data["source"] = JumbledSource(data["source"])
 
@@ -193,6 +192,7 @@ class LimitImportStage(base.BaseStage):
     """ Limits the number of rows imported from the source """
 
     def __init__(self, count):
+        super(LimitImportStage, self).__init__()
         self.count = count
 
     async def before(self, data):

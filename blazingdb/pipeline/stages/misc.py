@@ -35,6 +35,7 @@ class PromptInputStage(custom.CustomActionStage):
     async def _prompt(self, data):  # pylint: disable=unused-argument
         input(self.prompt)
 
+
 class SemaphoreStage(base.BaseStage):
     """ Uses a semaphore to prevent access to later parts of the pipeline """
 
@@ -46,6 +47,7 @@ class SemaphoreStage(base.BaseStage):
         async with self.semaphore:
             async for item in step():
                 yield item
+
 
 class SkipImportStage(base.BaseStage):
     """ Skips the import if this stage is reached """

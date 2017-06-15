@@ -16,9 +16,9 @@ class CustomActionStage(base.BaseStage):
     """ Performs a custom callback before / after importing data """
 
     def __init__(self, callback, **kwargs):
-        self.logger = logging.getLogger(__name__)
-
+        super(CustomActionStage, self).__init__()
         self.callback = callback
+
         self.when = kwargs.get("when", When.before)
 
     async def _perform_callback(self, data):
@@ -67,6 +67,7 @@ class CustomQueryStage(CustomActionStage):
     def __init__(self, query, **kwargs):
         super(CustomQueryStage, self).__init__(self._perform_query, **kwargs)
         self.logger = logging.getLogger(__name__)
+
         self.query = query
 
     async def _perform_query(self, data):

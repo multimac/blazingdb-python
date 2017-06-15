@@ -3,8 +3,6 @@ Defines the StreamProcessor class for mapping the stream of rows from a source i
 which can be imported into BlazingDB
 """
 
-import logging
-
 from blazingdb import importers
 from blazingdb.util.blazing import DATE_FORMAT
 from . import base
@@ -20,8 +18,7 @@ class StreamGenerationStage(base.BaseStage):
     DEFAULT_LINE_TERMINATOR = "\n"
 
     def __init__(self, **kwargs):
-        self.logger = logging.getLogger(__name__)
-
+        super(StreamGenerationStage, self).__init__()
         self.field_terminator = kwargs.get("field_terminator", self.DEFAULT_FIELD_TERMINATOR)
         self.line_terminator = kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR)
         self.field_wrapper = kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER)

@@ -17,7 +17,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
     DEFAULT_LOG_INTERVAL = 10
 
     def __init__(self, **kwargs):
-        self.logger = logging.getLogger(__name__)
+        super(BaseBatchStage, self).__init__()
         self.log_interval = kwargs.get("log_interval", self.DEFAULT_LOG_INTERVAL)
 
     @abc.abstractmethod
@@ -146,8 +146,8 @@ class RowBatchStage(BaseBatchStage):
 
     def __init__(self, count, **kwargs):
         super(RowBatchStage, self).__init__(**kwargs)
-
         self.logger = logging.getLogger(__name__)
+
         self.count = count
 
     def _init_batch(self):
