@@ -64,9 +64,14 @@ class BlazingSource(base.BaseSource):
 
         results = await self.connector.query(query)
 
-        columns = results["columnTypes"]
-        for row in results["rows"]:
-            yield [parse_value(datatype, val) for datatype, val in zip(columns, row)]
+        # This is a hack to simulate BlazingDB's check when returning column types
+        if "select" in query.lower():
+            columns = results["columnTypes"]
+            for row in results["rows"]:
+                yield [parse_value(datatype, val) for datatype, val in zip(columns, row)]
+        else:
+            for row in results["rows"]:
+                yield row
 
     async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
