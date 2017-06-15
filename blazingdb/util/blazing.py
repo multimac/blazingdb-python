@@ -25,7 +25,7 @@ def _parse_bool(value):
     if isinstance(value, str):
         return value.lower() == "true"
 
-    raise TypeError()
+    raise TypeError("Could not parse {0} as bool".format(value))
 
 def _parse_date(value):
     if isinstance(value, datetime.date):
@@ -35,7 +35,7 @@ def _parse_date(value):
     elif isinstance(value, str):
         return datetime.date.strptime(DATE_FORMAT)
 
-    raise TypeError()
+    raise TypeError("Could not parse {0} as date".format(value))
 
 
 DATATYPE_BUILDERS = {
