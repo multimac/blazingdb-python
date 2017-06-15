@@ -27,7 +27,7 @@ class StreamGenerationStage(base.BaseStage):
         self.field_wrapper = kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER)
 
     @staticmethod
-    async def _create_stream(data):
+    def _create_stream(data):
         source = data["source"]
         table = data["src_table"]
 
