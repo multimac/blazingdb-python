@@ -10,12 +10,11 @@ from . import base
 class SourceTrigger(base.BaseTrigger):  # pylint: disable=too-few-public-methods
     """ A simple trigger which returns all tables from a source """
 
-    def __init__(self, source):
+    def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.source = source
 
-    async def poll(self):
-        tables = await self.source.get_tables()
+    async def poll(self, source):
+        tables = await source.get_tables()
 
         self.logger.info("Tables to be imported: %s", ", ".join(tables))
 

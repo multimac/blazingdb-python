@@ -19,7 +19,7 @@ class SnsTrigger(base.BaseTrigger):  # pylint: disable=too-few-public-methods
     async def _wait(self):
         await asyncio.sleep(self.delay)
 
-    async def poll(self):
+    async def poll(self, source):
         while True:
             message = self.queue.read()
 

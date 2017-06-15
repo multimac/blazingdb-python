@@ -38,21 +38,19 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
 
         import_data = {
             "source": self.source,
-            "importer": self.importer,
-            "destination": self.destination,
-
+            "src_table": table,
             "dest_table": table,
-            "src_table": table
+            "destination": self.destination
         }
 
         async for pipeline_data in self.pipeline.process(import_data):
-            await pipeline_data["importer"].load(pipeline_data)
+            await self.importer.load(pipeline_data)
 
         self.logger.info("Successfully imported table %s", table)
 
     async def _safe_migrate_table(self, retry_handler, trigger):
         """ Imports an individual table into BlazingDB, but handles exceptions if they occur """
-        async for table in trigger:
+        async for table in trigger.poll(self.source):
             async with self.semaphore:
                 try:
                     await self._migrate_table(table)
