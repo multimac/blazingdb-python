@@ -14,13 +14,10 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
 
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, triggers, source, pipeline, importer, destination, loop=None, **kwargs):  # pylint: disable=too-many-arguments
+    def __init__(self, triggers, source, pipeline, importer, destination, loop=None):  # pylint: disable=too-many-arguments
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop
-        self.semaphore = asyncio.BoundedSemaphore(
-            kwargs.get("import_limit", 5), loop=loop
-        )
 
         self.destination = destination
         self.importer = importer
@@ -34,8 +31,6 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
 
     async def _migrate_table(self, table):
         """ Imports an individual table into BlazingDB """
-        self.logger.info("Importing table %s...", table)
-
         import_data = {
             "source": self.source,
             "src_table": table,
@@ -48,21 +43,26 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
 
         self.logger.info("Successfully imported table %s", table)
 
-    async def _safe_migrate_table(self, retry_handler, trigger):
-        """ Imports an individual table into BlazingDB, but handles exceptions if they occur """
+    async def _poll_trigger(self, trigger, callback):
+        tasks = []
         async for table in trigger.poll(self.source):
-            async with self.semaphore:
-                try:
-                    await self._migrate_table(table)
-                    continue
-                except exceptions.BlazingException as ex:
-                    if isinstance(ex, exceptions.SkipImportException):
-                        continue
+            task = asyncio.ensure_future(callback(table), loop=self.loop)
+            tasks.append(task)
 
-                    self.logger.error("Failed to import table %s (%s): %s", table, type(ex), ex)
+        await asyncio.gather(*tasks, loop=self.loop)
 
-                    if not await retry_handler(table, ex):
-                        continue
+    async def _retrying_import(self, handler, table):
+        while True:
+            try:
+                await self._migrate_table(table)
+            except exceptions.BlazingException as ex:
+                if isinstance(ex, exceptions.SkipImportException):
+                    return
+
+                self.logger.error("Failed to import table %s (%s): %s", table, type(ex), ex)
+
+                if not await handler(table, ex):
+                    break
 
     async def migrate(self, **kwargs):
         """
@@ -74,13 +74,13 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
             raise exceptions.MigrateException() from ex
 
         if kwargs.get("retry_handler", None) is not None:
-            migrate = partial(self._safe_migrate_table, kwargs.get("retry_handler"))
+            migrate = partial(self._retrying_import, kwargs.get("retry_handler"))
         elif kwargs.get("continue_on_error", False):
-            migrate = partial(self._safe_migrate_table, lambda table, ex: False)
+            migrate = partial(self._retrying_import, lambda table, ex: False)
         else:
-            migrate = partial(self._safe_migrate_table, raise_exception)
+            migrate = partial(self._retrying_import, raise_exception)
 
-        tasks = [migrate(trigger) for trigger in self.triggers]
+        tasks = [self._poll_trigger(trigger, migrate) for trigger in self.triggers]
         gather_task = asyncio.gather(*tasks, loop=self.loop)
 
         try:
