@@ -50,7 +50,7 @@ class BlazingSource(base.BaseSource):
 
         columns = []
         async for row in results:
-            column = self.Column(**row)
+            column = self.Column(*row)
             columns.append(column)
 
         self.logger.debug("Retrieved %s columns for table %s from Blazing", len(columns), table)
@@ -68,8 +68,8 @@ class BlazingSource(base.BaseSource):
 
     async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
-        columns = self.get_columns(table)
-        select_cols = ",".join(col.name async for col in columns)
+        columns = await self.get_columns(table)
+        select_cols = ",".join(col.name for col in columns)
 
         results = self.query(" ".join([
             "SELECT {0}".format(select_cols),

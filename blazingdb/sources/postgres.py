@@ -107,9 +107,10 @@ class PostgresSource(base.BaseSource):
     async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
         columns = await self.get_columns(table)
+        select_cols = ",".join(column.name for column in columns)
 
         results = self.query(" ".join([
-            "SELECT {0}".format(",".join(column.name for column in columns)),
+            "SELECT {0}".format(select_cols),
             "FROM {0}".format(self.get_identifier(table))
         ]))
 
