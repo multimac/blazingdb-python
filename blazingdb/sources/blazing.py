@@ -36,8 +36,8 @@ class BlazingSource(base.BaseSource):
 
     async def get_tables(self):
         """ Retrieves a list of the tables in this source """
-        results = await self.query("LIST TABLES")
-        tables = [row[0] for row in results]
+        results = self.query("LIST TABLES")
+        tables = [row[0] async for row in results]
 
         self.logger.debug("Retrieved %s tables from Blazing", len(tables))
 
@@ -46,10 +46,10 @@ class BlazingSource(base.BaseSource):
     async def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
         identifier = self.get_identifier(table)
-        results = await self.query("DESCRIBE TABLE {0}".format(identifier))
+        results = self.query("DESCRIBE TABLE {0}".format(identifier))
 
         columns = []
-        for row in results:
+        async for row in results:
             column = self.Column(**row)
             columns.append(column)
 
@@ -69,11 +69,12 @@ class BlazingSource(base.BaseSource):
     async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
         columns = self.get_columns(table)
+        select_cols = ",".join(col.name async for col in columns)
 
         results = self.query(" ".join([
-            "SELECT {0}".format(",".join(col.name for col in columns)),
+            "SELECT {0}".format(select_cols),
             "FROM {0}".format(self.get_identifier(table))
         ]))
 
-        for row in results:
+        async for row in results:
             yield [parse_value(col.type, val) for col, val in zip(columns, row)]

@@ -48,10 +48,10 @@ class AlteredStreamSource(ChainedSource, metaclass=abc.ABCMeta):
         pass
 
     async def retrieve(self, table):
-        stream = await self.source.retrieve(table)
-        results = await self._alter_stream(table, stream)
+        stream = self.source.retrieve(table)
+        results = self._alter_stream(table, stream)
 
-        for row in results:
+        async for row in results:
             yield row
 
 
@@ -115,8 +115,8 @@ class FilteredSource(ChainedSource):
             len(slices), table
         )
 
-        results = await self.source.retrieve(table)
-        for row in results:
+        results = self.source.retrieve(table)
+        async for row in results:
             if len(slices) == 1:
                 yield row
                 continue
@@ -185,7 +185,7 @@ class JumbledSource(AlteredStreamSource):
         types = [col.type for col in columns]
         type_funcs = [self._get_random_func(t) for t in types]
 
-        for _ in stream:
+        async for _ in stream:
             yield (func() for func in type_funcs)
 
 
@@ -210,7 +210,7 @@ class LimitedSource(AlteredStreamSource):
         self.count = count
 
     async def _alter_stream(self, table, stream):
-        for index, row in aenumerate(stream):
+        async for index, row in aenumerate(stream):
             if index >= self.count:
                 message = "Reached %s row limit, not returning any more rows"
 

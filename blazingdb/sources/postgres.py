@@ -66,7 +66,7 @@ class PostgresSource(base.BaseSource):
             "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
         ]))
 
-        tables = [row[0] for row in results]
+        tables = [row[0] async for row in results]
 
         self.logger.debug("Retrieved %s tables from Postgres", len(tables))
 
@@ -81,7 +81,7 @@ class PostgresSource(base.BaseSource):
         ]))
 
         columns = []
-        for row in results:
+        async for row in results:
             column = self.Column(name=row[0], type=convert_datatype(row[1]), size=row[2])
             columns.append(column)
 
@@ -106,14 +106,14 @@ class PostgresSource(base.BaseSource):
 
     async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
-        columns = self.get_columns(table)
+        columns = await self.get_columns(table)
 
         results = self.query(" ".join([
             "SELECT {0}".format(",".join(column.name for column in columns)),
             "FROM {0}".format(self.get_identifier(table))
         ]))
 
-        for row in results:
+        async for row in results:
             yield [parse_value(col.type, val) for col, val in zip(columns, row)]
 
 

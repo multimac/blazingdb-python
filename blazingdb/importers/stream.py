@@ -21,7 +21,7 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         table = data["table"]
         fmt = data["fmt"]
 
-        rows = [item for item in data["stream"]]
+        rows = [item async for item in data["stream"]]
 
         if not rows:
             self.logger.info("Skipping %s as no rows were retrieved", table)

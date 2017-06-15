@@ -70,7 +70,8 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
         stream = gen.CountingGenerator(data["stream"])
         async with self._open_file(chunk_filename) as chunk_file:
-            await chunk_file.writelines(stream)
+            async for row in stream:
+                await chunk_file.write(row)
 
         return stream.count
 
