@@ -14,7 +14,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
 
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, triggers, source, pipeline, importer, destination, loop=None):  # pylint: disable=too-many-arguments
+    def __init__(self, triggers, source, pipeline, importer, destination, loop=None, **kwargs):  # pylint: disable=too-many-arguments
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop
@@ -24,6 +24,11 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
         self.pipeline = pipeline
         self.source = source
         self.triggers = triggers
+
+        self.concurrent_imports = kwargs.get("concurrent_imports", 5)
+
+        self.queue_length = kwargs.get("queue_length", self.concurrent_imports)
+        self.queue = asyncio.Queue(self.queue_length, loop=loop)
 
     def close(self):
         self.destination.close()
@@ -43,13 +48,18 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
 
         self.logger.info("Successfully imported table %s", table)
 
-    async def _poll_trigger(self, trigger, callback):
-        tasks = []
+    async def _poll_trigger(self, trigger):
         async for table in trigger.poll(self.source):
-            task = asyncio.ensure_future(callback(table), loop=self.loop)
-            tasks.append(task)
+            await self.queue.put(table)
 
-        await asyncio.gather(*tasks, loop=self.loop)
+            self.logger.info("Added table %s to import queue", table)
+
+    async def _process_queue(self, callback):
+        while True:
+            table = await self.queue.get()
+
+            await callback(table)
+            self.queue.task_done()
 
     async def _retrying_import(self, handler, table):
         while True:
@@ -80,8 +90,10 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
         else:
             migrate = partial(self._retrying_import, raise_exception)
 
-        tasks = [self._poll_trigger(trigger, migrate) for trigger in self.triggers]
-        gather_task = asyncio.gather(*tasks, loop=self.loop)
+        poll_tasks = [self._poll_trigger(trigger) for trigger in self.triggers]
+        process_tasks = [self._process_queue(migrate) for _ in range(self.concurrent_imports)]
+
+        gather_task = asyncio.gather(*poll_tasks, *process_tasks, loop=self.loop)
 
         try:
             await gather_task
