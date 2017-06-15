@@ -54,15 +54,15 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
             async with self.semaphore:
                 try:
                     await self._migrate_table(table)
-                    return
+                    continue
                 except exceptions.BlazingException as ex:
                     if isinstance(ex, exceptions.SkipImportException):
-                        return
+                        continue
 
                     self.logger.error("Failed to import table %s (%s): %s", table, type(ex), ex)
 
                     if not await retry_handler(table, ex):
-                        return
+                        continue
 
     async def migrate(self, **kwargs):
         """
