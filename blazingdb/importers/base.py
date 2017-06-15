@@ -13,8 +13,9 @@ class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pu
         self.timeout = kwargs.get("timeout", None)
 
     async def _perform_request(self, destination, method, fmt, table):
+        identifier = destination.get_identifier(table)
         query = " ".join([
-            "load data {0} into table {1}".format(method, table),
+            "load data {0} into table {1}".format(method, identifier),
             "fields terminated by '{0}'".format(fmt.field_terminator),
             "enclosed by '{0}'".format(fmt.field_wrapper),
             "lines terminated by '{0}'".format(fmt.line_terminator)
