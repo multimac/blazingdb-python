@@ -2,17 +2,17 @@
 Defines the base stage class for use during data migration
 """
 
-import flags
 import logging
+import enum
 
 from blazingdb import exceptions
 
 
-class When(flags.Flags):
+class When(enum.Flag):
     """ Defines the stages at which a custom query can be executed """
 
-    before = ()
-    after = ()
+    before = enum.auto()
+    after = enum.auto()
 
 class BaseStage(object): # pylint: disable=too-few-public-methods
     """ Base class for all pipeline stages """

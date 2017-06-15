@@ -21,5 +21,5 @@ setup(
     ],
 
     packages=find_packages(),
-    install_requires=["aiofiles", "aiohttp", "py-flags"]
+    install_requires=["aiofiles", "aiohttp"]
 )
