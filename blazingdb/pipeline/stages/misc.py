@@ -63,6 +63,7 @@ class SkipTableStage(base.BaseStage):
 
     def __init__(self, included=None, excluded=None):
         super(SkipTableStage, self).__init__()
+
         self.included = included
         self.excluded = excluded
 
@@ -70,13 +71,18 @@ class SkipTableStage(base.BaseStage):
         if self.excluded is not None:
             for pattern in self.excluded:
                 if fnmatch.fnmatch(table, pattern):
-                    return False
+                    return True
 
         if self.included is None:
-            return True
+            return False
 
         for pattern in self.included:
             if fnmatch.fnmatch(table, pattern):
-                return True
+                return False
 
-        return False
+        return True
+
+    async def before(self, data):
+        """ Raises a SkipImportException if the table should be filtered """
+        if self._filter_table(data["src_table"]):
+            raise exceptions.SkipImportException()
