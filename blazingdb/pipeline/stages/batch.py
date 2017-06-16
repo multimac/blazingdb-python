@@ -71,7 +71,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
         stream = data["stream"]
 
         while True:
-            batch, last_row = self._generate_batch(stream, last_row)
+            batch, last_row = await self._generate_batch(stream, last_row)
 
             async for item in step({"stream": batch, "index": index}):
                 yield item
