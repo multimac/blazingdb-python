@@ -4,6 +4,7 @@ Defines the base batcher class for generating batches of data to load into Blazi
 
 import abc
 import logging
+from collections import deque
 
 from blazingdb.util import timer
 from . import base
@@ -40,43 +41,56 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
     def _log_progress(self, data):
         """ Called periodically to monitor the progress of a batch """
 
-    async def _generate_batch(self, stream, last_row):
+    async def _generate_batch(self, stream, last_chunk):
         batch_data = self._init_batch()
+        batch = []
+
+        def _process_chunk(chunk):
+            nonlocal batch, batch_data
+
+            while chunk:
+                row = chunk.popleft()
+                batch.append(row)
+
+                self._update_batch(batch_data, row)
+
+                if self._reached_limit(batch_data):
+                    return chunk
+
+            return None
 
         with timer.RepeatedTimer(10, self._log_progress, batch_data):
-            batch = []
+            if last_chunk is not None:
+                remaining = _process_chunk(last_chunk)
 
-            if last_row is not None:
-                self._update_batch(batch_data, last_row)
-                batch.append(last_row)
+                if remaining is not None:
+                    self._log_complete(batch_data)
+                    return (batch, remaining)
 
-            last_row = None
             async for chunk in stream:
-                for row in chunk:
-                    if self._reached_limit(batch_data):
-                        last_row = row
-                        break
+                remaining = _process_chunk(deque(chunk))
 
-                    self._update_batch(batch_data, row)
-                    batch.append(row)
+                if remaining is not None:
+                    self._log_complete(batch_data)
+                    return (batch, remaining)
 
         self._log_complete(batch_data)
-        return (batch, last_row)
+        return (batch, None)
 
     async def process(self, step, data):
         """ Generates a series of batches from the stream """
 
         index = 0
-        last_row = None
+        last_chunk = None
         stream = data["stream"]
 
         while True:
-            batch, last_row = await self._generate_batch(stream, last_row)
+            batch, last_chunk = await self._generate_batch(stream, last_chunk)
 
             async for item in step({"stream": batch, "index": index}):
                 yield item
 
-            if last_row is None:
+            if last_chunk is None:
                 break
 
             index += 1
