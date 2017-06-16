@@ -18,15 +18,15 @@ class CountingGenerator(object):
         self.iter = self.generator.__aiter__()
         return self
 
-    def __iter__(self):
-        self.iter = iter(self.generator)
-        return self
-
     async def __anext__(self):
         item = await self.iter.__anext__()
 
         self.count += 1
         return item
+
+    def __iter__(self):
+        self.iter = iter(self.generator)
+        return self
 
     def __next__(self):
         item = next(self.iter)
@@ -44,11 +44,11 @@ class GeneratorContext(object):
     async def __aenter__(self):
         return self
 
-    def __enter__(self):
-        return self
-
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.generator.close()
+
+    def __enter__(self):
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.generator.close()
