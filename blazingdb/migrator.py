@@ -52,51 +52,44 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
         async for table in trigger.poll(self.source):
             await self.queue.put(table)
 
-            self.logger.info("Added table %s to import queue", table)
+            self.logger.info("Added table %s to the import queue", table)
 
-    async def _process_queue(self, callback):
+    async def _process_queue(self):
         while True:
             table = await self.queue.get()
 
-            await callback(table)
-            self.queue.task_done()
+            if table is None:
+                self.queue.task_done()
+                break
 
-    async def _retrying_import(self, handler, table):
-        while True:
+            self.logger.info("Popped table %s from the import queue", table)
+
             try:
                 await self._migrate_table(table)
-            except exceptions.BlazingException as ex:
-                if isinstance(ex, exceptions.SkipImportException):
-                    return
+            except Exception:  # pylint: disable=broad-except
+                self.logger.exception("Caught exception attempting to import table %s")
 
-                self.logger.error("Failed to import table %s (%s): %s", table, type(ex), ex)
+            self.queue.task_done()
 
-                if not await handler(table, ex):
-                    break
-
-    async def migrate(self, **kwargs):
+    async def migrate(self):
         """
         Migrates the given list of tables from the source into BlazingDB. If tables is not
         specified, all tables in the source are migrated
         """
 
-        def raise_exception(table, ex):  # pylint: disable=unused-argument
-            raise exceptions.MigrateException() from ex
-
-        if kwargs.get("retry_handler", None) is not None:
-            migrate = partial(self._retrying_import, kwargs.get("retry_handler"))
-        elif kwargs.get("continue_on_error", False):
-            migrate = partial(self._retrying_import, lambda table, ex: False)
-        else:
-            migrate = partial(self._retrying_import, raise_exception)
-
         poll_tasks = [self._poll_trigger(trigger) for trigger in self.triggers]
-        process_tasks = [self._process_queue(migrate) for _ in range(self.concurrent_imports)]
+        process_tasks = [self._process_queue() for _ in range(self.concurrent_imports)]
 
-        gather_task = asyncio.gather(*poll_tasks, *process_tasks, loop=self.loop)
+        gathered_poll_tasks = asyncio.gather(*poll_tasks, loop=self.loop)
+        gathered_process_tasks = asyncio.gather(*process_tasks, loop=self.loop)
 
         try:
-            await gather_task
+            await gathered_poll_tasks
         except:
-            gather_task.cancel()
+            gathered_poll_tasks.cancel()
             raise
+        finally:
+            for _ in range(self.concurrent_imports):
+                self.queue.put(None)
+
+            await gathered_process_tasks
