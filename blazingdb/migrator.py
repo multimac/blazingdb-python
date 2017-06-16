@@ -97,7 +97,6 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
 
         try:
             await gather_task
-        except Exception:  # pylint: disable=broad-except
-            self.logger.exception("Failed to migrate all tables")
-
+        except:
             gather_task.cancel()
+            raise
