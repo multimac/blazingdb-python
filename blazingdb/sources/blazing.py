@@ -66,7 +66,7 @@ class BlazingSource(base.BaseSource):
         types = results["columnTypes"]
 
         if "select" in query.lower():
-            yield [parse_value(dt, val) for row in rows for dt, val in zip(types, row)]
+            yield [[parse_value(dt, val) for dt, val in zip(types, row)] for row in rows]
         else:
             yield rows
 
