@@ -77,6 +77,6 @@ class CustomQueryStage(CustomActionStage):
         identifier = destination.get_identifier(table)
         formatted_query = self.query.format(table=identifier)
 
-        results = [item async for item in destination.query(formatted_query)]
+        results = [item async for chunk in destination.query(formatted_query) for item in chunk]
 
         self.logger.debug("Reults for custom query stage: %s", json.dumps(results))

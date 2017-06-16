@@ -37,7 +37,7 @@ class BlazingSource(base.BaseSource):
     async def get_tables(self):
         """ Retrieves a list of the tables in this source """
         results = self.query("LIST TABLES")
-        tables = [row[0] async for row in results]
+        tables = [row[0] async for chunk in results for row in chunk]
 
         self.logger.debug("Retrieved %s tables from Blazing", len(tables))
 
@@ -48,10 +48,7 @@ class BlazingSource(base.BaseSource):
         identifier = self.get_identifier(table)
         results = self.query("DESCRIBE TABLE {0}".format(identifier))
 
-        columns = []
-        async for row in results:
-            column = self.Column(*row)
-            columns.append(column)
+        columns = [self.Column(*row) async for chunk in results for row in chunk]
 
         self.logger.debug("Retrieved %s columns for table %s from Blazing", len(columns), table)
 
@@ -65,13 +62,13 @@ class BlazingSource(base.BaseSource):
         results = await self.connector.query(query)
 
         # This is a hack to simulate BlazingDB's check when returning column types
+        rows = results["rows"]
+        types = results["columnTypes"]
+
         if "select" in query.lower():
-            columns = results["columnTypes"]
-            for row in results["rows"]:
-                yield [parse_value(datatype, val) for datatype, val in zip(columns, row)]
+            yield [parse_value(dt, val) for row in rows for dt, val in zip(types, row)]
         else:
-            for row in results["rows"]:
-                yield row
+            yield rows
 
     async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
@@ -83,5 +80,5 @@ class BlazingSource(base.BaseSource):
             "FROM {0}".format(self.get_identifier(table))
         ]))
 
-        async for row in results:
-            yield row
+        async for chunk in results:
+            yield chunk

@@ -40,42 +40,43 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
     def _log_progress(self, data):
         """ Called periodically to monitor the progress of a batch """
 
-    async def _generate_batch(self, data):
+    async def _generate_batch(self, stream, last_row):
         batch_data = self._init_batch()
-        stream = data["stream"]
 
         with timer.RepeatedTimer(10, self._log_progress, batch_data):
-            if data["last_row"] is not None:
-                self._update_batch(batch_data, data["last_row"])
-                yield data["last_row"]
+            batch = []
 
-            data["last_row"] = None
-            async for row in stream:
-                if self._reached_limit(batch_data):
-                    data["last_row"] = row
-                    break
+            if last_row is not None:
+                self._update_batch(batch_data, last_row)
+                batch.append(last_row)
 
-                self._update_batch(batch_data, row)
-                yield row
+            last_row = None
+            async for chunk in stream:
+                for row in chunk:
+                    if self._reached_limit(batch_data):
+                        last_row = row
+                        break
+
+                    self._update_batch(batch_data, row)
+                    batch.append(row)
 
         self._log_complete(batch_data)
+        return (batch, last_row)
 
     async def process(self, step, data):
         """ Generates a series of batches from the stream """
 
-        batch_data = {
-            "stream": data["stream"],
-            "last_row": None
-        }
-
         index = 0
+        last_row = None
+        stream = data["stream"]
+
         while True:
-            batch = self._generate_batch(batch_data)
+            batch, last_row = self._generate_batch(stream, last_row)
 
             async for item in step({"stream": batch, "index": index}):
                 yield item
 
-            if batch_data["last_row"] is None:
+            if last_row is None:
                 break
 
             index += 1

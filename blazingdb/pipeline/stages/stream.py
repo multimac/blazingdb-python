@@ -55,11 +55,8 @@ class StreamGenerationStage(base.BaseStage):
 
     async def _process_stream(self, stream):
         """ Processes a stream of rows into lines of an import into BlazingDB """
-        async for row in stream:
-            fields = map(self._process_column, row)
-            line = self.field_terminator.join(fields)
-
-            yield line + self.line_terminator
+        async for chunk in stream:
+            yield map(self._process_row, chunk)
 
     async def process(self, step, data):
         stream = self._create_stream(data)

@@ -162,7 +162,7 @@ class SourceComparisonStage(base.BaseStage):
         identifier = source.get_identifier(table)
         formatted_query = self.query.format(table=identifier, column=column)
 
-        return [item async for item in source.query(formatted_query)]
+        return [item async for chunk in source.query(formatted_query) for item in chunk]
 
     async def after(self, data):
         """ Performs the queries after data has been imported """

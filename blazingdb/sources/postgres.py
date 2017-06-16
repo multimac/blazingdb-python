@@ -66,7 +66,7 @@ class PostgresSource(base.BaseSource):
             "WHERE table_schema = '{0}' and table_type = 'BASE TABLE'".format(self.schema)
         ]))
 
-        tables = [row[0] async for row in results]
+        tables = [row[0] async for chunk in results for row in chunk]
 
         self.logger.debug("Retrieved %s tables from Postgres", len(tables))
 
@@ -80,10 +80,11 @@ class PostgresSource(base.BaseSource):
             "WHERE table_schema = '{0}' AND table_name = '{1}'".format(self.schema, table)
         ]))
 
-        columns = []
-        async for row in results:
-            column = self.Column(name=row[0], type=convert_datatype(row[1]), size=row[2])
-            columns.append(column)
+
+        def _process_column(row):
+            return self.Column(name=row[0], type=convert_datatype(row[1]), size=row[2])
+
+        columns = [_process_column(row) async for chunk in results for row in chunk]
 
         self.logger.debug("Retrieved %s columns for table %s from Postgres", len(columns), table)
 
@@ -101,8 +102,7 @@ class PostgresSource(base.BaseSource):
                     if not chunk:
                         break
 
-                    for row in chunk:
-                        yield row
+                    yield chunk
 
     async def retrieve(self, table):
         """ Retrieves data for the given table from the source """
@@ -114,8 +114,11 @@ class PostgresSource(base.BaseSource):
             "FROM {0}".format(self.get_identifier(table))
         ]))
 
-        async for row in results:
-            yield [parse_value(col.type, val) for col, val in zip(columns, row)]
+        def _process_row(row):
+            return [parse_value(col.type, val) for col, val in zip(columns, row)]
+
+        async for chunk in results:
+            yield map(_process_row, chunk)
 
 
 DATATYPE_MAP = {

@@ -70,8 +70,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
         stream = gen.CountingGenerator(data["stream"])
         async with self._open_file(chunk_filename) as chunk_file:
-            async for row in stream:
-                await chunk_file.write(row)
+            await chunk_file.writelines(stream)
 
         return stream.count
 
@@ -92,7 +91,7 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
     async def load(self, data):
         if await self._write_chunk(data) == 0:
-            self.logger.info("Skipping %s as no rows were retrieved", data["src_table"])
+            self.logger.info("Skipping %s as no rows were written", data["src_table"])
             return
 
         await self._load_chunk(data)

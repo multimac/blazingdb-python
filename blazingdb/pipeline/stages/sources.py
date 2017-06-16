@@ -12,7 +12,6 @@ import random
 import string
 
 from blazingdb import sources
-from blazingdb.util import aenumerate
 from . import base
 
 
@@ -44,15 +43,14 @@ class AlteredStreamSource(ChainedSource, metaclass=abc.ABCMeta):
     """ A custom source used to override the stream of rows from the given source """
 
     @abc.abstractmethod
-    async def _alter_stream(self, table, stream):
+    async def _alter_chunk(self, table, chunk):
         pass
 
     async def retrieve(self, table):
         stream = self.source.retrieve(table)
-        results = self._alter_stream(table, stream)
 
-        async for row in results:
-            yield row
+        async for chunk in stream:
+            yield await self._alter_chunk(table, chunk)
 
 
 class FilterColumnsStage(base.BaseStage):
@@ -117,18 +115,22 @@ class FilteredSource(ChainedSource):
             len(slices), table
         )
 
-        results = self.source.retrieve(table)
-        async for row in results:
-            if len(slices) == 1:
-                yield row
-                continue
-
+        def _filter_row(row):
             filtered_row = []
 
             for row_slice in slices:
                 filtered_row.extend(row[row_slice])
 
-            yield tuple(filtered_row)
+            yield filtered_row
+
+
+        results = self.source.retrieve(table)
+        async for chunk in results:
+            if len(slices) == 1:
+                yield chunk
+                continue
+
+            yield map(_filter_row, chunk)
 
 
 class JumbleDataStage(base.BaseStage):
@@ -178,14 +180,16 @@ class JumbledSource(AlteredStreamSource):
 
         return func
 
-    async def _alter_stream(self, table, stream):
+    async def _alter_chunk(self, table, chunk):
         columns = await self.source.get_columns(table)
 
         types = [col.type for col in columns]
         type_funcs = [self._get_random_func(t) for t in types]
 
-        async for _ in stream:
-            yield (func() for func in type_funcs)
+        def _process_row(_):
+            return [func() for func in type_funcs]
+
+        return [_process_row(row) for row in chunk]
 
 
 class LimitImportStage(base.BaseStage):
@@ -200,7 +204,7 @@ class LimitImportStage(base.BaseStage):
         data["source"] = LimitedSource(data["source"], self.count)
 
 
-class LimitedSource(AlteredStreamSource):
+class LimitedSource(ChainedSource):
     """ A custom importer which restricts the number of rows returned """
 
     def __init__(self, source, count):
@@ -209,12 +213,19 @@ class LimitedSource(AlteredStreamSource):
         self.logger = logging.getLogger(__name__)
         self.count = count
 
-    async def _alter_stream(self, table, stream):
-        async for index, row in aenumerate(stream):
-            if index >= self.count:
-                message = "Reached %s row limit, not returning any more rows"
+    async def retrieve(self, table):
+        returned = 0
+        async for chunk in self.source.retrieve(table):
+            chunk_length = len(chunk)
 
-                self.logger.debug(message, self.count)
+            if returned + chunk_length > self.count:
+                yielded = self.count - returned
+                yield chunk[:yielded]
+            else:
+                yielded = chunk_length
+                yield chunk
+
+            returned += yielded
+
+            if returned >= self.count:
                 break
-
-            yield row
