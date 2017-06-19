@@ -2,9 +2,9 @@
 Defines classes involved in running stages of a pipeline
 """
 
-import functools
-import logging
+from collections import deque
 
+from . import messages
 from .stages import base
 
 
@@ -19,51 +19,20 @@ class System(object):
 
         self.stages = stages
 
-    def process(self, data=None):
-        return SystemContext(self.stages, data)
+    async def process(self, message, callback):
+        """ Processes the pipeline with the given data and callback """
+        message.stages = deque(self.stages)
+        message.stages.append(CallbackStage(callback))
+
+        await message.forward()
 
 
-class SystemContext(object):
-    """ A context manager to handle running begin/end import methods """
-
-    def __init__(self, stages, data):
-        self.logger = logging.getLogger(__name__)
-
-        self.pipeline = self._build(stages, data)
-
-    @staticmethod
-    def _build(stages, data):
-        async def _call_step(step, old_data, data=None):
-            data = data if data is not None else dict()
-
-            next_data = {
-                k: v for k, v
-                in {**old_data, **data}.items()
-                if v is not None
-            }
-
-            async for item in step(next_data):
-                yield item
-
-        async def _chain_stage(func, step, data):
-            next_step = functools.partial(_call_step, step, data)
-
-            async for item in func(next_step, data):
-                yield item
-
-        final_stage = GeneratorStage()
-        step = functools.partial(_chain_stage, final_stage.process, None)
-
-        for stage in reversed(stages):
-            step = functools.partial(_chain_stage, stage.process, step)
-
-        return functools.partial(step, data)
-
-    async def __aiter__(self):
-        return self.pipeline()
-
-class GeneratorStage(base.BaseStage):
+class CallbackStage(base.BaseStage):
     """ Final stage which yields the given data object """
 
-    async def process(self, _, data):
-        yield data
+    def __init__(self, callback):
+        super(CallbackStage, self).__init__(messages.Message)
+        self.callback = callback
+
+    async def process(self, message):
+        await self.callback(message)

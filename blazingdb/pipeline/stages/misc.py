@@ -37,6 +37,13 @@ class PromptInputStage(custom.CustomActionStage):
         input(self.prompt)
 
 
+class RetryPipelineStage(base.BaseStage):
+    """ Catches exceptions and attempts to retry the pipeline """
+
+    def __init__(self, **kwargs):
+        super(RetryPipelineStage, self).__init__()
+        self.handler = kwargs.get("handler", None)
+
 class SemaphoreStage(base.BaseStage):
     """ Uses a semaphore to prevent access to later parts of the pipeline """
 

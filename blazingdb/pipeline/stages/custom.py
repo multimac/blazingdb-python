@@ -21,22 +21,22 @@ class CustomActionStage(base.BaseStage):
 
         self.when = kwargs.get("when", When.before)
 
-    async def _perform_callback(self, data):
-        await self.callback(data)
+    async def _perform_callback(self, message):
+        await self.callback(message)
 
-    async def before(self, data):
+    async def before(self, message):
         """ Triggers the callback if it has queued to run before the import """
         if When.before not in self.when:
             return
 
-        await self._perform_callback(data)
+        await self._perform_callback(message)
 
-    async def after(self, data):
+    async def after(self, message, success, skipped):  # pylint: disable=unused-argument
         """ Triggers the callback if it has queued to run after the import """
         if When.after not in self.when:
             return
 
-        await self._perform_callback(data)
+        await self._perform_callback(message)
 
 
 class CustomCommandStage(CustomActionStage):
@@ -49,7 +49,7 @@ class CustomCommandStage(CustomActionStage):
         self.program = program
         self.args = args
 
-    async def _perform_command(self, data):  # pylint: disable=unused-argument
+    async def _perform_command(self, message):  # pylint: disable=unused-argument
         self.logger.info("Performing command: %s", " ".join([str(a) for a in self.args]))
 
         null = asyncio.subprocess.DEVNULL
@@ -70,9 +70,9 @@ class CustomQueryStage(CustomActionStage):
 
         self.query = query
 
-    async def _perform_query(self, data):
-        destination = data["destination"]
-        table = data["dest_table"]
+    async def _perform_query(self, message):
+        destination = message.destination
+        table = message.dest_table
 
         identifier = destination.get_identifier(table)
         formatted_query = self.query.format(table=identifier)
