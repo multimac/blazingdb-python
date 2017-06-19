@@ -15,6 +15,8 @@ class Connector(object):
 
     DEFAULT_REQUEST_LIMIT = 5
 
+    SERVER_RESTART_ERROR = "The BlazingDB server is restarting please try again in a moment."
+
     def __init__(self, host, user, password, loop=None, **kwargs):
         self.logger = logging.getLogger(__name__)
 
@@ -100,6 +102,14 @@ class Connector(object):
 
         results = await self._perform_get_results(login_token, result_token)
         if results["status"] == "fail":
+            rows = results["rows"]
+
+            if len(rows) == 1 and len(rows[0]) == 1:
+                error = rows[0][0]
+
+                if error == self.SERVER_RESTART_ERROR:
+                    raise exceptions.ServerRestartException(query, results)
+
             raise exceptions.QueryException(query, results)
 
         return results
