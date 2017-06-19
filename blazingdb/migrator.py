@@ -93,6 +93,6 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
             raise
         finally:
             for _ in range(self.concurrent_imports):
-                self.queue.put(None)
+                await self.queue.put(None)
 
             await gathered_process_tasks
