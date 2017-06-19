@@ -8,7 +8,7 @@ import flags
 
 from .base import BaseStage, When
 
-from .batch import ByteBatchStage, RowBatchStage
+from .batch import PreciseByteBatchStage, RoughByteBatchStage, RowBatchStage
 from .custom import CustomActionStage, CustomCommandStage, CustomQueryStage
 from .database import CreateTableStage, DropTableStage, PostImportHackStage
 from .database import SourceComparisonStage, TruncateTableStage
