@@ -4,6 +4,7 @@ which can be imported into BlazingDB
 """
 
 import functools
+import operator
 
 from blazingdb import importers
 from blazingdb.util.blazing import DATE_FORMAT
@@ -33,10 +34,6 @@ class StreamGenerationStage(base.BaseStage):
         return source.retrieve(table)
 
     @staticmethod
-    def _map_date(column):
-        return column.strftime(DATE_FORMAT)
-
-    @staticmethod
     def _wrap_field(row_format, column):
         return row_format.field_wrapper + column + row_format.field_wrapper
 
@@ -58,7 +55,7 @@ class StreamGenerationStage(base.BaseStage):
 
     def _create_mapping(self, row_format, datatype):
         if datatype == "date":
-            return self._map_date
+            return operator.methodcaller("strftime", DATE_FORMAT)
         elif datatype == "double" or datatype == "long":
             return str
         elif datatype == "string":
