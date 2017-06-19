@@ -3,9 +3,8 @@ Defines the Migrator class which can be used for migrating data into BlazingDB
 """
 
 import asyncio
+import concurrent
 import logging
-
-from functools import partial
 
 from . import exceptions
 
@@ -66,10 +65,14 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
 
             try:
                 await self._migrate_table(table)
+            except concurrent.futures.CancelledError:
+                raise
+            except exceptions.SkipImportException:
+                pass
             except Exception:  # pylint: disable=broad-except
-                self.logger.exception("Caught exception attempting to import table %s")
-
-            self.queue.task_done()
+                self.logger.exception("Caught exception attempting to import table %s", table)
+            finally:
+                self.queue.task_done()
 
     async def migrate(self):
         """
