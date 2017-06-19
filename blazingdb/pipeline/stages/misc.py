@@ -37,26 +37,6 @@ class PromptInputStage(custom.CustomActionStage):
         input(self.prompt)
 
 
-class RetryPipelineStage(base.BaseStage):
-    """ Catches exceptions and attempts to retry the pipeline """
-
-    def __init__(self, **kwargs):
-        super(RetryPipelineStage, self).__init__()
-        self.handler = kwargs.get("handler", None)
-
-class SemaphoreStage(base.BaseStage):
-    """ Uses a semaphore to prevent access to later parts of the pipeline """
-
-    def __init__(self, limit, loop=None):
-        super(SemaphoreStage, self).__init__()
-        self.semaphore = asyncio.BoundedSemaphore(limit, loop=loop)
-
-    async def process(self, step, data):
-        async with self.semaphore:
-            async for item in step():
-                yield item
-
-
 class SkipImportStage(base.BaseStage):
     """ Skips the import if this stage is reached """
 
