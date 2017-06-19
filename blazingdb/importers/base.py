@@ -7,7 +7,7 @@ from collections import namedtuple
 
 import async_timeout
 
-RowFormat = namedtuple("RowFormat", ["field_terminator", "line_terminator", "field_wrapper"])
+RowFormat = namedtuple("RowFormat", ["field_terminator", "field_wrapper", "line_terminator"])
 
 class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-public-methods
     """ Handles performing requests to load data into Blazing """
