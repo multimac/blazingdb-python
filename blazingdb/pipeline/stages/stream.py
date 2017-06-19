@@ -36,8 +36,25 @@ class StreamGenerationStage(base.BaseStage):
     def _map_date(column):
         return column.strftime(DATE_FORMAT)
 
-    def _wrap_field(self, row_format, column):
+    @staticmethod
+    def _wrap_field(row_format, column):
         return row_format.field_wrapper + column + row_format.field_wrapper
+
+    @staticmethod
+    def _process_row(row_format, mappings, row):
+        """ Processes a row of data into it a string to be loaded into Blazing """
+        def _map_column(func, column):
+            return func(column) if column is not None else ""
+
+        fields = map(_map_column, mappings, row)
+        line = row_format.field_terminator.join(fields)
+
+        return line + row_format.line_terminator
+
+    @staticmethod
+    async def _process_stream(stream, process_row):
+        async for chunk in stream:
+            yield map(process_row, chunk)
 
     def _create_mapping(self, row_format, datatype):
         if datatype == "date":
@@ -49,16 +66,6 @@ class StreamGenerationStage(base.BaseStage):
 
         raise ValueError("Given datatype is not supported")
 
-    def _process_row(self, row_format, mappings, row):
-        """ Processes a row of data into it a string to be loaded into Blazing """
-        def _map_column(func, column):
-            return func(column) if column is not None else ""
-
-        fields = map(_map_column, mappings, row)
-        line = row_format.field_terminator.join(fields)
-
-        return line + row_format.line_terminator
-
     async def process(self, step, data):
         source = data["source"]
         table = data["src_table"]
@@ -69,18 +76,16 @@ class StreamGenerationStage(base.BaseStage):
             field_wrapper=self.field_wrapper
         )
 
-        columns = source.get_columns(table)
+        columns = await source.get_columns(table)
         stream = source.retrieve(table)
 
-        mappings = (self._create_mapping(row_format, col.type) for col in columns)
+        mappings = [self._create_mapping(row_format, col.type) for col in columns]
         process_row = functools.partial(self._process_row, row_format, mappings)
 
-        index = 0
-        async for chunk in stream:
-            next_data = {
-                "format": row_format, "index": index, "source": None,
-                "stream": map(process_row, chunk)
-            }
+        generator = step({
+            "format": row_format, "index": 0, "source": None,
+            "stream": self._process_stream(stream, process_row)
+        })
 
-            async for item in step(next_data):
-                yield item
+        async for item in generator:
+            yield item
