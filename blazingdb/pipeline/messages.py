@@ -83,6 +83,20 @@ class Message(object, metaclass=abc.ABCMeta):
 class Packet(object):  # pylint: disable=too-few-public-methods
     """ Base class used for all packets delivered with messages """
 
+class DataCompletePacket(Packet):  # pylint: disable=too-few-public-methods
+    """ Packet notifying later stages the data stream is complete """
+
+class DataFormatPacket(Packet):  # pylint: disable=too-few-public-methods
+    """ Packet describing the format of a chunk of data """
+    def __init__(self, fmt):
+        self.fmt = fmt
+
+class DataLoadPacket(Packet):  # pylint: disable=too-few-public-methods
+    """ Packet describing a chunk of data to be loaded """
+    def __init__(self, data, index):
+        self.data = data
+        self.index = index
+
 class ImportTablePacket(Packet):  # pylint: disable=too-few-public-methods
     """ Packet describing a table to be imported """
     def __init__(self, source, src_table, destination, dest_table):
@@ -90,14 +104,6 @@ class ImportTablePacket(Packet):  # pylint: disable=too-few-public-methods
         self.src_table = src_table
         self.destination = destination
         self.dest_table = dest_table
-
-class DataLoadPacket(Packet):  # pylint: disable=too-few-public-methods
-    """ Packet describing a chunk of data to be loaded """
-    def __init__(self, data):
-        self.data = data
-
-class DataCompletePacket(Packet):  # pylint: disable=too-few-public-methods
-    """ Packet notifying later stages the data stream is complete """
 
 
 class Transport(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-public-methods

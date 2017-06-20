@@ -43,6 +43,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
     def _batch_generator(self):
         remaining = yield
 
+        index = 0
         while True:
             batch = []
             batch_data = self._init_batch()
@@ -58,7 +59,8 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
                     remaining = self._process_chunk(batch_data, batch, chunk)
 
-            yield batch
+            yield (index, batch)
+            index += 1
 
     def _get_generator(self, msg_id):
         if msg_id in self.generators:
@@ -80,14 +82,14 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
             message.remove_packet(packet)
 
             while batch is not None:
-                message.add_packet(messages.DataLoadPacket(batch))
+                message.add_packet(messages.DataLoadPacket(*batch))
 
                 batch = generator.send(None)
 
         if any(message.get_packets(messages.DataCompletePacket)):
             batch = generator.send(None)
 
-            message.add_packet(messages.DataLoadPacket(batch))
+            message.add_packet(messages.DataLoadPacket(*batch))
 
         await message.forward()
 

@@ -29,5 +29,5 @@ class BaseImporter(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-pu
             await destination.execute(query)
 
     @abc.abstractmethod
-    async def load(self, data):
+    async def load(self, message):
         """ Processes an import request into batches and loads each batch into BlazingDB """

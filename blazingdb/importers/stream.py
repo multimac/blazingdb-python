@@ -5,6 +5,7 @@ writing it out to disk
 
 import logging
 
+from blazingdb.pipeline import messages
 from . import base
 
 
@@ -15,19 +16,18 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         super(StreamImporter, self).__init__(loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
-    async def load(self, data):
+    async def load(self, message):
         """ Streams a chunk of data into Blazing """
-        destination = data["destination"]
-        table = data["table"]
-        fmt = data["fmt"]
+        import_pkt = message.get_packet(messages.ImportTablePacket)
+        format_pkt = message.get_packet(messages.DataFormatPacket)
 
-        rows = [item for item in data["stream"]]
+        destination = import_pkt.destination
+        table = import_pkt.table
+        fmt = format_pkt.fmt
 
-        if not rows:
-            self.logger.info("Skipping %s as no rows were retrieved", table)
-            return
+        for load_pkt in message.get_packets(messages.DataLoadPacket):
+            chunk = load_pkt.data
+            method = "stream '{0}'".format("".join(chunk))
 
-        method = "stream '{0}'".format("".join(rows))
-
-        self.logger.info("Streaming %s row(s) into %s", len(rows), table)
-        await self._perform_request(destination, method, fmt, table)
+            self.logger.info("Streaming %s row(s) into %s", len(chunk), table)
+            await self._perform_request(destination, method, fmt, table)

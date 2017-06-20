@@ -82,7 +82,10 @@ class StreamGenerationStage(base.BaseStage):
         mappings = [self._create_mapping(row_format, col.type) for col in columns]
         process_row = functools.partial(self._process_row, row_format, mappings)
 
+        message.add_packet(messages.DataFormatPacket(row_format))
+
         async for chunk in self._process_stream(stream, process_row):
             packet = messages.DataLoadPacket(chunk)
-
             await message.forward(packet)
+
+        await message.forward(messages.DataCompletePacket())

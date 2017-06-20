@@ -8,8 +8,8 @@ from os import path
 
 import aiofiles
 
+from blazingdb.pipeline import messages
 from . import base
-from ..util import gen
 
 
 class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
@@ -59,27 +59,17 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         import_path = self._get_import_path(table, chunk)
         return path.join(self.upload_folder, import_path)
 
-    async def _write_chunk(self, data):
+    async def _write_chunk(self, chunk, table, index):
         """ Writes a chunk of data to disk """
-        table = data["dest_table"]
-        index = data["index"]
-
         chunk_filename = self._get_file_path(table, index)
 
         self.logger.info("Writing chunk file: %s", chunk_filename)
 
-        stream = gen.CountingGenerator(data["stream"])
         async with self._open_file(chunk_filename) as chunk_file:
-            await chunk_file.writelines(stream)
+            await chunk_file.writelines(chunk)
 
-        return stream.count
-
-    async def _load_chunk(self, data):
+    async def _load_chunk(self, destination, table, index, fmt):
         """ Loads a chunk of data into Blazing """
-        destination = data["destination"]
-        table = data["dest_table"]
-        index = data["index"]
-        fmt = data["format"]
 
         query_filename = self._get_import_path(table, index)
 
@@ -89,9 +79,20 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         self.logger.info("Loading chunk %s into blazing", query_filename)
         await self._perform_request(destination, method, fmt, table)
 
-    async def load(self, data):
-        if await self._write_chunk(data) == 0:
-            self.logger.info("Skipping %s as no rows were written", data["src_table"])
-            return
+    async def load(self, message):
+        import_pkt = message.get_packet(messages.ImportTablePacket)
+        format_pkt = message.get_packet(messages.DataFormatPacket)
 
-        await self._load_chunk(data)
+        for load_pkg in message.get_packets(messages.DataLoadPacket):
+            await self._write_chunk(
+                load_pkg.data,
+                import_pkt.table,
+                load_pkg.index
+            )
+
+            await self._load_chunk(
+                import_pkt.destination,
+                import_pkt.dest_table,
+                load_pkg.index,
+                format_pkt.fmt
+            )
