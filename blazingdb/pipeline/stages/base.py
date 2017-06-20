@@ -5,7 +5,15 @@ Defines the base stage class for use during data migration
 import logging
 import functools
 
+import enum
+
 from blazingdb import exceptions
+
+
+class When(enum.Flag):
+    """ Defines the stages at which a custom query can be executed """
+    before = enum.auto()
+    after = enum.auto()
 
 
 class BaseStage(object):
