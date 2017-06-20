@@ -64,12 +64,14 @@ class ImportTableMessage(Message):
         self.destination = destination
 
 
+class LoadCompleteMessage(Message):
+    """ Message indicating there is no more data to be loaded """
+
+
 class LoadDataMessage(Message):
     """ Message defining a batch of data to be imported """
-    def __init__(self, table, source, data, final=True):  # pylint: disable=too-many-arguments
+    def __init__(self, table, source, data):
         super(LoadDataMessage, self).__init__()
         self.table = table
         self.source = source
         self.data = data
-
-        self.final = final

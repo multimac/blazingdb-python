@@ -20,7 +20,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
     DEFAULT_LOG_INTERVAL = 10
 
     def __init__(self, **kwargs):
-        super(BaseBatchStage, self).__init__(messages.LoadDataMessage)
+        super(BaseBatchStage, self).__init__(messages.LoadCompleteMessage, messages.LoadDataMessage)
 
         self.log_interval = kwargs.get("log_interval", self.DEFAULT_LOG_INTERVAL)
         self.generators = dict()
@@ -76,15 +76,16 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
         import_message = message.get_parent(messages.ImportTableMessage)
         generator = self._get_generator(import_message.msg_id)
 
-        batch = generator.send(message.data)
-        while batch is not None:
-            await message.forward(data=batch, final=False)
-
+        if isinstance(message, messages.LoadDataMessage):
+            batch = generator.send(message.data)
+            while batch is not None:
+                await message.forward(data=batch)
+                batch = generator.send(None)
+        else:
             batch = generator.send(None)
+            await message.forward(data=batch)
 
-        if message.final:
-            batch = generator.send(None)
-            await message.forward(data=batch, final=True)
+            await message.forward(messages.LoadCompleteMessage())
 
 
 class ByteBatchStage(BaseBatchStage):

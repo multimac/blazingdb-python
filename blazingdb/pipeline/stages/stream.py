@@ -9,6 +9,7 @@ import operator
 from blazingdb import importers
 from blazingdb.util.blazing import DATE_FORMAT
 from . import base
+from .. import messages
 
 
 # pylint: disable=too-few-public-methods
@@ -63,9 +64,9 @@ class StreamGenerationStage(base.BaseStage):
 
         raise ValueError("Given datatype is not supported")
 
-    async def process(self, step, data):
-        source = data["source"]
-        table = data["src_table"]
+    async def process(self, message):
+        source = message.source
+        table = message.src_table
 
         row_format = importers.RowFormat(
             field_terminator=self.field_terminator,
@@ -79,10 +80,9 @@ class StreamGenerationStage(base.BaseStage):
         mappings = [self._create_mapping(row_format, col.type) for col in columns]
         process_row = functools.partial(self._process_row, row_format, mappings)
 
-        generator = step({
-            "format": row_format, "index": 0, "source": None,
-            "stream": self._process_stream(stream, process_row)
-        })
+        next_msg = messages.LoadDataMessage(message.dest_table, message.destination, None)
 
-        async for item in generator:
-            yield item
+        async for chunk in self._process_stream(stream, process_row):
+            await message.forward(next_msg, data=chunk)
+
+        await message.forward(messages.LoadCompleteMessage())
