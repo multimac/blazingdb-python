@@ -57,21 +57,23 @@ class FilterColumnsStage(base.BaseStage):
     """ Filters the given columns from the imported data """
 
     def __init__(self, tables):
-        super(FilterColumnsStage, self).__init__(messages.ImportTableMessage)
+        super(FilterColumnsStage, self).__init__(messages.ImportTablePacket)
         self.logger = logging.getLogger(__name__)
-
         self.tables = tables
 
     async def process(self, message):
         """ Replaces the stream with one which filters the columns """
-        ignored_columns = self.tables.get(message.src_table, [])
+        packet = message.get_packet(messages.ImportTablePacket)
+        ignored_columns = self.tables.get(packet.src_table, [])
 
         self.logger.info(
-            "Filtering %s columns from %s%s", len(ignored_columns), message.src_table,
+            "Filtering %s columns from %s%s", len(ignored_columns), packet.src_table,
             " ({0})".format(", ".join(ignored_columns)) if ignored_columns else ""
         )
 
-        await message.forward(source=FilteredSource(message.source, ignored_columns))
+        message.update(packet, source=FilteredSource(packet.source, ignored_columns))
+
+        await message.forward()
 
 
 class FilteredSource(ChainedSource):
@@ -137,10 +139,13 @@ class JumbleDataStage(base.BaseStage):
     """ Jumbles the data being loaded to obfuscate any sensitive information """
 
     def __init__(self):
-        super(JumbleDataStage, self).__init__(messages.ImportTableMessage)
+        super(JumbleDataStage, self).__init__(messages.ImportTablePacket)
 
     async def process(self, message):
-        await message.forward(source=JumbledSource(message.source))
+        packet = message.get_packet(messages.ImportTablePacket)
+        message.update(packet, source=JumbledSource(message.source))
+
+        await message.forward()
 
 
 class JumbledSource(AlteredStreamSource):
@@ -199,12 +204,15 @@ class LimitImportStage(base.BaseStage):
     """ Limits the number of rows imported from the source """
 
     def __init__(self, count):
-        super(LimitImportStage, self).__init__(messages.ImportTableMessage)
+        super(LimitImportStage, self).__init__(messages.ImportTablePacket)
         self.count = count
 
     async def process(self, message):
         """ Replaces the source with one which limits the number of rows returned """
-        await message.forward(source=LimitedSource(message.source, self.count))
+        packet = message.get_packet(messages.ImportTablePacket)
+        message.update(packet, source=LimitedSource(message.source, self.count))
+
+        await message.forward()
 
 
 class LimitedSource(ChainedSource):
