@@ -86,9 +86,10 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
         if any(message.get_packets(messages.DataCompletePacket)):
             batch = generator.send(None)
+
             message.add_packet(messages.DataLoadPacket(batch))
 
-        message.forward()
+        await message.forward()
 
 
 class ByteBatchStage(BaseBatchStage):
