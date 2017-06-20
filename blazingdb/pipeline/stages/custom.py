@@ -10,13 +10,14 @@ import json
 import logging
 
 from . import base, When
+from .. import messages
 
 
 class CustomActionStage(base.PipelineStage):
     """ Performs a custom callback before / after importing data """
 
-    def __init__(self, callback, message_types, **kwargs):
-        super(CustomActionStage, self).__init__(*message_types)
+    def __init__(self, callback, **kwargs):
+        super(CustomActionStage, self).__init__(messages.ImportTablePacket)
         self.callback = callback
 
         self.when = kwargs.get("when", When.before)
@@ -42,8 +43,8 @@ class CustomActionStage(base.PipelineStage):
 class CustomCommandStage(CustomActionStage):
     """ Runs a sub-process before / after importing data """
 
-    def __init__(self, program, message_types, *args, **kwargs):
-        super(CustomCommandStage, self).__init__(self._perform_command, message_types, **kwargs)
+    def __init__(self, program, *args, **kwargs):
+        super(CustomCommandStage, self).__init__(self._perform_command, **kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.program = program
@@ -64,15 +65,17 @@ class CustomCommandStage(CustomActionStage):
 class CustomQueryStage(CustomActionStage):
     """ Performs a query against BlazingDB before / after importing data """
 
-    def __init__(self, query, message_types, **kwargs):
-        super(CustomQueryStage, self).__init__(self._perform_query, message_types, **kwargs)
+    def __init__(self, query, **kwargs):
+        super(CustomQueryStage, self).__init__(self._perform_query, **kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.query = query
 
     async def _perform_query(self, message):
-        destination = message.destination
-        table = message.dest_table
+        packet = message.get_packet(message.ImportTablePacket)
+
+        destination = packet.destination
+        table = packet.dest_table
 
         identifier = destination.get_identifier(table)
         formatted_query = self.query.format(table=identifier)
