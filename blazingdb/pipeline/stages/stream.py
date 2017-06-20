@@ -65,8 +65,10 @@ class StreamGenerationStage(base.BaseStage):
         raise ValueError("Given datatype is not supported")
 
     async def process(self, message):
-        source = message.source
-        table = message.src_table
+        packet = message.get_message(messages.ImportTablePacket)
+
+        source = packet.source
+        table = packet.src_table
 
         row_format = importers.RowFormat(
             field_terminator=self.field_terminator,
@@ -80,9 +82,7 @@ class StreamGenerationStage(base.BaseStage):
         mappings = [self._create_mapping(row_format, col.type) for col in columns]
         process_row = functools.partial(self._process_row, row_format, mappings)
 
-        next_msg = messages.LoadDataMessage(message.dest_table, message.destination, None)
-
         async for chunk in self._process_stream(stream, process_row):
-            await message.forward(next_msg, data=chunk)
+            packet = messages.DataLoadPacket(chunk)
 
-        await message.forward(messages.LoadCompleteMessage())
+            await message.forward(packet)

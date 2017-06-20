@@ -72,9 +72,11 @@ class Message(object, metaclass=abc.ABCMeta):
         """ Removes the given packet from the message """
         self.packets.remove(packet)
 
-    async def forward(self):
+    async def forward(self, *packets):
         """ Forwards the message to the next stage in the pipeline """
         msg = Message._build_next(self)
+        msg.packets.update(packets)
+
         await self.transport(msg)
 
 
