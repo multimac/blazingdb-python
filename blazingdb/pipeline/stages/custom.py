@@ -12,11 +12,11 @@ import logging
 from . import base, When
 
 
-class CustomActionStage(base.BaseStage):
+class CustomActionStage(base.PipelineStage):
     """ Performs a custom callback before / after importing data """
 
-    def __init__(self, callback, **kwargs):
-        super(CustomActionStage, self).__init__()
+    def __init__(self, callback, message_types, **kwargs):
+        super(CustomActionStage, self).__init__(*message_types)
         self.callback = callback
 
         self.when = kwargs.get("when", When.before)
@@ -31,7 +31,7 @@ class CustomActionStage(base.BaseStage):
 
         await self._perform_callback(message)
 
-    async def after(self, message, success, skipped):  # pylint: disable=unused-argument
+    async def after(self, message, skipped, success):  # pylint: disable=unused-argument
         """ Triggers the callback if it has queued to run after the import """
         if When.after not in self.when:
             return
@@ -42,8 +42,8 @@ class CustomActionStage(base.BaseStage):
 class CustomCommandStage(CustomActionStage):
     """ Runs a sub-process before / after importing data """
 
-    def __init__(self, program, *args, **kwargs):
-        super(CustomCommandStage, self).__init__(self._perform_command, **kwargs)
+    def __init__(self, program, message_types, *args, **kwargs):
+        super(CustomCommandStage, self).__init__(self._perform_command, message_types, **kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.program = program
@@ -64,8 +64,8 @@ class CustomCommandStage(CustomActionStage):
 class CustomQueryStage(CustomActionStage):
     """ Performs a query against BlazingDB before / after importing data """
 
-    def __init__(self, query, **kwargs):
-        super(CustomQueryStage, self).__init__(self._perform_query, **kwargs)
+    def __init__(self, query, message_types, **kwargs):
+        super(CustomQueryStage, self).__init__(self._perform_query, message_types, **kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.query = query
