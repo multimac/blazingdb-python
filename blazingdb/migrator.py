@@ -67,6 +67,7 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
                 pass
             except Exception:  # pylint: disable=broad-except
                 self.logger.exception("Caught exception attempting to import table %s", table)
+                break
             finally:
                 self.queue.task_done()
 
