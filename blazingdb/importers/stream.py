@@ -26,8 +26,7 @@ class StreamImporter(base.BaseImporter):  # pylint: disable=too-few-public-metho
         fmt = format_pkt.fmt
 
         for load_pkt in message.get_packets(messages.DataLoadPacket):
-            chunk = load_pkt.data
-            method = "stream '{0}'".format("".join(chunk))
+            method = "stream '{0}'".format("".join(load_pkt.data))
 
-            self.logger.info("Streaming %s row(s) into %s", len(chunk), table)
+            self.logger.info("Streaming %s row(s) into %s", len(load_pkt.data), table)
             await self._perform_request(destination, method, fmt, table)

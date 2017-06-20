@@ -83,16 +83,16 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
         import_pkt = message.get_packet(messages.ImportTablePacket)
         format_pkt = message.get_packet(messages.DataFormatPacket)
 
-        for load_pkg in message.get_packets(messages.DataLoadPacket):
+        for load_pkt in message.get_packets(messages.DataLoadPacket):
             await self._write_chunk(
-                load_pkg.data,
+                load_pkt.data,
                 import_pkt.dest_table,
-                load_pkg.index
+                load_pkt.index
             )
 
             await self._load_chunk(
                 import_pkt.destination,
                 import_pkt.dest_table,
-                load_pkg.index,
+                load_pkt.index,
                 format_pkt.fmt
             )
