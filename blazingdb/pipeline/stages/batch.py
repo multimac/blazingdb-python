@@ -20,8 +20,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
     DEFAULT_LOG_INTERVAL = 10
 
     def __init__(self, **kwargs):
-        super(BaseBatchStage, self).__init__(messages.LoadCompleteMessage, messages.LoadDataMessage)
-
+        super(BaseBatchStage, self).__init__(messages.DataLoadPacket, messages.DataCompletePacket)
         self.log_interval = kwargs.get("log_interval", self.DEFAULT_LOG_INTERVAL)
         self.generators = dict()
 
@@ -73,19 +72,23 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
     async def process(self, message):
         """ Generates a series of batches from the stream """
-        import_message = message.get_parent(messages.ImportTableMessage)
-        generator = self._get_generator(import_message.msg_id)
+        initial_message = message.get_initial_message()
+        generator = self._get_generator(initial_message.msg_id)
 
-        if isinstance(message, messages.LoadDataMessage):
-            batch = generator.send(message.data)
+        for packet in message.get_packets(messages.DataLoadPacket):
+            batch = generator.send(packet.data)
+            message.remove_packet(packet)
+
             while batch is not None:
-                await message.forward(data=batch)
-                batch = generator.send(None)
-        else:
-            batch = generator.send(None)
-            await message.forward(data=batch)
+                message.add_packet(messages.DataLoadPacket(batch))
 
-            await message.forward(messages.LoadCompleteMessage())
+                batch = generator.send(None)
+
+        if any(message.get_packets(messages.DataCompletePacket)):
+            batch = generator.send(None)
+            message.add_packet(messages.DataLoadPacket(batch))
+
+        message.forward()
 
 
 class ByteBatchStage(BaseBatchStage):
