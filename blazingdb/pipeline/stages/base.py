@@ -19,14 +19,8 @@ class When(enum.Flag):
 class BaseStage(object, metaclass=abc.ABCMeta):
     """ Base class for all pipeline stages """
 
-    def __init__(self, *message_types):
-        self.types = set(message_types)
-
-    def ignore(self, message_type):
-        self.types.remove(message_type)
-
-    def listen_for(self, message_type):
-        self.types.add(message_type)
+    def __init__(self, *packet_types):
+        self.types = set(packet_types)
 
     @abc.abstractmethod
     async def process(self, message):
@@ -34,7 +28,7 @@ class BaseStage(object, metaclass=abc.ABCMeta):
 
     async def receive(self, message):
         """ Called when a given message is received """
-        if isinstance(message, self.types):
+        if any(message.get_packets(*self.types)):
             await self.process(message)
         else:
             await message.forward()

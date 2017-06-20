@@ -2,76 +2,102 @@
 Defines the core message classes used in the pipeline
 """
 
+import abc
 import copy
+import functools
 
 
-class Message(object):
-    """ Base class used for all messages passed in the pipeline """
+class Message(object, metaclass=abc.ABCMeta):
+    """ Base class used for all messages passed within the pipeline """
 
-    def __init__(self):
+    def __init__(self, packets):
         self.msg_id = id(self)
-
         self.parent = None
         self.stages = None
-        self.msgs = []
 
-    def _rebuild(self, parent, stages):
-        self.msg_id = id(self)
+        self.packets = set(packets)
+        self.transport = self._forward
 
-        self.parent = parent
-        self.stages = stages.copy()
+    @classmethod
+    def _build_next(cls, msg):
+        clone = cls(msg.packets.copy())
 
-    def get_messages(self, types):
-        """ Retrieves all contained messages of the given types """
-        check_type = lambda msg: isinstance(msg, types)
-        return set(filter(check_type, self.msgs))
+        clone.parent = msg
+        clone.stages = msg.stages.copy()
+        clone.transport = msg.transport
 
-    def get_parent(self, types):
-        """ Retrieves the closest parent of one of the given types """
-        current = self.parent
-        while current is not None:
-            if isinstance(current, types):
-                return current
+        return clone
 
-            current = current.parent
-
-        return None
-
-    async def forward(self, msg=None, **updates):
-        """ Forwards the given message on to the next stage in the pipeline """
-        if msg is None:
-            msg = copy.copy(self)
-        elif updates:
-            msg = copy.copy(msg)
-
-        for key, value in updates.items():
-            setattr(self, key, value)
-
-        # pragma pylint: disable=protected-access
-        msg._rebuild(self, self.stages)
+    @staticmethod
+    async def _forward(msg):
         next_stage = msg.stages.popleft()
-
         await next_stage.receive(msg)
 
+    def add_packet(self, packet):
+        """ Adds the given packet to the message """
+        self.packets.add(packet)
 
-class ImportTableMessage(Message):
-    """ Message indicating that the given table should be imported """
-    def __init__(self, source, src_table, dest_table, destination):
-        super(ImportTableMessage, self).__init__()
+    def add_transport(self, transport):
+        """ Adds the given transport to the chain of transports for this message """
+        self.transport = functools.partial(transport.process, self.transport)
+
+    def get_initial_message(self):
+        """ Retrieves the initial message which caused this one to be created """
+        current = self
+        while current.parent is not None:
+            current = current.parent
+
+        return current
+
+    def get_packets(self, *types):
+        """ Retrieves packets of the given types from the message """
+        check_type = lambda packet: isinstance(packet, types)
+        return set(filter(check_type, self.packets))
+
+    def update_packet(self, packet, **updates):
+        """ Updates values in the given packet """
+        self.packets.remove(packet)
+        packet = copy.copy(packet)
+
+        for key, value in updates.items():
+            setattr(packet, key, value)
+
+        self.packets.add(packet)
+        return packet
+
+    def remove_packet(self, packet):
+        """ Removes the given packet from the message """
+        self.packets.remove(packet)
+
+    async def forward(self):
+        """ Forwards the message to the next stage in the pipeline """
+        msg = Message._build_next(self)
+        await self.transport(msg)
+
+
+class Packet(object):  # pylint: disable=too-few-public-methods
+    """ Base class used for all packets delivered with messages """
+
+class ImportTablePacket(Packet):  # pylint: disable=too-few-public-methods
+    """ Packet describing a table to be imported """
+    def __init__(self, source, src_table, destination, dest_table):
         self.source = source
         self.src_table = src_table
-        self.dest_table = dest_table
         self.destination = destination
+        self.dest_table = dest_table
 
-
-class LoadCompleteMessage(Message):
-    """ Message indicating there is no more data to be loaded """
-
-
-class LoadDataMessage(Message):
-    """ Message defining a batch of data to be imported """
-    def __init__(self, table, source, data):
-        super(LoadDataMessage, self).__init__()
-        self.table = table
-        self.source = source
+class DataLoadPacket(Packet):  # pylint: disable=too-few-public-methods
+    """ Packet describing a chunk of data to be loaded """
+    def __init__(self, data):
         self.data = data
+
+class DataCompletePacket(Packet):  # pylint: disable=too-few-public-methods
+    """ Packet notifying later stages the data stream is complete """
+
+
+class Transport(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-public-methods
+    """ Base class used for all transport classes used to forward messages """
+
+    @abc.abstractmethod
+    async def process(self, step, msg):
+        """ Forwards the message to the given stage """
