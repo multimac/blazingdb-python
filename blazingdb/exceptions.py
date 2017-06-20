@@ -17,6 +17,17 @@ class MigrateException(BlazingException):
     """ Thrown when an exception occurs when migrating a table """
 
 
+class PacketMissingException(BlazingException):
+    """ Thrown when an attempt is made to retrieve an invalid packet from a message """
+
+    def __init__(self, packet_type):
+        super(PacketMissingException, self).__init__()
+        self.packet_type = packet_type
+
+    def __str__(self):
+        return "packet_type={0}".format(self.packet_type)
+
+
 class PipelineException(BlazingException):
     """ Thrown when an exception occurs while processing pipeline stages """
 

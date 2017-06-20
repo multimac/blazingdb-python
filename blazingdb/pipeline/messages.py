@@ -6,6 +6,8 @@ import abc
 import copy
 import functools
 
+from blazingdb import exceptions
+
 
 class Message(object, metaclass=abc.ABCMeta):
     """ Base class used for all messages passed within the pipeline """
@@ -50,8 +52,12 @@ class Message(object, metaclass=abc.ABCMeta):
         return current
 
     def get_packet(self, packet_type):
-        check_type = lambda packet: isinstance(packet, packet_type)
-        return next(filter(check_type, self.packets), None)
+        """ Retrieves one packet of the given type from the message """
+        try:
+            check_type = lambda packet: isinstance(packet, packet_type)
+            return next(filter(check_type, self.packets), None)
+        except StopIteration:
+            raise exceptions.PacketMissingException(packet_type)
 
     def get_packets(self, *packet_types):
         """ Retrieves packets of the given types from the message """
