@@ -22,7 +22,7 @@ class StreamGenerationStage(base.BaseStage):
     DEFAULT_LINE_TERMINATOR = "\n"
 
     def __init__(self, **kwargs):
-        super(StreamGenerationStage, self).__init__()
+        super(StreamGenerationStage, self).__init__(messages.ImportTablePacket)
         self.field_terminator = kwargs.get("field_terminator", self.DEFAULT_FIELD_TERMINATOR)
         self.line_terminator = kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR)
         self.field_wrapper = kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER)
@@ -65,7 +65,7 @@ class StreamGenerationStage(base.BaseStage):
         raise ValueError("Given datatype is not supported")
 
     async def process(self, message):
-        packet = message.get_message(messages.ImportTablePacket)
+        packet = message.get_packet(messages.ImportTablePacket)
 
         source = packet.source
         table = packet.src_table
@@ -84,8 +84,10 @@ class StreamGenerationStage(base.BaseStage):
 
         message.add_packet(messages.DataFormatPacket(row_format))
 
+        index = 0
         async for chunk in self._process_stream(stream, process_row):
-            packet = messages.DataLoadPacket(chunk)
-            await message.forward(packet)
+            await message.forward(messages.DataLoadPacket(chunk, index))
+
+            index += 1
 
         await message.forward(messages.DataCompletePacket())

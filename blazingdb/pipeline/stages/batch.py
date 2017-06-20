@@ -77,21 +77,24 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
         initial_message = message.get_initial_message()
         generator = self._get_generator(initial_message.msg_id)
 
+        load_packets = []
         for packet in message.get_packets(messages.DataLoadPacket):
             batch = generator.send(packet.data)
             message.remove_packet(packet)
 
             while batch is not None:
-                message.add_packet(messages.DataLoadPacket(*batch))
-
+                load_packet = messages.DataLoadPacket(*batch)
+                load_packets.append(load_packet)
                 batch = generator.send(None)
 
-        if any(message.get_packets(messages.DataCompletePacket)):
+        if message.get_packet(messages.DataCompletePacket) is not None:
             batch = generator.send(None)
 
-            message.add_packet(messages.DataLoadPacket(*batch))
+            load_packet = messages.DataLoadPacket(*batch)
+            load_packets.append(load_packet)
 
-        await message.forward()
+        if load_packets:
+            await message.forward(*load_packets)
 
 
 class ByteBatchStage(BaseBatchStage):

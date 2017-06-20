@@ -15,7 +15,7 @@ class Message(object, metaclass=abc.ABCMeta):
         self.parent = None
         self.stages = None
 
-        self.packets = set(*packets)
+        self.packets = set(iter(packets))
         self.transport = self._forward
 
     @classmethod
@@ -50,7 +50,8 @@ class Message(object, metaclass=abc.ABCMeta):
         return current
 
     def get_packet(self, packet_type):
-        return next(p for p in self.packets if isinstance(p, packet_type))
+        check_type = lambda packet: isinstance(packet, packet_type)
+        return next(filter(check_type, self.packets), None)
 
     def get_packets(self, *packet_types):
         """ Retrieves packets of the given types from the message """
@@ -74,6 +75,9 @@ class Message(object, metaclass=abc.ABCMeta):
 
     async def forward(self, *packets):
         """ Forwards the message to the next stage in the pipeline """
+        if not self.stages:
+            raise RuntimeError("No more stages to forward the message to")
+
         msg = Message._build_next(self)
         msg.packets.update(packets)
 

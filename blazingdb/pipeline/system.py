@@ -31,7 +31,7 @@ class CallbackStage(base.BaseStage):
     """ Final stage which yields the given data object """
 
     def __init__(self, callback):
-        super(CallbackStage, self).__init__(messages.Message)
+        super(CallbackStage, self).__init__(messages.Packet)
         self.callback = callback
 
     async def process(self, message):

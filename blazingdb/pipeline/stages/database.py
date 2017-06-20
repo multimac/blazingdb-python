@@ -125,7 +125,7 @@ class PostImportHackStage(base.PipelineStage):
         if failed and not self.perform_on_failure:
             return
 
-        packet = message.get_message(messages.ImportTablePacket)
+        packet = message.get_packet(messages.ImportTablePacket)
 
         destination = packet.destination
         table = packet.dest_table

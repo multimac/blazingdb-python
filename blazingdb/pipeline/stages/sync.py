@@ -23,6 +23,7 @@ class RetryStage(base.BaseStage):
 
     async def process(self, message):
         message.add_transport(self.transport)
+        await message.forward()
 
 class RetryTransport(messages.Transport):
     """ Custom transport which retries a message when it fails """
@@ -49,20 +50,19 @@ class RetryTransport(messages.Transport):
         return True
 
     async def _handle(self, msg, ex):
-        first = self.sync_event.is_set()
         await self.sync_event.wait()
 
         if self.blocking:
             self.sync_event.clear()
 
         try:
-            return await self.handler(msg, ex, first)
+            return await self.handler(msg, ex)
         finally:
             self.sync_event.set()
 
     async def process(self, step, msg):
         while True:
-            if self._attempt(step, msg):
+            if await self._attempt(step, msg):
                 break
 
 
