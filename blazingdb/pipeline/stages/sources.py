@@ -13,7 +13,7 @@ import string
 
 from blazingdb import sources
 from . import base
-
+from .. import messages
 
 # pragma pylint: disable=too-few-public-methods
 
@@ -57,21 +57,21 @@ class FilterColumnsStage(base.BaseStage):
     """ Filters the given columns from the imported data """
 
     def __init__(self, tables):
-        super(FilterColumnsStage, self).__init__()
+        super(FilterColumnsStage, self).__init__(messages.ImportTableMessage)
         self.logger = logging.getLogger(__name__)
 
         self.tables = tables
 
-    async def before(self, data):
+    async def process(self, message):
         """ Replaces the stream with one which filters the columns """
-        ignored_columns = self.tables.get(data["src_table"], [])
+        ignored_columns = self.tables.get(message.src_table, [])
 
         self.logger.info(
-            "Filtering %s columns from %s%s", len(ignored_columns), data["src_table"],
+            "Filtering %s columns from %s%s", len(ignored_columns), message.src_table,
             " ({0})".format(", ".join(ignored_columns)) if ignored_columns else ""
         )
 
-        data["source"] = FilteredSource(data["source"], ignored_columns)
+        await message.forward(source=FilteredSource(message.source, ignored_columns))
 
 
 class FilteredSource(ChainedSource):
@@ -136,8 +136,11 @@ class FilteredSource(ChainedSource):
 class JumbleDataStage(base.BaseStage):
     """ Jumbles the data being loaded to obfuscate any sensitive information """
 
-    async def before(self, data):
-        data["source"] = JumbledSource(data["source"])
+    def __init__(self):
+        super(JumbleDataStage, self).__init__(messages.ImportTableMessage)
+
+    async def process(self, message):
+        await message.forward(source=JumbledSource(message.source))
 
 
 class JumbledSource(AlteredStreamSource):
@@ -196,12 +199,12 @@ class LimitImportStage(base.BaseStage):
     """ Limits the number of rows imported from the source """
 
     def __init__(self, count):
-        super(LimitImportStage, self).__init__()
+        super(LimitImportStage, self).__init__(messages.ImportTableMessage)
         self.count = count
 
-    async def before(self, data):
+    async def process(self, message):
         """ Replaces the source with one which limits the number of rows returned """
-        data["source"] = LimitedSource(data["source"], self.count)
+        await message.forward(source=LimitedSource(message.source, self.count))
 
 
 class LimitedSource(ChainedSource):
