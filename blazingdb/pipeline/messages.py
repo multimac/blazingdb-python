@@ -10,17 +10,17 @@ import functools
 class Message(object, metaclass=abc.ABCMeta):
     """ Base class used for all messages passed within the pipeline """
 
-    def __init__(self, packets):
+    def __init__(self, *packets):
         self.msg_id = id(self)
         self.parent = None
         self.stages = None
 
-        self.packets = set(packets)
+        self.packets = set(*packets)
         self.transport = self._forward
 
     @classmethod
     def _build_next(cls, msg):
-        clone = cls(msg.packets.copy())
+        clone = cls(*msg.packets.copy())
 
         clone.parent = msg
         clone.stages = msg.stages.copy()
