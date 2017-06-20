@@ -9,23 +9,25 @@ import logging
 
 from blazingdb import exceptions
 from blazingdb.util.blazing import build_datatype
-from . import base
+
+from . import base, custom
+from .. import messages
 
 
 # pragma pylint: disable=too-few-public-methods
 
-class CreateTableStage(base.BaseStage):
+class CreateTableStage(base.PipelineStage):
     """ Creates the destination table before importing data """
 
     def __init__(self, **kwargs):
-        super(CreateTableStage, self).__init__()
+        super(CreateTableStage, self).__init__(messages.ImportTablePacket)
         self.logger = logging.getLogger(__name__)
 
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod
-    async def _get_columns(data):
-        return await data["source"].get_columns(data["src_table"])
+    async def _get_columns(packet):
+        return await packet.source.get_columns(packet.src_table)
 
     @staticmethod
     async def _create_table(destination, table, column_data):
@@ -39,12 +41,14 @@ class CreateTableStage(base.BaseStage):
 
         await destination.execute(query)
 
-    async def before(self, data):
+    async def before(self, message):
         """ Triggers the creation of the destination table """
-        destination = data["destination"]
-        table = data["dest_table"]
+        packet = message.get_packet(messages.ImportTablePacket)
 
-        columns = await self._get_columns(data)
+        destination = packet.destination
+        table = packet.dest_table
+
+        columns = await self._get_columns(packet)
 
         self.logger.info("Creating table %s with %s column(s)", table, len(columns))
 
@@ -62,11 +66,11 @@ class CreateTableStage(base.BaseStage):
             self.logger.debug(ex.response)
 
 
-class DropTableStage(base.BaseStage):
+class DropTableStage(base.PipelineStage):
     """ Drops the destination table before importing data """
 
     def __init__(self, **kwargs):
-        super(DropTableStage, self).__init__()
+        super(DropTableStage, self).__init__(messages.ImportTablePacket)
         self.logger = logging.getLogger(__name__)
 
         self.quiet = kwargs.get("quiet", False)
@@ -76,10 +80,12 @@ class DropTableStage(base.BaseStage):
         identifier = destination.get_identifier(table)
         await destination.execute("DROP TABLE {0}".format(identifier))
 
-    async def before(self, data):
+    async def before(self, message):
         """ Triggers the dropping of the destination table """
-        destination = data["destination"]
-        table = data["dest_table"]
+        packet = message.get_packet(messages.ImportTablePacket)
+
+        destination = packet.destination
+        table = packet.dest_table
 
         self.logger.info("Dropping table %s", table)
 
@@ -97,11 +103,11 @@ class DropTableStage(base.BaseStage):
             self.logger.debug(ex.response)
 
 
-class PostImportHackStage(base.BaseStage):
+class PostImportHackStage(base.PipelineStage):
     """ Performs a series of queries to help fix an issue with importing data """
 
     def __init__(self, **kwargs):
-        super(PostImportHackStage, self).__init__()
+        super(PostImportHackStage, self).__init__(messages.ImportTablePacket)
         self.logger = logging.getLogger(__name__)
 
         self.perform_on_failure = kwargs.get("perform_on_failure", False)
@@ -113,29 +119,29 @@ class PostImportHackStage(base.BaseStage):
         await destination.execute("POST-OPTIMIZE TABLE {0}".format(identifier))
         await destination.execute("GENERATE SKIP-DATA FOR {0}".format(identifier))
 
-    async def after(self, data):
+    async def after(self, message, skipped, success):
         """ Triggers the series of queries required to fix the issue """
-        failed = not(data["success"] or data["skipped"])
+        failed = not(success or skipped)
         if failed and not self.perform_on_failure:
             return
 
-        destination = data["destination"]
-        table = data["dest_table"]
+        packet = message.get_message(messages.ImportTablePacket)
+
+        destination = packet.destination
+        table = packet.dest_table
 
         self.logger.info("Performing post-optimize on table %s", table)
         await self._perform_post_import_queries(destination, table)
 
 
-class SourceComparisonStage(base.BaseStage):
+class SourceComparisonStage(custom.CustomActionStage):
     """ Performs queries against both BlazingDB and the given source, and compares the results """
 
     def __init__(self, query, **kwargs):
-        super(SourceComparisonStage, self).__init__()
+        super(SourceComparisonStage, self).__init__(self._perform_comparison, **kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.query = query
-
-        self.perform_on_failure = kwargs.get("perform_on_failure", False)
 
     @staticmethod
     def _compare_rows(left, right):
@@ -164,16 +170,14 @@ class SourceComparisonStage(base.BaseStage):
 
         return [item async for chunk in source.query(formatted_query) for item in chunk]
 
-    async def after(self, data):
+    async def _perform_comparison(self, message):
         """ Performs the queries after data has been imported """
-        failed = not (data["success"] or data["skipped"])
-        if failed and not self.perform_on_failure:
-            return
+        packet = message.get_packet(messages.ImportTablePacket)
 
-        destination = data["destination"]
-        dest_table = data["dest_table"]
-        src_table = data["src_table"]
-        source = data["source"]
+        destination = packet.destination
+        dest_table = packet.dest_table
+        src_table = packet.src_table
+        source = packet.source
 
         columns = await destination.get_columns(src_table)
         misc_column = columns[0].name
@@ -195,11 +199,11 @@ class SourceComparisonStage(base.BaseStage):
         self.logger.debug("Source: %s", src_results)
 
 
-class TruncateTableStage(base.BaseStage):
+class TruncateTableStage(base.PipelineStage):
     """ Deletes all rows in the destination table before importing data """
 
     def __init__(self, **kwargs):
-        super(TruncateTableStage, self).__init__()
+        super(TruncateTableStage, self).__init__(messages.ImportTablePacket)
         self.logger = logging.getLogger(__name__)
 
         self.quiet = kwargs.get("quiet", False)
@@ -209,10 +213,12 @@ class TruncateTableStage(base.BaseStage):
         identifier = destination.get_identifier(table)
         await destination.execute("DELETE FROM {0}".format(identifier))
 
-    async def before(self, data):
+    async def before(self, message):
         """ Triggers the truncation of the destination table """
-        destination = data["destination"]
-        table = data["dest_table"]
+        packet = message.get_packet(messages.ImportTablePacket)
+
+        destination = packet.destination
+        table = packet.dest_table
 
         self.logger.info("Truncating table %s", table)
 
