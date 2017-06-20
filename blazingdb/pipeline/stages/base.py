@@ -2,8 +2,8 @@
 Defines the base stage class for use during data migration
 """
 
+import abc
 import logging
-import functools
 
 import enum
 
@@ -16,33 +16,42 @@ class When(enum.Flag):
     after = enum.auto()
 
 
-class BaseStage(object):
+class BaseStage(object, metaclass=abc.ABCMeta):
     """ Base class for all pipeline stages """
 
     def __init__(self, *message_types):
-        self.types = [message_types]
+        self.types = set(message_types)
 
     def ignore(self, message_type):
         self.types.remove(message_type)
 
     def listen_for(self, message_type):
-        self.types.append(message_type)
+        self.types.add(message_type)
+
+    @abc.abstractmethod
+    async def process(self, message):
+        pass
 
     async def receive(self, message):
         """ Called when a given message is received """
-        type_check = functools.partial(isinstance, message)
-        if any(filter(type_check, self.types)):
+        if isinstance(message, self.types):
             await self.process(message)
         else:
             await message.forward()
 
-    async def _call(self, method, *args):
-        if hasattr(self, method):
-            await getattr(self, method)(*args)
+
+class PipelineStage(BaseStage):
+    """ General base class for pipeline stages """
+
+    async def before(self, message):
+        pass
+
+    async def after(self, message, skipped, success):
+        pass
 
     async def process(self, message):
         """ Processes the current stage """
-        await self._call("before", message)
+        await self.before(message)
 
         try:
             await message.forward()
@@ -50,11 +59,11 @@ class BaseStage(object):
             skipped = isinstance(ex, exceptions.SkipImportException)
 
             try:
-                await self._call("after", message, skipped, False)
+                await self.after(message, skipped, False)
             except Exception:  # pylint: disable=broad-except
                 message = "Failed calling 'after' during exception handler"
                 logging.getLogger(__name__).exception.exception(message)
 
             raise
 
-        await self._call("after", message, False, True)
+        await self.after(message, False, True)
