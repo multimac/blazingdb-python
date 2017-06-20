@@ -10,7 +10,7 @@ import operator
 
 from blazingdb.util import format_size, timer
 from . import base
-
+from .. import messages
 
 # pragma pylint: disable=too-few-public-methods
 
@@ -20,8 +20,10 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
     DEFAULT_LOG_INTERVAL = 10
 
     def __init__(self, **kwargs):
-        super(BaseBatchStage, self).__init__()
+        super(BaseBatchStage, self).__init__(messages.LoadDataMessage)
+
         self.log_interval = kwargs.get("log_interval", self.DEFAULT_LOG_INTERVAL)
+        self.generators = dict()
 
     @abc.abstractmethod
     def _init_batch(self):
@@ -39,45 +41,50 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
     def _log_progress(self, data):
         """ Called periodically to monitor the progress of a batch """
 
-    async def _generate_batch(self, stream, last_chunk):
-        batch = []
-        batch_data = self._init_batch()
-
-        with timer.RepeatedTimer(10, self._log_progress, batch_data):
-            if last_chunk is not None:
-                remaining = self._process_chunk(batch_data, batch, last_chunk)
-
-                if remaining is not None:
-                    self._log_complete(batch_data)
-                    return (batch, remaining)
-
-            async for chunk in stream:
-                remaining = self._process_chunk(batch_data, batch, chunk)
-
-                if remaining is not None:
-                    self._log_complete(batch_data)
-                    return (batch, remaining)
-
-        self._log_complete(batch_data)
-        return (batch, None)
-
-    async def process(self, step, data):
-        """ Generates a series of batches from the stream """
-
-        index = 0
-        last_chunk = None
-        stream = data["stream"]
+    def _batch_generator(self):
+        remaining = yield
 
         while True:
-            batch, last_chunk = await self._generate_batch(stream, last_chunk)
+            batch = []
+            batch_data = self._init_batch()
 
-            async for item in step({"stream": batch, "index": index}):
-                yield item
+            with timer.RepeatedTimer(10, self._log_progress, batch_data):
+                remaining = self._process_chunk(batch_data, batch, remaining)
 
-            if last_chunk is None:
-                break
+                while remaining is None:
+                    chunk = yield
 
-            index += 1
+                    if chunk is None:
+                        break
+
+                    remaining = self._process_chunk(batch_data, batch, chunk)
+
+            yield batch
+
+    def _get_generator(self, msg_id):
+        if msg_id in self.generators:
+            return self.generators[msg_id]
+
+        generator = self._batch_generator()
+        generator.send(None)
+
+        self.generators[msg_id] = generator
+        return generator
+
+    async def process(self, message):
+        """ Generates a series of batches from the stream """
+        import_message = message.get_parent(messages.ImportTableMessage)
+        generator = self._get_generator(import_message.msg_id)
+
+        batch = generator.send(message.data)
+        while batch is not None:
+            await message.forward(data=batch, final=False)
+
+            batch = generator.send(None)
+
+        if message.final:
+            batch = generator.send(None)
+            await message.forward(data=batch, final=True)
 
 
 class ByteBatchStage(BaseBatchStage):
@@ -127,9 +134,6 @@ class ByteBatchStage(BaseBatchStage):
 class PreciseByteBatchStage(ByteBatchStage):
     """ Handles performing requests to load data into Blazing """
 
-    def __init__(self, size, **kwargs):
-        super(PreciseByteBatchStage, self).__init__(size, **kwargs)
-
     def _update_batch(self, data, row):
         encoded_row = row.encode(self.encoding)
 
@@ -157,11 +161,7 @@ class PreciseByteBatchStage(ByteBatchStage):
 class RoughByteBatchStage(ByteBatchStage):
     """ Handles performing requests to load data into Blazing """
 
-    DEFAULT_ROWS_AVERAGE = 50
-
-    def __init__(self, size, **kwargs):
-        super(RoughByteBatchStage, self).__init__(size, **kwargs)
-        self.rows_in_average = kwargs.get("rows_in_average", self.DEFAULT_ROWS_AVERAGE)
+    ROWS_IN_AVERAGE = 50
 
     def _determine_row_size(self, chunk):
         encoded = map(operator.methodcaller("encode", self.encoding), chunk)
@@ -170,7 +170,7 @@ class RoughByteBatchStage(ByteBatchStage):
     def _process_chunk(self, data, batch, chunk):
         chunk = list(chunk)
 
-        rows_in_average = chunk[:self.rows_in_average]
+        rows_in_average = chunk[:self.ROWS_IN_AVERAGE]
         avg_size = self._determine_row_size(rows_in_average)
 
         difference = self.size - data["byte_count"]
