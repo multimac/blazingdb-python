@@ -9,25 +9,46 @@ import asyncio
 import concurrent
 import logging
 
-from blazingdb import exceptions
 from . import base
+from ..import messages
 
 # pragma pylint: disable=too-few-public-methods
 
 class RetryStage(base.BaseStage):
-    """ Handles retrying an import when it fails """
+    """ Adds RetryTransport to any processed message transports """
 
-    def __init__(self, handler, loop=None, **kwargs):
-        super(RetryStage, self).__init__()
+    def __init__(self, handler, blocking, loop=None):
+        super(RetryStage, self).__init__(messages.Packet)
+        self.transport = RetryTransport(handler, blocking, loop=loop)
+
+    async def process(self, message):
+        message.add_transport(self.transport)
+
+class RetryTransport(messages.Transport):
+    """ Custom transport which retries a message when it fails """
+
+    def __init__(self, handler, blocking, loop=None):
         self.logger = logging.getLogger(__name__)
 
+        self.blocking = blocking
         self.handler = handler
 
-        self.blocking = kwargs.get("blocking", False)
         self.sync_event = asyncio.Event(loop=loop)
         self.sync_event.set()
 
-    async def _handle(self, data, ex):
+    async def _attempt(self, step, msg):
+        try:
+            await step(msg)
+        except concurrent.futures.CancelledError:
+            raise
+        except Exception as ex:  # pylint: disable=broad-except
+            self.logger.warning("Caught exception attempting to import table")
+
+            return not await self._handle(msg, ex)
+
+        return True
+
+    async def _handle(self, msg, ex):
         first = self.sync_event.is_set()
         await self.sync_event.wait()
 
@@ -35,28 +56,13 @@ class RetryStage(base.BaseStage):
             self.sync_event.clear()
 
         try:
-            return await self.handler(data, ex, first)
+            return await self.handler(msg, ex, first)
         finally:
             self.sync_event.set()
 
-    async def _attempt(self, step, data):
-        try:
-            await self.sync_event.wait()
-
-            async for item in step():
-                yield item
-        except (concurrent.futures.CancelledError, exceptions.SkipImportException):
-            raise
-        except Exception as ex:  # pylint: disable=broad-except
-            self.logger.warning("Caught exception attempting to import table")
-
-            return not await self._handle(data, ex)
-
-        return True
-
-    async def process(self, step, data):
+    async def process(self, step, msg):
         while True:
-            if self._attempt(step, data):
+            if self._attempt(step, msg):
                 break
 
 
@@ -64,10 +70,9 @@ class SemaphoreStage(base.BaseStage):
     """ Uses a semaphore to prevent access to later parts of the pipeline """
 
     def __init__(self, limit, loop=None):
-        super(SemaphoreStage, self).__init__()
+        super(SemaphoreStage, self).__init__(messages.Message)
         self.semaphore = asyncio.BoundedSemaphore(limit, loop=loop)
 
-    async def process(self, step, data):
+    async def process(self, message):
         async with self.semaphore:
-            async for item in step():
-                yield item
+            await message.forward()
