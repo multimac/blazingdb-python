@@ -49,9 +49,12 @@ class Message(object, metaclass=abc.ABCMeta):
 
         return current
 
-    def get_packets(self, *types):
+    def get_packet(self, packet_type):
+        return next(p for p in self.packets if isinstance(p, packet_type))
+
+    def get_packets(self, *packet_types):
         """ Retrieves packets of the given types from the message """
-        check_type = lambda packet: isinstance(packet, types)
+        check_type = lambda packet: isinstance(packet, packet_types)
         return set(filter(check_type, self.packets))
 
     def update_packet(self, packet, **updates):
