@@ -7,6 +7,7 @@ import concurrent
 import logging
 
 from . import exceptions
+from .pipeline import messages
 
 
 class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
@@ -35,15 +36,10 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
 
     async def _migrate_table(self, table):
         """ Imports an individual table into BlazingDB """
-        import_data = {
-            "source": self.source,
-            "src_table": table,
-            "dest_table": table,
-            "destination": self.destination
-        }
+        import_packet = messages.ImportTablePacket(self.source, table, self.destination, table)
+        import_message = messages.Message(import_packet)
 
-        async for pipeline_data in self.pipeline.process(import_data):
-            await self.importer.load(pipeline_data)
+        await self.pipeline.process(import_message, self.importer.load)
 
         self.logger.info("Successfully imported table %s", table)
 
