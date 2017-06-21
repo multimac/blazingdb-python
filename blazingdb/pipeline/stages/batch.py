@@ -59,7 +59,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
                     remaining = self._process_chunk(batch_data, batch, chunk)
 
-            yield (index, batch)
+            yield (batch, index)
             index += 1
 
     def _get_generator(self, msg_id):
