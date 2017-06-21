@@ -23,6 +23,7 @@ class RetryStage(base.BaseStage):
 
     async def process(self, message):
         message.add_transport(self.transport)
+
         await message.forward()
 
 class RetryTransport(messages.Transport):
@@ -43,7 +44,12 @@ class RetryTransport(messages.Transport):
         except concurrent.futures.CancelledError:
             raise
         except Exception as ex:  # pylint: disable=broad-except
-            self.logger.warning("Caught exception attempting to import table")
+            self.logger.warning("Caught exception attempting to forward message")
+
+            self.logger.debug(
+                "exception: %s, msg_type: %s",
+                type(ex).__name__, type(msg).__name__
+            )
 
             return not await self._handle(msg, ex)
 

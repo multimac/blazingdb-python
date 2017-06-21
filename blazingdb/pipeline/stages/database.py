@@ -119,10 +119,9 @@ class PostImportHackStage(base.PipelineStage):
         await destination.execute("POST-OPTIMIZE TABLE {0}".format(identifier))
         await destination.execute("GENERATE SKIP-DATA FOR {0}".format(identifier))
 
-    async def after(self, message, skipped, success):
+    async def after(self, message, success):
         """ Triggers the series of queries required to fix the issue """
-        failed = not(success or skipped)
-        if failed and not self.perform_on_failure:
+        if not (success or self.perform_on_failure):
             return
 
         packet = message.get_packet(messages.ImportTablePacket)

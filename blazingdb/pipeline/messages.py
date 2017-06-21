@@ -12,6 +12,8 @@ from blazingdb import exceptions
 class Message(object, metaclass=abc.ABCMeta):
     """ Base class used for all messages passed within the pipeline """
 
+    DEFAULT_MARKER = object()
+
     def __init__(self, *packets):
         self.msg_id = id(self)
         self.parent = None
@@ -22,6 +24,7 @@ class Message(object, metaclass=abc.ABCMeta):
 
     @classmethod
     def _build_next(cls, msg):
+        """ Clones a message to be forwarded to the next stage """
         clone = cls(*msg.packets.copy())
 
         clone.parent = msg
@@ -32,6 +35,9 @@ class Message(object, metaclass=abc.ABCMeta):
 
     @staticmethod
     async def _forward(msg):
+        """ Final transport step, copies and forwards message to next stage """
+        msg = copy.copy(msg)
+
         next_stage = msg.stages.popleft()
         await next_stage.receive(msg)
 
@@ -51,12 +57,15 @@ class Message(object, metaclass=abc.ABCMeta):
 
         return current
 
-    def get_packet(self, packet_type):
+    def get_packet(self, packet_type, default=DEFAULT_MARKER):
         """ Retrieves one packet of the given type from the message """
         try:
             check_type = lambda packet: isinstance(packet, packet_type)
-            return next(filter(check_type, self.packets), None)
+            return next(filter(check_type, self.packets))
         except StopIteration:
+            if default is not Message.DEFAULT_MARKER:
+                return default
+
             raise exceptions.PacketMissingException(packet_type)
 
     def get_packets(self, *packet_types):

@@ -8,8 +8,6 @@ Defines a series of miscellaneous pipeline stages, including:
 import asyncio
 import fnmatch
 
-from blazingdb import exceptions
-
 from . import base, custom
 from .. import messages
 
@@ -39,16 +37,6 @@ class PromptInputStage(custom.CustomActionStage):
         input(self.prompt)
 
 
-class SkipImportStage(base.BaseStage):
-    """ Skips the import if this stage is reached """
-
-    def __init__(self):
-        super(SkipImportStage, self).__init__(messages.ImportTablePacket)
-
-    async def process(self, message):  # pylint: disable=unused-argument
-        """ Ignores the message to prevent it being forwarded on """
-
-
 class SkipTableStage(base.BaseStage):
     """ Skips tables based on a given set of inclusions and exclusions """
 
@@ -75,5 +63,7 @@ class SkipTableStage(base.BaseStage):
 
     async def process(self, message):
         """ Only calls message.forward if the message isn't filtered """
-        if not self._filter_table(message.src_table):
+        import_pkt = message.get_packet(messages.ImportTablePacket)
+
+        if not self._filter_table(import_pkt.src_table):
             await message.forward()

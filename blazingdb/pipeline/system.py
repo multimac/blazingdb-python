@@ -14,10 +14,7 @@ class System(object):
     """ Wraps an array of pipeline stages """
 
     def __init__(self, stages=None):
-        if stages is None:
-            stages = []
-
-        self.stages = stages
+        self.stages = stages if stages is not None else []
 
     async def process(self, message, callback):
         """ Processes the pipeline with the given data and callback """

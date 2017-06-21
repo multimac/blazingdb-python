@@ -71,9 +71,7 @@ class StreamGenerationStage(base.BaseStage):
         table = packet.src_table
 
         row_format = importers.RowFormat(
-            field_terminator=self.field_terminator,
-            line_terminator=self.line_terminator,
-            field_wrapper=self.field_wrapper
+            self.field_terminator, self.field_wrapper, self.line_terminator
         )
 
         columns = await source.get_columns(table)

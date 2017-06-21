@@ -59,6 +59,8 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
                     remaining = self._process_chunk(batch_data, batch, chunk)
 
+            self._log_complete(batch_data)
+
             yield (batch, index)
             index += 1
 
@@ -71,6 +73,13 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
         self.generators[msg_id] = generator
         return generator
+
+    def _delete_generator(self, msg_id):
+        if msg_id not in self.generators:
+            return
+
+        generator = self.generators.pop(msg_id)
+        generator.close()
 
     async def process(self, message):
         """ Generates a series of batches from the stream """
@@ -87,11 +96,14 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
                 load_packets.append(load_packet)
                 batch = generator.send(None)
 
-        if message.get_packet(messages.DataCompletePacket) is not None:
+        complete_packet = message.get_packet(messages.DataCompletePacket, None)
+        if complete_packet is not None:
             batch = generator.send(None)
 
             load_packet = messages.DataLoadPacket(*batch)
             load_packets.append(load_packet)
+
+            self._delete_generator(initial_message.msg_id)
 
         if load_packets:
             await message.forward(*load_packets)

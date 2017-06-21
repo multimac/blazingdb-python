@@ -17,6 +17,10 @@ class MigrateException(BlazingException):
     """ Thrown when an exception occurs when migrating a table """
 
 
+class StoppedException(BlazingException):
+    """ Thrown when attempting to call migrate on a stopped migrator """
+
+
 class PacketMissingException(BlazingException):
     """ Thrown when an attempt is made to retrieve an invalid packet from a message """
 
@@ -67,7 +71,3 @@ class ServerRestartException(BlazingException):
 
     def __str__(self):
         return "query='{0}', response='{1}'".format(self.query, self.response)
-
-
-class SkipImportException(BlazingException):
-    """ Thrown when an import should be skipped """

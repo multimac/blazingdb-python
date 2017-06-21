@@ -32,7 +32,7 @@ class CustomActionStage(base.PipelineStage):
 
         await self._perform_callback(message)
 
-    async def after(self, message, skipped, success):  # pylint: disable=unused-argument
+    async def after(self, message, success):  # pylint: disable=unused-argument
         """ Triggers the callback if it has queued to run after the import """
         if When.after not in self.when:
             return

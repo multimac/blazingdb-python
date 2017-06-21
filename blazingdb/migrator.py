@@ -11,7 +11,6 @@ from .pipeline import messages
 
 
 class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
-
     """ Handles migrating data from a source into BlazingDB """
 
     def __init__(self, triggers, source, pipeline, importer, destination, loop=None, **kwargs):  # pylint: disable=too-many-arguments
@@ -19,16 +18,13 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
 
         self.loop = loop
 
-        self.destination = destination
-        self.importer = importer
-        self.pipeline = pipeline
-        self.source = source
+        self.processor = Processor(self._migrate_table, loop=loop, **kwargs)
+
         self.triggers = triggers
-
-        self.concurrent_imports = kwargs.get("concurrent_imports", 5)
-
-        self.queue_length = kwargs.get("queue_length", self.concurrent_imports)
-        self.queue = asyncio.Queue(self.queue_length, loop=loop)
+        self.source = source
+        self.pipeline = pipeline
+        self.importer = importer
+        self.destination = destination
 
     def close(self):
         self.destination.close()
@@ -44,52 +40,86 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
         self.logger.info("Successfully imported table %s", table)
 
     async def _poll_trigger(self, trigger):
+        """ Polls a trigger, placing any returned tables on the queue """
         async for table in trigger.poll(self.source):
-            await self.queue.put(table)
+            await self.processor.put(table)
 
-            self.logger.info("Added table %s to the import queue", table)
+    async def migrate(self):
+        """ Begins polling triggers and importing any tables returned from them """
+        if not self.processor.is_running:
+            raise exceptions.StoppedException()
+
+        poll_tasks = [self._poll_trigger(trigger) for trigger in self.triggers]
+        gathered_tasks = asyncio.gather(*poll_tasks, loop=self.loop)
+
+        try:
+            await gathered_tasks
+        except:
+            gathered_tasks.cancel()
+            raise
+
+    async def shutdown(self):
+        """ Shuts down the migrator, cancelling any currently polled triggers """
+        await self.processor.shutdown()
+
+
+class Processor(object):
+    """ Processes the importing of tables """
+
+    def __init__(self, callback, loop=None, **kwargs):
+        self.logger = logging.getLogger(__name__)
+
+        self.loop = loop
+        self.callback = callback
+        self.is_running = True
+
+        processor_count = kwargs.get("processor_count", 5)
+        queue_length = kwargs.get("queue_length", processor_count)
+
+        self.continue_on_error = kwargs.get("continue_on_error", False)
+        self.process_task = self._create_processors(self._process_queue, processor_count, loop)
+        self.queue = asyncio.Queue(queue_length, loop=loop)
+
+    @staticmethod
+    def _create_processors(callback, count, loop):
+        tasks = []
+        for _ in range(count):
+            tasks.append(asyncio.ensure_future(callback(), loop=loop))
+
+        return asyncio.gather(*tasks, loop=loop)
 
     async def _process_queue(self):
-        while True:
+        """ Polls the queue for a table to import, before calling _migrate_table """
+        while self.is_running:
             table = await self.queue.get()
-
-            if table is None:
-                self.queue.task_done()
-                break
 
             self.logger.info("Popped table %s from the import queue", table)
 
             try:
-                await self._migrate_table(table)
+                await self.callback(table)
             except concurrent.futures.CancelledError:
                 raise
-            except exceptions.SkipImportException:
-                pass
             except Exception:  # pylint: disable=broad-except
                 self.logger.exception("Caught exception attempting to import table %s", table)
-                break
+                if not self.continue_on_error: break  # pylint: disable=multiple-statements
             finally:
                 self.queue.task_done()
 
-    async def migrate(self):
-        """
-        Migrates the given list of tables from the source into BlazingDB. If tables is not
-        specified, all tables in the source are migrated
-        """
+    async def put(self, table):
+        """ Queues a table to be processed """
+        if not self.is_running:
+            raise exceptions.StoppedException()
 
-        poll_tasks = [self._poll_trigger(trigger) for trigger in self.triggers]
-        process_tasks = [self._process_queue() for _ in range(self.concurrent_imports)]
+        await self.queue.put(table)
 
-        gathered_poll_tasks = asyncio.gather(*poll_tasks, loop=self.loop)
-        gathered_process_tasks = asyncio.gather(*process_tasks, loop=self.loop)
+        self.logger.info("Added table %s to the import queue", table)
 
-        try:
-            await gathered_poll_tasks
-        except:
-            gathered_poll_tasks.cancel()
-            raise
-        finally:
-            for _ in range(self.concurrent_imports):
-                await self.queue.put(None)
+    async def shutdown(self):
+        """ Removes all pending tables from the queue and wait for running imports to finish """
+        self.is_running = False
 
-            await gathered_process_tasks
+        while not self.queue.empty():
+            self.queue.get_nowait()
+            self.queue.task_done()
+
+        await self.queue.join()

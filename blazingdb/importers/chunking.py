@@ -85,14 +85,11 @@ class ChunkingImporter(base.BaseImporter):  # pylint: disable=too-few-public-met
 
         for load_pkt in message.get_packets(messages.DataLoadPacket):
             await self._write_chunk(
-                load_pkt.data,
-                import_pkt.dest_table,
+                load_pkt.data, import_pkt.dest_table,
                 load_pkt.index
             )
 
             await self._load_chunk(
-                import_pkt.destination,
-                import_pkt.dest_table,
-                load_pkt.index,
-                format_pkt.fmt
+                import_pkt.destination, import_pkt.dest_table,
+                load_pkt.index, format_pkt.fmt
             )
