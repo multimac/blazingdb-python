@@ -4,6 +4,7 @@ Defines the Migrator class which can be used for migrating data into BlazingDB
 
 import asyncio
 import concurrent
+import contextlib
 import logging
 
 from . import exceptions
@@ -49,12 +50,12 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
             raise exceptions.StoppedException()
 
         poll_tasks = [self._poll_trigger(trigger) for trigger in self.triggers]
-        gathered_tasks = asyncio.gather(*poll_tasks, loop=self.loop)
+        gathered = asyncio.gather(*poll_tasks, loop=self.loop)
 
         try:
-            await gathered_tasks
+            await gathered
         except:
-            gathered_tasks.cancel()
+            gathered.cancel()
             raise
 
     async def shutdown(self):
@@ -78,7 +79,13 @@ class Processor(object):
         self.continue_on_error = kwargs.get("continue_on_error", False)
         self.queue = asyncio.Queue(queue_length, loop=loop)
 
-        self.processor_task = asyncio.ensure_future(self._run(processor_count), loop=loop)
+        self.processor_tasks = self._create_processors(
+            self._process_queue, processor_count, loop
+        )
+
+    @staticmethod
+    def _create_processors(callback, count, loop):
+        return [asyncio.ensure_future(callback(), loop=loop) for _ in range(count)]
 
     async def _process_queue(self):
         """ Polls the queue for a table to import, before calling _migrate_table """
@@ -97,13 +104,7 @@ class Processor(object):
             finally:
                 self.queue.task_done()
 
-    async def _run(self, count):
-        tasks = [asyncio.ensure_future(self._process_queue(), loop=self.loop) for _ in range(count)]
-
-        await asyncio.wait(tasks, loop=self.loop, return_when=asyncio.FIRST_COMPLETED)
-        self.logger.debug("Processor task has returned, shutting down processor")
-
-        await self.shutdown()
+        await asyncio.shield(self.shutdown(), loop=self.loop)
 
     async def put(self, table):
         """ Queues a table to be processed """
@@ -117,14 +118,14 @@ class Processor(object):
     async def shutdown(self):
         """ Removes all pending tables from the queue and wait for running imports to finish """
         if not self.is_running:
-            await self.queue.join()
             return
 
         self.is_running = False
 
-        self.logger.debug("Emptying processor queue")
+        self.logger.debug("Emptying pending import queue")
         while not self.queue.empty():
-            await self.queue.get()
+            self.queue.get_nowait()
             self.queue.task_done()
 
-        self.processor_task.cancel()
+        for task in self.processor_tasks:
+            task.cancel()

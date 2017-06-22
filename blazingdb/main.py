@@ -4,15 +4,16 @@ Defines a set of helper methods for performing migrations
 
 import asyncio
 import concurrent
+import contextlib
 import logging
 import signal
 
 from .util import sig
 
 
-def shutdown(loop):
-    """ Shuts down the given loop, cancelling and completing all tasks """
-    logging.getLogger(__name__).info("Shutting down event loop")
+def finalize_loop(loop):
+    """ Waits for all pending tasks in the loop to complete """
+    logging.getLogger(__name__).info("Waiting for pending tasks to complete")
 
     pending = asyncio.Task.all_tasks(loop)
     gathered = asyncio.gather(*pending, loop=loop, return_exceptions=True)
@@ -20,8 +21,11 @@ def shutdown(loop):
     try:
         loop.run_until_complete(gathered)
     except:  # pylint: disable=bare-except
-        logging.getLogger(__name__).warning("Skipping cancellation of pending tasks")
+        logging.getLogger(__name__).warning("Ignoring pending tasks")
 
+def shutdown_loop(loop):
+    """ Shuts down the given loop, cancelling and completing all tasks """
+    logging.getLogger(__name__).info("Shutting down event loop")
     shutdown_gens = loop.shutdown_asyncgens()
 
     try:
@@ -30,17 +34,6 @@ def shutdown(loop):
         logging.getLogger(__name__).warning("Skipping shutdown of async generators")
 
     loop.close()
-
-async def migrate_async(migrator_factory):
-    """ Performs a migration using the Migrator returned from the given factory function """
-    loop = asyncio.get_event_loop()
-    migrator = migrator_factory(loop)
-
-    try:
-        await migrator.migrate()
-    finally:
-        await migrator.shutdown()
-        migrator.close()
 
 def migrate(migrator_factory):
     """ Performs a migration using the Migrator returned from the given factory function """
@@ -55,18 +48,16 @@ def migrate(migrator_factory):
         logging.getLogger(__name__).info("Cancelling import...")
         migration_task.cancel()
 
-    # pragma pylint: disable=multiple-statements
-
     with sig.SignalContext(signal.SIGINT, _interrupt):
-        try: loop.run_until_complete(migration_task)
-        except concurrent.futures.CancelledError: pass
-
-    # pragma pylint: enable=multiple-statements
+        with contextlib.suppress(concurrent.futures.CancelledError):
+            loop.run_until_complete(migration_task)
 
     loop.run_until_complete(migrator.shutdown())
 
+    finalize_loop(loop)
     migrator.close()
-    shutdown(loop)
+
+    shutdown_loop(loop)
 
 def main():
     raise NotImplementedError("'main' method has not been implemented yet")
