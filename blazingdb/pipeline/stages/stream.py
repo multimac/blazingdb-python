@@ -82,7 +82,8 @@ class StreamProcessingStage(base.BaseStage):
         return map(process_row, packet.data)
 
     def _wrap_field(self, column):
-        return self.field_wrapper + column + self.field_wrapper
+        escaped_column = column.replace(self.field_wrapper, "\\" + self.field_wrapper)
+        return self.field_wrapper + escaped_column + self.field_wrapper
 
     async def process(self, message):
         for load_pkt in message.get_packets(messages.DataLoadPacket):
