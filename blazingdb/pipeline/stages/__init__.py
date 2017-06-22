@@ -10,9 +10,10 @@ from .batch import PreciseByteBatchStage, RoughByteBatchStage, RowBatchStage
 from .custom import CustomActionStage, CustomCommandStage, CustomQueryStage
 from .database import CreateTableStage, DropTableStage, PostImportHackStage
 from .database import SourceComparisonStage, TruncateTableStage
+from .importers import FileImportStage, StreamImportStage
 from .misc import DelayStage, PromptInputStage, SkipTableStage
 from .sources import FilterColumnsStage, JumbleDataStage, LimitImportStage
-from .stream import StreamGenerationStage
+from .stream import StreamGenerationStage, StreamProcessingStage
 from .sync import RetryStage, SemaphoreStage
 
 

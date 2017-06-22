@@ -107,13 +107,16 @@ class DataCompletePacket(Packet):  # pylint: disable=too-few-public-methods
 
 class DataFormatPacket(Packet):  # pylint: disable=too-few-public-methods
     """ Packet describing the format of a chunk of data """
-    def __init__(self, fmt):
-        self.fmt = fmt
+    def __init__(self, field_terminator, line_terminator, field_wrapper):
+        self.field_terminator = field_terminator
+        self.line_terminator = line_terminator
+        self.field_wrapper = field_wrapper
 
 class DataLoadPacket(Packet):  # pylint: disable=too-few-public-methods
     """ Packet describing a chunk of data to be loaded """
-    def __init__(self, data, index):
+    def __init__(self, data, columns, index):
         self.data = data
+        self.columns = columns
         self.index = index
 
 class ImportTablePacket(Packet):  # pylint: disable=too-few-public-methods
