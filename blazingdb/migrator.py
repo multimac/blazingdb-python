@@ -13,7 +13,7 @@ from .pipeline import messages
 class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, triggers, source, pipeline, importer, destination, loop=None, **kwargs):  # pylint: disable=too-many-arguments
+    def __init__(self, triggers, source, pipeline, destination, loop=None, **kwargs):  # pylint: disable=too-many-arguments
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop
@@ -23,7 +23,6 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
         self.triggers = triggers
         self.source = source
         self.pipeline = pipeline
-        self.importer = importer
         self.destination = destination
 
     def close(self):
@@ -32,10 +31,10 @@ class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-insta
 
     async def _migrate_table(self, table):
         """ Imports an individual table into BlazingDB """
-        import_packet = messages.ImportTablePacket(self.source, table, self.destination, table)
+        import_packet = messages.ImportTablePacket(self.destination, self.source, table)
         import_message = messages.Message(import_packet)
 
-        await self.pipeline.process(import_message, self.importer.load)
+        await self.pipeline.process(import_message)
 
         self.logger.info("Successfully imported table %s", table)
 

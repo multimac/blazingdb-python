@@ -44,12 +44,10 @@ class RetryTransport(messages.Transport):
         except concurrent.futures.CancelledError:
             raise
         except Exception as ex:  # pylint: disable=broad-except
-            self.logger.warning("Caught exception attempting to forward message")
+            packet_names = [type(pkt).__name__ for pkt in msg.packets]
 
-            self.logger.debug(
-                "exception: %s, msg_type: %s",
-                type(ex).__name__, type(msg).__name__
-            )
+            self.logger.warning("Caught exception attempting to forward message")
+            self.logger.debug("exception: %s, packets: %s", type(ex).__name__, packet_names)
 
             return not await self._handle(msg, ex)
 

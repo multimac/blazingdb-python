@@ -65,5 +65,5 @@ class SkipTableStage(base.BaseStage):
         """ Only calls message.forward if the message isn't filtered """
         import_pkt = message.get_packet(messages.ImportTablePacket)
 
-        if not self._filter_table(import_pkt.src_table):
+        if not self._filter_table(import_pkt.table):
             await message.forward()

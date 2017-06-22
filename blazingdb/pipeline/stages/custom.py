@@ -75,7 +75,7 @@ class CustomQueryStage(CustomActionStage):
         packet = message.get_packet(message.ImportTablePacket)
 
         destination = packet.destination
-        table = packet.dest_table
+        table = packet.table
 
         identifier = destination.get_identifier(table)
         formatted_query = self.query.format(table=identifier)

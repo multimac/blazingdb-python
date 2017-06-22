@@ -41,7 +41,7 @@ class BaseImportStage(base.BaseStage):
         format_pkt = message.get_packet(messages.DataFormatPacket)
 
         for load_pkt in message.get_packets(messages.DataLoadPacket):
-            self._load(import_pkt.destination, import_pkt.dest_table, load_pkt, format_pkt)
+            self._load(import_pkt.destination, import_pkt.table, load_pkt, format_pkt)
 
 
 class FileImportStage(BaseImportStage):

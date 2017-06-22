@@ -121,11 +121,10 @@ class DataLoadPacket(Packet):  # pylint: disable=too-few-public-methods
 
 class ImportTablePacket(Packet):  # pylint: disable=too-few-public-methods
     """ Packet describing a table to be imported """
-    def __init__(self, source, src_table, destination, dest_table):
-        self.source = source
-        self.src_table = src_table
+    def __init__(self, destination, source, table):
         self.destination = destination
-        self.dest_table = dest_table
+        self.source = source
+        self.table = table
 
 
 class Transport(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-public-methods

@@ -64,10 +64,10 @@ class FilterColumnsStage(base.BaseStage):
     async def process(self, message):
         """ Replaces the stream with one which filters the columns """
         packet = message.get_packet(messages.ImportTablePacket)
-        ignored_columns = self.tables.get(packet.src_table, [])
+        ignored_columns = self.tables.get(packet.table, [])
 
         self.logger.info(
-            "Filtering %s columns from %s%s", len(ignored_columns), packet.src_table,
+            "Filtering %s columns from %s%s", len(ignored_columns), packet.table,
             " ({0})".format(", ".join(ignored_columns)) if ignored_columns else ""
         )
 

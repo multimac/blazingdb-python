@@ -30,7 +30,7 @@ class StreamGenerationStage(base.BaseStage):
         import_pkt = message.get_packet(messages.ImportTablePacket)
 
         source = import_pkt.source
-        table = import_pkt.src_table
+        table = import_pkt.table
 
         columns = await source.get_columns(table)
 

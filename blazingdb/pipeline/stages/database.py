@@ -27,7 +27,7 @@ class CreateTableStage(base.PipelineStage):
 
     @staticmethod
     async def _get_columns(packet):
-        return await packet.source.get_columns(packet.src_table)
+        return await packet.source.get_columns(packet.table)
 
     @staticmethod
     async def _create_table(destination, table, column_data):
@@ -46,7 +46,7 @@ class CreateTableStage(base.PipelineStage):
         packet = message.get_packet(messages.ImportTablePacket)
 
         destination = packet.destination
-        table = packet.dest_table
+        table = packet.table
 
         columns = await self._get_columns(packet)
 
@@ -85,7 +85,7 @@ class DropTableStage(base.PipelineStage):
         packet = message.get_packet(messages.ImportTablePacket)
 
         destination = packet.destination
-        table = packet.dest_table
+        table = packet.table
 
         self.logger.info("Dropping table %s", table)
 
@@ -127,7 +127,7 @@ class PostImportHackStage(base.PipelineStage):
         packet = message.get_packet(messages.ImportTablePacket)
 
         destination = packet.destination
-        table = packet.dest_table
+        table = packet.table
 
         self.logger.info("Performing post-optimize on table %s", table)
         await self._perform_post_import_queries(destination, table)
@@ -174,15 +174,14 @@ class SourceComparisonStage(custom.CustomActionStage):
         packet = message.get_packet(messages.ImportTablePacket)
 
         destination = packet.destination
-        dest_table = packet.dest_table
-        src_table = packet.src_table
         source = packet.source
+        table = packet.table
 
-        columns = await destination.get_columns(src_table)
+        columns = await destination.get_columns(table)
         misc_column = columns[0].name
 
-        dest_results = await self._query_source(destination, dest_table, misc_column)
-        src_results = await self._query_source(source, src_table, misc_column)
+        dest_results = await self._query_source(destination, table, misc_column)
+        src_results = await self._query_source(source, table, misc_column)
 
         different = self._compare_results(dest_results, src_results)
 
@@ -192,7 +191,7 @@ class SourceComparisonStage(custom.CustomActionStage):
         self.logger.warning(" ".join([
             "Comparison query on table %s differed",
             "between BlazingDB and the source"
-        ]), src_table)
+        ]), table)
 
         self.logger.debug("Destination: %s", dest_results)
         self.logger.debug("Source: %s", src_results)
@@ -217,7 +216,7 @@ class TruncateTableStage(base.PipelineStage):
         packet = message.get_packet(messages.ImportTablePacket)
 
         destination = packet.destination
-        table = packet.dest_table
+        table = packet.table
 
         self.logger.info("Truncating table %s", table)
 
