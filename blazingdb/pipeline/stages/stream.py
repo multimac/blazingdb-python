@@ -86,7 +86,7 @@ class StreamProcessingStage(base.BaseStage):
 
     async def process(self, message):
         for load_pkt in message.get_packets(messages.DataLoadPacket):
-            message.update_packet(load_pkt, data=self._process(load_pkt.data))
+            message.update_packet(load_pkt, data=self._process(load_pkt))
 
         message.add_packet(messages.DataFormatPacket(
             self.field_terminator, self.line_terminator, self.field_wrapper

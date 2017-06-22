@@ -117,6 +117,7 @@ class Processor(object):
         """ Removes all pending tables from the queue and wait for running imports to finish """
         self.is_running = False
 
+        self.logger.debug("Emptying processor queue")
         while not self.queue.empty():
             self.queue.get_nowait()
             self.queue.task_done()
