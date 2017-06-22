@@ -76,16 +76,9 @@ class Processor(object):
         queue_length = kwargs.get("queue_length", processor_count)
 
         self.continue_on_error = kwargs.get("continue_on_error", False)
-        self.process_task = self._create_processors(self._process_queue, processor_count, loop)
         self.queue = asyncio.Queue(queue_length, loop=loop)
 
-    @staticmethod
-    def _create_processors(callback, count, loop):
-        tasks = []
-        for _ in range(count):
-            tasks.append(asyncio.ensure_future(callback(), loop=loop))
-
-        return asyncio.gather(*tasks, loop=loop)
+        self.processor_task = asyncio.ensure_future(self._run(processor_count), loop=loop)
 
     async def _process_queue(self):
         """ Polls the queue for a table to import, before calling _migrate_table """
@@ -95,7 +88,7 @@ class Processor(object):
             self.logger.info("Popped table %s from the import queue", table)
 
             try:
-                await self.callback(table)
+                await asyncio.shield(self.callback(table), loop=self.loop)
             except concurrent.futures.CancelledError:
                 raise
             except Exception:  # pylint: disable=broad-except
@@ -103,6 +96,14 @@ class Processor(object):
                 if not self.continue_on_error: break  # pylint: disable=multiple-statements
             finally:
                 self.queue.task_done()
+
+    async def _run(self, count):
+        tasks = [asyncio.ensure_future(self._process_queue(), loop=self.loop) for _ in range(count)]
+
+        await asyncio.wait(tasks, loop=self.loop, return_when=asyncio.FIRST_COMPLETED)
+        self.logger.debug("Processor task has returned, shutting down processor")
+
+        await self.shutdown()
 
     async def put(self, table):
         """ Queues a table to be processed """
@@ -115,11 +116,15 @@ class Processor(object):
 
     async def shutdown(self):
         """ Removes all pending tables from the queue and wait for running imports to finish """
+        if not self.is_running:
+            await self.queue.join()
+            return
+
         self.is_running = False
 
         self.logger.debug("Emptying processor queue")
         while not self.queue.empty():
-            self.queue.get_nowait()
+            await self.queue.get()
             self.queue.task_done()
 
-        await self.queue.join()
+        self.processor_task.cancel()
