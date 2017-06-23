@@ -63,7 +63,7 @@ class StreamProcessingStage(base.BaseStage):
         elif datatype == "string":
             return functools.partial(self._wrap_field)
 
-        raise ValueError("Given datatype is not supported")
+        raise ValueError("Given datatype ({0}) is not supported".format(datatype))
 
     def _process_row(self, mappings, row):
         """ Processes a row of data into it a string to be loaded into Blazing """
@@ -76,7 +76,7 @@ class StreamProcessingStage(base.BaseStage):
         return line + self.line_terminator
 
     def _process(self, packet):
-        mappings = map(self._create_mapping, [col.type for col in packet.columns])
+        mappings = [self._create_mapping(col.type) for col in packet.columns]
         process_row = functools.partial(self._process_row, mappings)
 
         return map(process_row, packet.data)
