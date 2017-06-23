@@ -47,7 +47,7 @@ class RetryTransport(messages.Transport):
             packet_names = [type(pkt).__name__ for pkt in msg.packets]
 
             self.logger.warning("Caught exception attempting to forward message")
-            self.logger.debug("exception: %s, packets: %s", type(ex).__name__, packet_names)
+            self.logger.debug("packets: %s, exception: %s", packet_names, ex)
 
             return not await self._handle(msg, ex)
 
