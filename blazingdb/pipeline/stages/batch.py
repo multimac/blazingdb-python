@@ -92,15 +92,18 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
             message.remove_packet(packet)
 
             while batch is not None:
-                load_packet = messages.DataLoadPacket(*batch)
+                data, index = batch
+
+                load_packet = messages.DataLoadPacket(data, index)
                 load_packets.append(load_packet)
+
                 batch = generator.send(None)
 
         complete_packet = message.get_packet(messages.DataCompletePacket, None)
         if complete_packet is not None:
-            batch = generator.send(None)
+            data, index = generator.send(None)
 
-            load_packet = messages.DataLoadPacket(*batch)
+            load_packet = messages.DataLoadPacket(data, index)
             load_packets.append(load_packet)
 
             self._delete_generator(initial_message.msg_id)

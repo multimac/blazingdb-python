@@ -102,6 +102,11 @@ class Message(object, metaclass=abc.ABCMeta):
 class Packet(object):  # pylint: disable=too-few-public-methods
     """ Base class used for all packets delivered with messages """
 
+class DataColumnsPacket(Packet):  # pylint: disable=too-few-public-methods
+    """ Packet describing the columns for load and complete packets """
+    def __init__(self, columns):
+        self.columns = columns
+
 class DataCompletePacket(Packet):  # pylint: disable=too-few-public-methods
     """ Packet notifying later stages the data stream is complete """
 
@@ -114,9 +119,8 @@ class DataFormatPacket(Packet):  # pylint: disable=too-few-public-methods
 
 class DataLoadPacket(Packet):  # pylint: disable=too-few-public-methods
     """ Packet describing a chunk of data to be loaded """
-    def __init__(self, data, columns, index):
+    def __init__(self, data, index):
         self.data = data
-        self.columns = columns
         self.index = index
 
 class ImportTablePacket(Packet):  # pylint: disable=too-few-public-methods

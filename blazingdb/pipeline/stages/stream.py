@@ -33,10 +33,11 @@ class StreamGenerationStage(base.BaseStage):
         table = import_pkt.table
 
         columns = await source.get_columns(table)
+        message.add_packet(messages.DataColumnsPacket(columns))
 
         index = 0
         async for chunk in source.retrieve(table):
-            await message.forward(messages.DataLoadPacket(chunk, columns, index))
+            await message.forward(messages.DataLoadPacket(chunk, index))
             index += 1
 
         await message.forward(messages.DataCompletePacket())
@@ -75,19 +76,22 @@ class StreamProcessingStage(base.BaseStage):
 
         return line + self.line_terminator
 
-    def _process(self, packet):
-        mappings = [self._create_mapping(col.type) for col in packet.columns]
+    def _process(self, data, columns):
+        mappings = [self._create_mapping(col.type) for col in columns]
         process_row = functools.partial(self._process_row, mappings)
 
-        return map(process_row, packet.data)
+        return map(process_row, data)
 
     def _wrap_field(self, column):
         escaped_column = column.replace(self.field_wrapper, "\\" + self.field_wrapper)
         return self.field_wrapper + escaped_column + self.field_wrapper
 
     async def process(self, message):
+        columns_pkt = message.get_packet(messages.DataColumnsPacket)
+
         for load_pkt in message.get_packets(messages.DataLoadPacket):
-            message.update_packet(load_pkt, data=self._process(load_pkt))
+            processed_data = self._process(load_pkt.data, columns_pkt.columns)
+            message.update_packet(load_pkt, data=processed_data)
 
         message.add_packet(messages.DataFormatPacket(
             self.field_terminator, self.line_terminator, self.field_wrapper
