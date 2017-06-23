@@ -21,7 +21,7 @@ class BaseImportStage(base.BaseStage):
         self.timeout = kwargs.get("timeout", None)
 
     @abc.abstractmethod
-    def _load(self, destination, table, load_pkt, format_pkt):
+    async def _load(self, destination, table, load_pkt, format_pkt):
         """ Load the given packet """
 
     async def _perform_request(self, destination, method, fmt, table):
@@ -36,12 +36,12 @@ class BaseImportStage(base.BaseStage):
         with async_timeout.timeout(self.timeout, loop=self.loop):
             await destination.execute(query)
 
-    def process(self, message):
+    async def process(self, message):
         import_pkt = message.get_packet(messages.ImportTablePacket)
         format_pkt = message.get_packet(messages.DataFormatPacket)
 
         for load_pkt in message.get_packets(messages.DataLoadPacket):
-            self._load(import_pkt.destination, import_pkt.table, load_pkt, format_pkt)
+            await self._load(import_pkt.destination, import_pkt.table, load_pkt, format_pkt)
 
 
 class FileImportStage(BaseImportStage):
