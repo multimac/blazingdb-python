@@ -10,7 +10,7 @@ import concurrent
 import logging
 
 from . import base
-from ..import messages
+from .. import messages
 
 # pragma pylint: disable=too-few-public-methods
 
