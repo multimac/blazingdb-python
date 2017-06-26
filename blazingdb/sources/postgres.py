@@ -9,22 +9,6 @@ from blazingdb.util.blazing import parse_value
 from . import base
 
 
-class PostgresPoolConnection(object):  # pylint: disable=too-few-public-methods
-    """ Handles retrieving and returning connections in a pool """
-
-    def __init__(self, pool):
-        self.pool = pool
-        self.connection = None
-
-    def __enter__(self):
-        self.connection = self.pool.getconn()
-        return self.connection
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.pool.putconn(self.connection)
-        self.connection = None
-
-
 class PostgresSource(base.BaseSource):
     """ Handles connecting and retrieving data from Postgres, and loading it into BlazingDB """
 
@@ -48,7 +32,7 @@ class PostgresSource(base.BaseSource):
 
     def close(self):
         """ Closes the given source and cleans up the connection """
-        self.pool.closeall()
+        self.pool.close()
 
     def _create_cursor(self, connection):
         cursor = connection.cursor(self.CURSOR_NAME)
@@ -93,12 +77,12 @@ class PostgresSource(base.BaseSource):
 
     async def query(self, query, *args):
         """ Performs a custom query against the source """
-        with PostgresPoolConnection(self.pool) as connection:
-            with self._create_cursor(connection) as cursor:
-                cursor.execute(query, *args)
+        async with self.pool.acquire() as connection:
+            async with connection.transaction():
+                cursor = await connection.cursor(query, *args)
 
                 while True:
-                    chunk = cursor.fetchmany(self.fetch_count)
+                    chunk = await cursor.fetch(self.fetch_count)
 
                     if not chunk:
                         break
