@@ -38,8 +38,8 @@ def shutdown_loop(loop):
 def migrate(migrator_factory):
     """ Performs a migration using the Migrator returned from the given factory function """
     loop = asyncio.new_event_loop()
-    migrator = migrator_factory(loop)
 
+    migrator = loop.run_until_complete(migrator_factory(loop))
     migration_task = asyncio.ensure_future(migrator.migrate(), loop=loop)
 
     def _interrupt(sig_num, stack):  # pylint: disable=unused-argument
