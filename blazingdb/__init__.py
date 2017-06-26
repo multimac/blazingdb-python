@@ -4,7 +4,6 @@ Package for handling connections to BlazingDB from Python
 
 from . import exceptions
 
-from .connector import Connector
 from .migrator import Migrator
 
 

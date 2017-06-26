@@ -13,7 +13,7 @@ class PostgresSource(base.BaseSource):
     """ Handles connecting and retrieving data from Postgres, and loading it into BlazingDB """
 
     CURSOR_NAME = __name__
-    FETCH_COUNT = 50000
+    FETCH_COUNT = 20000
 
     def __init__(self, pool, schema, **kwargs):
         super(PostgresSource, self).__init__()
@@ -24,21 +24,9 @@ class PostgresSource(base.BaseSource):
 
         self.fetch_count = kwargs.get("fetch_count", self.FETCH_COUNT)
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
-    def close(self):
+    async def close(self):
         """ Closes the given source and cleans up the connection """
-        self.pool.close()
-
-    def _create_cursor(self, connection):
-        cursor = connection.cursor(self.CURSOR_NAME)
-        cursor.itersize = self.fetch_count
-
-        return cursor
+        await self.pool.close()
 
     def get_identifier(self, table, schema=None):
         schema = self.schema if schema is None else schema
@@ -59,15 +47,14 @@ class PostgresSource(base.BaseSource):
 
     async def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
+        def _process_column(row):
+            return base.Column(name=row[0], type=convert_datatype(row[1]), size=row[2])
+
         results = self.query(" ".join([
             "SELECT column_name, data_type, character_maximum_length",
             "FROM information_schema.columns",
             "WHERE table_schema = '{0}' AND table_name = '{1}'".format(self.schema, table)
         ]))
-
-
-        def _process_column(row):
-            return self.Column(name=row[0], type=convert_datatype(row[1]), size=row[2])
 
         columns = [_process_column(row) async for chunk in results for row in chunk]
 

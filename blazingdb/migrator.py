@@ -18,17 +18,12 @@ class Migrator(object):
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop
-
         self.processor = Processor(self._migrate_table, loop=loop, **kwargs)
 
         self.triggers = triggers
         self.source = source
         self.pipeline = pipeline
         self.destination = destination
-
-    def close(self):
-        self.destination.close()
-        self.source.close()
 
     async def _migrate_table(self, table):
         """ Imports an individual table into BlazingDB """
@@ -64,6 +59,27 @@ class Migrator(object):
     async def shutdown(self):
         """ Shuts down the migrator, cancelling any currently polled triggers """
         await self.processor.shutdown()
+
+        pending = asyncio.Task.all_tasks(self.loop)
+        gathered = asyncio.gather(*pending, loop=self.loop, return_exceptions=True)
+
+        # pragma pylint: disable=multiple-statements
+        try: await gathered
+        except concurrent.futures.CancelledError:
+            self.logger.warning("Cancelling pending tasks")
+            gathered.cancel()
+
+            try: await gathered
+            except concurrent.futures.CancelledError:
+                self.logger.warning("Ignoring cancelled tasks")
+
+        self.logger.debug("Pending tasks completed")
+
+        await self.pipeline.shutdown()
+        await self.destination.close()
+        await self.source.close()
+
+        self.logger.debug("Migrator successfully shutdown")
 
 
 class Processor(object):
@@ -127,9 +143,10 @@ class Processor(object):
         for task in self.processor_tasks:
             task.cancel()
 
-        self.logger.debug("Emptying pending import queue")
         while not self.queue.empty():
             self.queue.get_nowait()
             self.queue.task_done()
 
             await asyncio.sleep(0)
+
+        self.logger.debug("Pending import queue cleared")

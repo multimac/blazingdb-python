@@ -31,19 +31,6 @@ class Message(object):
 
         return clone
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
-
-        if self.get_initial_message() is not self:
-            state["parent"] = self.get_initial_message()
-
-        del state["system"]
-        return state
-
-    def __setstate__(self, state):
-        self.__init__()
-        self.__dict__.update(state)
-
     def add_packet(self, packet):
         """ Adds the given packet to the message """
         self.packets.add(packet)

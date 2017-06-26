@@ -6,10 +6,10 @@ import abc
 from collections import namedtuple
 
 
+Column = namedtuple("Column", ["name", "type", "size"])
+
 class BaseSource(object, metaclass=abc.ABCMeta):
     """ Handles retrieving data from a given source (eg. PostgreSQL) """
-
-    Column = namedtuple("Column", ["name", "type", "size"])
 
     @abc.abstractmethod
     def get_identifier(self, table, schema=None):

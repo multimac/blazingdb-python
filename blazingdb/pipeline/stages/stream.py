@@ -6,6 +6,7 @@ which can be imported into BlazingDB
 import asyncio
 import concurrent
 import functools
+import logging
 import operator
 
 from blazingdb.util.blazing import DATE_FORMAT
@@ -62,6 +63,8 @@ class StreamProcessingStage(base.BaseStage):
         super(StreamProcessingStage, self).__init__(
             messages.DataColumnsPacket, messages.DataLoadPacket)
 
+        self.logger = logging.getLogger(__name__)
+
         self.executor = concurrent.futures.ProcessPoolExecutor()
         self.loop = loop if loop is not None else asyncio.get_event_loop()
 
@@ -69,8 +72,14 @@ class StreamProcessingStage(base.BaseStage):
         self.line_terminator = kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR)
         self.field_wrapper = kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER)
 
+    async def shutdown(self):
+        self.executor.shutdown()
+
     async def _process_in_executor(self, data, fmt, columns):
-        return await self.loop.run_in_executor(self.executor, process_data, data, fmt, columns)
+        args = (list(data), fmt, columns)
+        task = self.loop.run_in_executor(self.executor, process_data, *args)
+
+        return await task
 
     async def process(self, message):
         columns = message.get_packet(messages.DataColumnsPacket).columns
@@ -90,7 +99,7 @@ def process_data(data, fmt, columns):
     mappings = [_create_mapping(fmt, col.type) for col in columns]
     process_row = functools.partial(_process_row, fmt, mappings)
 
-    return list(process_row, data)
+    return list(map(process_row, data))
 
 def _create_mapping(fmt, datatype):
     if datatype == "date":

@@ -33,6 +33,9 @@ class BaseStage(object, metaclass=abc.ABCMeta):
         else:
             await message.forward()
 
+    async def shutdown(self):
+        pass
+
 
 class PipelineStage(BaseStage):
     """ General base class for pipeline stages """

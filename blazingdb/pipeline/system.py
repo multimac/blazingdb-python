@@ -2,8 +2,7 @@
 Defines classes involved in running stages of a pipeline
 """
 
-import abc
-import functools
+import asyncio
 import logging
 
 from . import messages
@@ -25,43 +24,23 @@ class System(object):
             self.logger.warning("Message reached the end of the pipeline without being consumed")
             self.logger.debug("packets=%s", message.packets)
 
-    def __init__(self, stages=None, transports=None):
+    def __init__(self, stages=None, loop=None):
+        self.loop = loop
+
         self.stages = list(stages) if stages is not None else []
         self.stages.append(System.WarningStage())
 
-        transports = transports if transports is not None else []
-        self.transport = self._build_transport(transports)
-
-    def _build_transport(self, transports):
-        func = self._forward
-
-        for transport in transports:
-            func = functools.partial(transport.process, func)
-
-        return functools.partial(self._begin_transport, func)
-
-    async def _begin_transport(self, step, msg):
-        msg.system = self
-
-        if msg.parent is not None:
-            msg.stage_idx = msg.parent.stage_idx + 1
-        else:
-            msg.stage_idx = 0
-
-        await step(msg)
-
-    async def _forward(self, message):
-        """ Forwards the given message to the next stage in the pipeline """
-        await self.stages[message.stage_idx].receive(message)
-
     async def process(self, message):
         """ Processes the given message through the pipeline """
-        await self.transport(message)
+        message.system = self
 
+        if message.parent is not None:
+            message.stage_idx = message.parent.stage_idx + 1
+        else:
+            message.stage_idx = 0
 
-class Transport(object, metaclass=abc.ABCMeta):
-    """ Base class used for all transport classes used to forward messages """
+        await self.stages[message.stage_idx].receive(message)
 
-    @abc.abstractmethod
-    async def process(self, step, msg):
-        """ Forwards the message to the given stage """
+    async def shutdown(self):
+        tasks = map(lambda stg: stg.shutdown(), self.stages)
+        await asyncio.gather(*tasks, loop=self.loop)
