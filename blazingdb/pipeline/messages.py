@@ -2,16 +2,14 @@
 Defines the core message classes used in the pipeline
 """
 
-import abc
 import copy
-import functools
 
 from blazingdb import exceptions
 
 
 # pragma pylint: disable=too-few-public-methods
 
-class Message(object, metaclass=abc.ABCMeta):
+class Message(object):
     """ Base class used for all messages passed within the pipeline """
 
     DEFAULT_MARKER = object()
@@ -19,37 +17,34 @@ class Message(object, metaclass=abc.ABCMeta):
     def __init__(self, *packets):
         self.msg_id = id(self)
         self.parent = None
-        self.stages = None
 
         self.packets = set(iter(packets))
-        self.transport = self._forward
+
+        self.stage_idx = 0
+        self.system = None
 
     @classmethod
     def _build_next(cls, msg):
         """ Clones a message to be forwarded to the next stage """
-        clone = cls(*msg.packets.copy())
-
+        clone = cls(msg.packets)
         clone.parent = msg
-        clone.stages = msg.stages.copy()
-        clone.transport = msg.transport
 
         return clone
 
-    @staticmethod
-    async def _forward(msg):
-        """ Final transport step, copies and forwards message to next stage """
-        msg = copy.copy(msg)
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state.parent = self.get_initial_message()
 
-        next_stage = msg.stages.popleft()
-        await next_stage.receive(msg)
+        del state["system"]
+        return state
+
+    def __setstate__(self, state):
+        self.__init__()
+        self.__dict__.update(state)
 
     def add_packet(self, packet):
         """ Adds the given packet to the message """
         self.packets.add(packet)
-
-    def add_transport(self, transport):
-        """ Adds the given transport to the chain of transports for this message """
-        self.transport = functools.partial(transport.process, self.transport)
 
     def get_initial_message(self):
         """ Retrieves the initial message which caused this one to be created """
@@ -92,13 +87,10 @@ class Message(object, metaclass=abc.ABCMeta):
 
     async def forward(self, *packets):
         """ Forwards the message to the next stage in the pipeline """
-        if not self.stages:
-            raise RuntimeError("No more stages to forward the message to")
-
         msg = Message._build_next(self)
         msg.packets.update(packets)
 
-        await self.transport(msg)
+        await self.system.process(msg)
 
 
 class Packet(object):
@@ -131,11 +123,3 @@ class ImportTablePacket(Packet):
         self.destination = destination
         self.source = source
         self.table = table
-
-
-class Transport(object, metaclass=abc.ABCMeta):
-    """ Base class used for all transport classes used to forward messages """
-
-    @abc.abstractmethod
-    async def process(self, step, msg):
-        """ Forwards the message to the given stage """
