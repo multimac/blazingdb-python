@@ -42,6 +42,9 @@ class Migrator(object):
     async def _poll_trigger(self, trigger):
         """ Polls a trigger, placing any returned tables on the queue """
         async for table in trigger.poll(self.source):
+            if not self.processor.is_running:
+                break
+
             await self.processor.put(table)
 
     async def migrate(self):
@@ -121,10 +124,12 @@ class Processor(object):
 
         self.is_running = False
 
+        for task in self.processor_tasks:
+            task.cancel()
+
         self.logger.debug("Emptying pending import queue")
         while not self.queue.empty():
             self.queue.get_nowait()
             self.queue.task_done()
 
-        for task in self.processor_tasks:
-            task.cancel()
+            await asyncio.sleep(0)
