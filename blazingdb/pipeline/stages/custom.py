@@ -55,9 +55,7 @@ class CustomCommandStage(CustomActionStage):
 
         null = asyncio.subprocess.DEVNULL
         process = await asyncio.create_subprocess_exec(
-            self.program, *self.args,
-            stdin=null, stdout=null, stderr=null
-        )
+            self.program, *self.args, stdin=null, stdout=null, stderr=null)
 
         await process.wait()
 

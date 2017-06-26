@@ -9,8 +9,10 @@ import math
 import operator
 
 from blazingdb.util import format_size, timer
+
 from . import base
 from .. import messages
+
 
 # pragma pylint: disable=too-few-public-methods
 
@@ -99,7 +101,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
                 batch = generator.send(None)
 
-        complete_packet = message.get_packet(messages.DataCompletePacket, None)
+        complete_packet = message.get_packet(messages.DataCompletePacket, default=None)
         if complete_packet is not None:
             data, index = generator.send(None)
 

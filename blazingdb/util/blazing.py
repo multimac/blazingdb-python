@@ -20,20 +20,15 @@ def _parse_int(value): return int(value)
 def _parse_string(value): return str(value)
 
 def _parse_bool(value):
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.lower() == "true"
+    if isinstance(value, bool): return value
+    if isinstance(value, str): return value.lower() == "true"
 
     raise TypeError("Could not parse {0} as bool".format(value))
 
 def _parse_date(value):
-    if isinstance(value, datetime.date):
-        return value
-    elif isinstance(value, datetime.datetime):
-        return value.date()
-    elif isinstance(value, str):
-        return datetime.date.strptime(DATE_FORMAT)
+    if isinstance(value, datetime.date): return value
+    elif isinstance(value, datetime.datetime): return value.date()
+    elif isinstance(value, str): return datetime.date.strptime(DATE_FORMAT)
 
     raise TypeError("Could not parse {0} as date".format(value))
 

@@ -8,7 +8,7 @@ import contextlib
 import logging
 import signal
 
-from .util import sig
+from blazingdb.util import sig
 
 
 def finalize_loop(loop):

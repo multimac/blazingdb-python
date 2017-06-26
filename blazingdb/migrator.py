@@ -4,14 +4,14 @@ Defines the Migrator class which can be used for migrating data into BlazingDB
 
 import asyncio
 import concurrent
-import contextlib
 import logging
 
+from blazingdb.pipeline import messages
+
 from . import exceptions
-from .pipeline import messages
 
 
-class Migrator(object):  # pylint: disable=too-few-public-methods,too-many-instance-attributes
+class Migrator(object):
     """ Handles migrating data from a source into BlazingDB """
 
     def __init__(self, triggers, source, pipeline, destination, loop=None, **kwargs):  # pylint: disable=too-many-arguments
@@ -80,8 +80,7 @@ class Processor(object):
         self.queue = asyncio.Queue(queue_length, loop=loop)
 
         self.processor_tasks = self._create_processors(
-            self._process_queue, processor_count, loop
-        )
+            self._process_queue, processor_count, loop)
 
     @staticmethod
     def _create_processors(callback, count, loop):

@@ -12,8 +12,10 @@ import random
 import string
 
 from blazingdb import sources
+
 from . import base
 from .. import messages
+
 
 # pragma pylint: disable=too-few-public-methods
 
@@ -68,8 +70,7 @@ class FilterColumnsStage(base.BaseStage):
 
         self.logger.info(
             "Filtering %s columns from %s%s", len(ignored_columns), packet.table,
-            " ({0})".format(", ".join(ignored_columns)) if ignored_columns else ""
-        )
+            " ({0})".format(", ".join(ignored_columns)) if ignored_columns else "")
 
         message.update(packet, source=FilteredSource(packet.source, ignored_columns))
 
@@ -112,10 +113,7 @@ class FilteredSource(ChainedSource):
         if current_start is not None:
             slices.append(slice(current_start, None))
 
-        self.logger.debug(
-            "Generated %s row segments for table %s",
-            len(slices), table
-        )
+        self.logger.debug("Generated %s row segments for table %s", len(slices), table)
 
         def _filter_row(row):
             filtered_row = []

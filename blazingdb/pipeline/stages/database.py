@@ -14,8 +14,6 @@ from . import base, custom
 from .. import messages
 
 
-# pragma pylint: disable=too-few-public-methods
-
 class CreateTableStage(base.PipelineStage):
     """ Creates the destination table before importing data """
 

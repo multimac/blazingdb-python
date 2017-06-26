@@ -9,6 +9,8 @@ import functools
 from blazingdb import exceptions
 
 
+# pragma pylint: disable=too-few-public-methods
+
 class Message(object, metaclass=abc.ABCMeta):
     """ Base class used for all messages passed within the pipeline """
 
@@ -99,31 +101,31 @@ class Message(object, metaclass=abc.ABCMeta):
         await self.transport(msg)
 
 
-class Packet(object):  # pylint: disable=too-few-public-methods
+class Packet(object):
     """ Base class used for all packets delivered with messages """
 
-class DataColumnsPacket(Packet):  # pylint: disable=too-few-public-methods
+class DataColumnsPacket(Packet):
     """ Packet describing the columns for load and complete packets """
     def __init__(self, columns):
         self.columns = columns
 
-class DataCompletePacket(Packet):  # pylint: disable=too-few-public-methods
+class DataCompletePacket(Packet):
     """ Packet notifying later stages the data stream is complete """
 
-class DataFormatPacket(Packet):  # pylint: disable=too-few-public-methods
+class DataFormatPacket(Packet):
     """ Packet describing the format of a chunk of data """
     def __init__(self, field_terminator, line_terminator, field_wrapper):
         self.field_terminator = field_terminator
         self.line_terminator = line_terminator
         self.field_wrapper = field_wrapper
 
-class DataLoadPacket(Packet):  # pylint: disable=too-few-public-methods
+class DataLoadPacket(Packet):
     """ Packet describing a chunk of data to be loaded """
     def __init__(self, data, index):
         self.data = data
         self.index = index
 
-class ImportTablePacket(Packet):  # pylint: disable=too-few-public-methods
+class ImportTablePacket(Packet):
     """ Packet describing a table to be imported """
     def __init__(self, destination, source, table):
         self.destination = destination
@@ -131,7 +133,7 @@ class ImportTablePacket(Packet):  # pylint: disable=too-few-public-methods
         self.table = table
 
 
-class Transport(object, metaclass=abc.ABCMeta):  # pylint: disable=too-few-public-methods
+class Transport(object, metaclass=abc.ABCMeta):
     """ Base class used for all transport classes used to forward messages """
 
     @abc.abstractmethod

@@ -5,6 +5,7 @@ Defines the Postgres migrator for moving data into BlazingDB from Postgres
 import logging
 
 from blazingdb.util.blazing import parse_value
+
 from . import base
 
 

@@ -2,8 +2,6 @@
 Package containing all pre-defined pipeline stages
 """
 
-# pragma pylint: disable=wildcard-import
-
 from .base import BaseStage, PipelineStage, When
 
 from .batch import PreciseByteBatchStage, RoughByteBatchStage, RowBatchStage

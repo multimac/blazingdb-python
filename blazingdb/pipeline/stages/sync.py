@@ -12,6 +12,7 @@ import logging
 from . import base
 from .. import messages
 
+
 # pragma pylint: disable=too-few-public-methods
 
 class RetryStage(base.BaseStage):

@@ -12,8 +12,6 @@ from . import base, custom
 from .. import messages
 
 
-# pragma pylint: disable=too-few-public-methods
-
 class DelayStage(custom.CustomActionStage):
     """ Pauses the pipeline before / after importing data """
 

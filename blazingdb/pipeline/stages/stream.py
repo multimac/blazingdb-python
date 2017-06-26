@@ -52,8 +52,7 @@ class StreamProcessingStage(base.BaseStage):
 
     def __init__(self, **kwargs):
         super(StreamProcessingStage, self).__init__(
-            messages.DataColumnsPacket, messages.DataLoadPacket
-        )
+            messages.DataColumnsPacket, messages.DataLoadPacket)
 
         self.field_terminator = kwargs.get("field_terminator", self.DEFAULT_FIELD_TERMINATOR)
         self.line_terminator = kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR)
@@ -97,7 +96,6 @@ class StreamProcessingStage(base.BaseStage):
             message.update_packet(load_pkt, data=processed_data)
 
         message.add_packet(messages.DataFormatPacket(
-            self.field_terminator, self.line_terminator, self.field_wrapper
-        ))
+            self.field_terminator, self.line_terminator, self.field_wrapper))
 
         await message.forward()
