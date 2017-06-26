@@ -26,7 +26,7 @@ class Message(object):
     @classmethod
     def _build_next(cls, msg):
         """ Clones a message to be forwarded to the next stage """
-        clone = cls(msg.packets)
+        clone = cls(*msg.packets)
         clone.parent = msg
 
         return clone
