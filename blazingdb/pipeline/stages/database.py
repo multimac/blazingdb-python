@@ -20,7 +20,6 @@ class CreateTableStage(base.PipelineStage):
     def __init__(self, **kwargs):
         super(CreateTableStage, self).__init__(messages.ImportTablePacket)
         self.logger = logging.getLogger(__name__)
-
         self.quiet = kwargs.get("quiet", False)
 
     @staticmethod
@@ -64,31 +63,27 @@ class CreateTableStage(base.PipelineStage):
             self.logger.debug(ex.response)
 
 
-class DropTableStage(base.PipelineStage):
+class DropTableStage(custom.CustomActionStage):
     """ Drops the destination table before importing data """
 
     def __init__(self, **kwargs):
-        super(DropTableStage, self).__init__(messages.ImportTablePacket)
+        super(DropTableStage, self).__init__(self._drop_table)
         self.logger = logging.getLogger(__name__)
-
         self.quiet = kwargs.get("quiet", False)
 
-    @staticmethod
-    async def _drop_table(destination, table):
-        identifier = destination.get_identifier(table)
-        await destination.execute("DROP TABLE {0}".format(identifier))
-
-    async def before(self, message):
+    async def _drop_table(self, message):
         """ Triggers the dropping of the destination table """
         packet = message.get_packet(messages.ImportTablePacket)
 
         destination = packet.destination
         table = packet.table
 
+        identifier = destination.get_identifier(table)
+
         self.logger.info("Dropping table %s", table)
 
         try:
-            await self._drop_table(destination, table)
+            await destination.execute("DROP TABLE {0}".format(identifier))
         except exceptions.QueryException as ex:
             if not self.quiet:
                 raise
@@ -107,7 +102,6 @@ class PostImportHackStage(base.PipelineStage):
     def __init__(self, **kwargs):
         super(PostImportHackStage, self).__init__(messages.ImportTablePacket)
         self.logger = logging.getLogger(__name__)
-
         self.perform_on_failure = kwargs.get("perform_on_failure", False)
 
     @staticmethod
@@ -137,7 +131,6 @@ class SourceComparisonStage(custom.CustomActionStage):
     def __init__(self, query, **kwargs):
         super(SourceComparisonStage, self).__init__(self._perform_comparison, **kwargs)
         self.logger = logging.getLogger(__name__)
-
         self.query = query
 
     @staticmethod
@@ -195,31 +188,27 @@ class SourceComparisonStage(custom.CustomActionStage):
         self.logger.debug("Source: %s", src_results)
 
 
-class TruncateTableStage(base.PipelineStage):
+class TruncateTableStage(custom.CustomActionStage):
     """ Deletes all rows in the destination table before importing data """
 
     def __init__(self, **kwargs):
-        super(TruncateTableStage, self).__init__(messages.ImportTablePacket)
+        super(TruncateTableStage, self).__init__(self._truncate_table)
         self.logger = logging.getLogger(__name__)
-
         self.quiet = kwargs.get("quiet", False)
 
-    @staticmethod
-    async def _truncate_table(destination, table):
-        identifier = destination.get_identifier(table)
-        await destination.execute("DELETE FROM {0}".format(identifier))
-
-    async def before(self, message):
+    async def _truncate_table(self, message):
         """ Triggers the truncation of the destination table """
         packet = message.get_packet(messages.ImportTablePacket)
 
         destination = packet.destination
         table = packet.table
 
+        identifier = destination.get_identifier(table)
+
         self.logger.info("Truncating table %s", table)
 
         try:
-            await self._truncate_table(destination, table)
+            await destination.execute("DELETE FROM {0}".format(identifier))
         except exceptions.QueryException as ex:
             if not self.quiet:
                 raise
