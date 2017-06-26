@@ -51,7 +51,10 @@ class StreamProcessingStage(base.BaseStage):
     DEFAULT_LINE_TERMINATOR = "\n"
 
     def __init__(self, **kwargs):
-        super(StreamProcessingStage, self).__init__(messages.DataLoadPacket)
+        super(StreamProcessingStage, self).__init__(
+            messages.DataColumnsPacket, messages.DataLoadPacket
+        )
+
         self.field_terminator = kwargs.get("field_terminator", self.DEFAULT_FIELD_TERMINATOR)
         self.line_terminator = kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR)
         self.field_wrapper = kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER)
