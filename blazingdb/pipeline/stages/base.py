@@ -13,6 +13,8 @@ class When(enum.Flag):
     before = enum.auto()
     after = enum.auto()
 
+    always = before | after
+
 
 class BaseStage(object, metaclass=abc.ABCMeta):
     """ Base class for all pipeline stages """
