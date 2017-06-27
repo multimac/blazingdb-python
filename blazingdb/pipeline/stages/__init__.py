@@ -14,4 +14,4 @@ from .stream import StreamGenerationStage, StreamProcessingStage
 from .sync import RetryStage, SemaphoreStage
 
 
-__all__ = ["base", "batch", "custom", "database", "misc", "sources"]
+__all__ = ["base", "batch", "custom", "database", "importers", "misc", "sources", "stream", "sync"]
