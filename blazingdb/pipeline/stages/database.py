@@ -98,36 +98,6 @@ class DropTableStage(custom.CustomActionStage):
             self.logger.debug(ex.response)
 
 
-class PostImportHackStage(base.PipelineStage):
-    """ Performs a series of queries to help fix an issue with importing data """
-
-    def __init__(self, **kwargs):
-        super(PostImportHackStage, self).__init__(messages.ImportTablePacket)
-        self.logger = logging.getLogger(__name__)
-        self.perform_on_failure = kwargs.get("perform_on_failure", False)
-
-    @staticmethod
-    async def _perform_post_import_queries(destination, table):
-        identifier = destination.get_identifier(table)
-
-        await destination.execute("POST-OPTIMIZE TABLE {0}".format(identifier))
-        await destination.execute("GENERATE SKIP-DATA FOR {0}".format(identifier))
-
-    async def after(self, message, success):
-        """ Triggers the series of queries required to fix the issue """
-        if not (success or self.perform_on_failure):
-            return
-
-        import_pkt = message.get_packet(messages.ImportTablePacket)
-        dest_pkt = message.get_packet(messages.DestinationPacket)
-
-        destination = dest_pkt.destination
-        table = import_pkt.table
-
-        self.logger.info("Performing post-optimize on table %s", table)
-        await self._perform_post_import_queries(destination, table)
-
-
 class SourceComparisonStage(custom.CustomActionStage):
     """ Performs queries against both BlazingDB and the given source, and compares the results """
 
