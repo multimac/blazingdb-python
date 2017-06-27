@@ -17,7 +17,7 @@ class SemaphoreStage(base.BaseStage):
     """ Uses a semaphore to prevent access to later parts of the pipeline """
 
     def __init__(self, limit, loop=None):
-        super(SemaphoreStage, self).__init__(messages.Message)
+        super(SemaphoreStage, self).__init__(messages.Packet)
         self.semaphore = asyncio.BoundedSemaphore(limit, loop=loop)
 
     async def process(self, message):
