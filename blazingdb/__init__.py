@@ -7,4 +7,4 @@ from . import exceptions
 from .migrator import Migrator
 
 
-__all__ = ["connector", "exceptions", "migrator", "pipeline", "sources", "triggers"]
+__all__ = ["exceptions", "migrator", "pipeline", "sources", "triggers"]

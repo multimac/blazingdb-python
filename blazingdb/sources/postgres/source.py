@@ -6,7 +6,7 @@ import logging
 
 from blazingdb.util.blazing import parse_value
 
-from . import base
+from .. import base
 
 
 class PostgresSource(base.BaseSource):
