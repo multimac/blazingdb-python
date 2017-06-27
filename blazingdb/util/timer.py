@@ -2,11 +2,14 @@
 Defines the RepeatedTimer class, for repeatedly calling a given function
 """
 
+import asyncio
+
+
 class RepeatedTimer(object):
     """ Repeatedly calls a given function at consistent intervals """
 
     def __init__(self, interval, function, *args, loop=None, **kwargs):
-        self._loop = loop
+        self._loop = loop if loop is not None else asyncio.get_event_loop()
         self._handle = None
         self.is_running = False
 
