@@ -122,8 +122,8 @@ class ByteBatchStage(BaseBatchStage):
 
     DEFAULT_ENCODING = "utf-8"
 
-    def __init__(self, size, **kwargs):
-        super(ByteBatchStage, self).__init__(**kwargs)
+    def __init__(self, size, loop=None, **kwargs):
+        super(ByteBatchStage, self).__init__(loop=loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.encoding = kwargs.get("encoding", self.DEFAULT_ENCODING)
@@ -226,8 +226,8 @@ class RoughByteBatchStage(ByteBatchStage):
 class RowBatchStage(BaseBatchStage):
     """ Handles performing requests to load data into Blazing """
 
-    def __init__(self, count, **kwargs):
-        super(RowBatchStage, self).__init__(**kwargs)
+    def __init__(self, count, loop=None, **kwargs):
+        super(RowBatchStage, self).__init__(loop=loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.count = count
