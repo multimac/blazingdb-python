@@ -6,6 +6,7 @@ Defines a series of miscellaneous pipeline stages, including:
 """
 
 import asyncio
+import collections
 import fnmatch
 import logging
 
@@ -78,6 +79,44 @@ class SemaphoreStage(base.BaseStage):
     async def process(self, message):
         async with self.semaphore:
             await message.forward()
+
+
+class SingleFileStage(base.BaseStage):
+    """ Collects messages generated from an initial message and processes them one at a time """
+
+    Processor = collections.namedtuple("Processor", ["task", "queue"])
+
+    def __init__(self, loop=None):
+        super(SingleFileStage, self).__init__(messages.Packet)
+
+        self.loop = loop
+        self.processors = dict()
+
+    async def _process_queue(self, msg_id):
+        queue = self.processors[msg_id].queue
+
+        while not queue.empty():
+            message = await queue.get()
+
+            await message.forward()
+            queue.task_done()
+
+        self.processors.pop(msg_id)
+
+    async def process(self, message):
+        msg_id = message.get_initial_message().msg_id
+
+        if msg_id not in self.processors:
+            processor = SingleFileStage.Processor(
+                queue=asyncio.Queue(loop=self.loop),
+                task=asyncio.ensure_future(self._process_queue(msg_id), loop=self.loop))
+
+            self.processors[msg_id] = processor
+
+        processor = self.processors[msg_id]
+
+        await processor.queue.put(message)
+        await processor.task
 
 
 class SkipTableStage(base.BaseStage):
