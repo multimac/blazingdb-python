@@ -15,4 +15,4 @@ def format_size(size, suffix="B"):
     return format_str % (size, "Yi", suffix)
 
 
-__all__ = ["gen", "timer"]
+__all__ = ["timer"]

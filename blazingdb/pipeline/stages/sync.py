@@ -6,8 +6,6 @@ Defines a series of miscellaneous pipeline stages, including:
 """
 
 import asyncio
-import concurrent
-import logging
 
 from . import base
 from .. import messages
