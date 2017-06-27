@@ -21,10 +21,13 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
     DEFAULT_LOG_INTERVAL = 10
 
-    def __init__(self, **kwargs):
+    def __init__(self, loop=None, **kwargs):
         super(BaseBatchStage, self).__init__(messages.DataLoadPacket, messages.DataCompletePacket)
-        self.log_interval = kwargs.get("log_interval", self.DEFAULT_LOG_INTERVAL)
+
+        self.loop = loop
         self.generators = dict()
+
+        self.log_interval = kwargs.get("log_interval", self.DEFAULT_LOG_INTERVAL)
 
     @abc.abstractmethod
     def _init_batch(self):
@@ -50,7 +53,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
             batch = []
             batch_data = self._init_batch()
 
-            with timer.RepeatedTimer(10, self._log_progress, batch_data):
+            with timer.RepeatedTimer(10, self._log_progress, batch_data, loop=self.loop):
                 remaining = self._process_chunk(batch_data, batch, remaining)
 
                 while remaining is None:

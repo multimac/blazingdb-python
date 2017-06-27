@@ -2,14 +2,12 @@
 Defines the RepeatedTimer class, for repeatedly calling a given function
 """
 
-from threading import Timer
-
-
 class RepeatedTimer(object):
     """ Repeatedly calls a given function at consistent intervals """
 
-    def __init__(self, interval, function, *args, **kwargs):
-        self._timer = None
+    def __init__(self, interval, function, *args, loop=None, **kwargs):
+        self._loop = loop
+        self._handle = None
         self.is_running = False
 
         self.function = function
@@ -36,11 +34,9 @@ class RepeatedTimer(object):
         """ Begins the repeating timer """
         if not self.is_running:
             self.is_running = True
-
-            self._timer = Timer(self.interval, self._run)
-            self._timer.start()
+            self._handle = self._loop.call_later(self.interval, self._run)
 
     def stop(self):
         """ Ends the repeating timer """
-        self._timer.cancel()
+        self._handle.cancel()
         self.is_running = False
