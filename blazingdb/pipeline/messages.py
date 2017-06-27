@@ -106,9 +106,13 @@ class DataLoadPacket(Packet):
         self.data = data
         self.index = index
 
+class DestinationPacket(Packet):
+    """ Packet describing the destination for the import """
+    def __init__(self, destination):
+        self.destination = destination
+
 class ImportTablePacket(Packet):
     """ Packet describing a table to be imported """
-    def __init__(self, destination, source, table):
-        self.destination = destination
+    def __init__(self, source, table):
         self.source = source
         self.table = table

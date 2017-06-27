@@ -14,36 +14,34 @@ from . import exceptions
 class Migrator(object):
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, triggers, source, pipeline, destination, loop=None, **kwargs):  # pylint: disable=too-many-arguments
+    def __init__(self, triggers, pipeline, destination, loop=None, **kwargs):  # pylint: disable=too-many-arguments
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop
-        self.processor = Processor(self._migrate_table, loop=loop, **kwargs)
+        self.processor = Processor(self._process_message, loop=loop, **kwargs)
 
         self.triggers = triggers
-        self.source = source
         self.pipeline = pipeline
         self.destination = destination
 
-    async def _migrate_table(self, table):
-        """ Imports an individual table into BlazingDB """
-        import_packet = messages.ImportTablePacket(self.destination, self.source, table)
-        import_message = messages.Message(import_packet)
+    async def _process_message(self, message):
+        """ Processes a given message """
+        message.add_packet(messages.DestinationPacket(self.destination))
 
-        await self.pipeline.process(import_message)
+        await self.pipeline.process(message)
 
-        self.logger.info("Successfully imported table %s", table)
+        self.logger.info("Successfully processed message %s", message)
 
     async def _poll_trigger(self, trigger):
-        """ Polls a trigger, placing any returned tables on the queue """
-        async for table in trigger.poll(self.source):
+        """ Polls a trigger, placing any returned messages on the queue """
+        async for message in trigger.poll():
             if not self.processor.is_running:
                 break
 
-            await self.processor.put(table)
+            await self.processor.put(message)
 
     async def migrate(self):
-        """ Begins polling triggers and importing any tables returned from them """
+        """ Begins polling triggers and processing any messages returned from them """
         if not self.processor.is_running:
             raise exceptions.StoppedException()
 
@@ -79,13 +77,12 @@ class Migrator(object):
 
         await self.pipeline.shutdown()
         await self.destination.close()
-        await self.source.close()
 
         self.logger.debug("Migrator successfully shutdown")
 
 
 class Processor(object):
-    """ Processes the importing of tables """
+    """ Processes messages in a series of asyncio tasks """
 
     def __init__(self, callback, loop=None, **kwargs):
         self.logger = logging.getLogger(__name__)
@@ -108,35 +105,33 @@ class Processor(object):
         return [asyncio.ensure_future(callback(), loop=loop) for _ in range(count)]
 
     async def _process_queue(self):
-        """ Polls the queue for a table to import, before calling _migrate_table """
+        """ Polls the queue for a messages to import, before calling the callback """
         while self.is_running:
-            table = await self.queue.get()
-
-            self.logger.info("Popped table %s from the import queue", table)
+            message = await self.queue.get()
 
             try:
-                await asyncio.shield(self.callback(table), loop=self.loop)
+                await asyncio.shield(self.callback(message), loop=self.loop)
             except concurrent.futures.CancelledError:
                 raise
             except Exception:  # pylint: disable=broad-except
-                self.logger.exception("Caught exception attempting to import table %s", table)
+                self.logger.exception("Caught exception attempting to handle message %s", message)
                 if not self.continue_on_error: break  # pylint: disable=multiple-statements
             finally:
                 self.queue.task_done()
 
         await asyncio.shield(self.shutdown(), loop=self.loop)
 
-    async def put(self, table):
-        """ Queues a table to be processed """
+    async def put(self, message):
+        """ Queues a message to be processed """
         if not self.is_running:
             raise exceptions.StoppedException()
 
-        await self.queue.put(table)
+        await self.queue.put(message)
 
-        self.logger.info("Added table %s to the import queue", table)
+        self.logger.info("Added message %s to the import queue", message)
 
     async def shutdown(self):
-        """ Removes all pending tables from the queue and wait for running imports to finish """
+        """ Removes all pending messages from the queue and wait for running imports to finish """
         if not self.is_running:
             return
 

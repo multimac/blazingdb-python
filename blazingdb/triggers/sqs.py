@@ -4,6 +4,8 @@ Defines a trigger which retrieves tables to import from an Amazon SQS queue
 
 import asyncio
 
+from blazingdb.pipeline import messages
+
 from . import base
 
 
@@ -12,14 +14,16 @@ class SnsTrigger(base.BaseTrigger):  # pylint: disable=too-few-public-methods
 
     DEFAULT_DELAY = 300
 
-    def __init__(self, queue, **kwargs):
+    def __init__(self, queue, source, **kwargs):
         self.queue = queue
+        self.source = source
+
         self.delay = kwargs.get("delay", self.DEFAULT_DELAY)
 
     async def _wait(self):
         await asyncio.sleep(self.delay)
 
-    async def poll(self, source):
+    async def poll(self):
         while True:
             message = self.queue.read()
 
@@ -27,4 +31,4 @@ class SnsTrigger(base.BaseTrigger):  # pylint: disable=too-few-public-methods
                 await self._wait()
                 continue
 
-            yield message.get_body()
+            yield messages.Message(messages.ImportTablePacket(self.source, message.get_body()))

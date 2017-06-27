@@ -40,12 +40,13 @@ class CreateTableStage(base.PipelineStage):
 
     async def before(self, message):
         """ Triggers the creation of the destination table """
-        packet = message.get_packet(messages.ImportTablePacket)
+        import_pkt = message.get_packet(messages.ImportTablePacket)
+        dest_pkt = message.get_packet(messages.DestinationPacket)
 
-        destination = packet.destination
-        table = packet.table
+        destination = dest_pkt.destination
+        table = import_pkt.table
 
-        columns = await self._get_columns(packet)
+        columns = await self._get_columns(import_pkt)
 
         self.logger.info("Creating table %s with %s column(s)", table, len(columns))
 
@@ -73,10 +74,11 @@ class DropTableStage(custom.CustomActionStage):
 
     async def _drop_table(self, message):
         """ Triggers the dropping of the destination table """
-        packet = message.get_packet(messages.ImportTablePacket)
+        import_pkt = message.get_packet(messages.ImportTablePacket)
+        dest_pkt = message.get_packet(messages.DestinationPacket)
 
-        destination = packet.destination
-        table = packet.table
+        destination = dest_pkt.destination
+        table = import_pkt.table
 
         identifier = destination.get_identifier(table)
 
@@ -116,10 +118,11 @@ class PostImportHackStage(base.PipelineStage):
         if not (success or self.perform_on_failure):
             return
 
-        packet = message.get_packet(messages.ImportTablePacket)
+        import_pkt = message.get_packet(messages.ImportTablePacket)
+        dest_pkt = message.get_packet(messages.DestinationPacket)
 
-        destination = packet.destination
-        table = packet.table
+        destination = dest_pkt.destination
+        table = import_pkt.table
 
         self.logger.info("Performing post-optimize on table %s", table)
         await self._perform_post_import_queries(destination, table)
@@ -162,11 +165,12 @@ class SourceComparisonStage(custom.CustomActionStage):
 
     async def _perform_comparison(self, message):
         """ Performs the queries after data has been imported """
-        packet = message.get_packet(messages.ImportTablePacket)
+        import_pkt = message.get_packet(messages.ImportTablePacket)
+        dest_pkt = message.get_packet(messages.DestinationPacket)
 
-        destination = packet.destination
-        source = packet.source
-        table = packet.table
+        destination = dest_pkt.destination
+        source = import_pkt.source
+        table = import_pkt.table
 
         columns = await destination.get_columns(table)
         misc_column = columns[0].name
@@ -198,10 +202,11 @@ class TruncateTableStage(custom.CustomActionStage):
 
     async def _truncate_table(self, message):
         """ Triggers the truncation of the destination table """
-        packet = message.get_packet(messages.ImportTablePacket)
+        import_pkt = message.get_packet(messages.ImportTablePacket)
+        dest_pkt = message.get_packet(messages.DestinationPacket)
 
-        destination = packet.destination
-        table = packet.table
+        destination = dest_pkt.destination
+        table = import_pkt.table
 
         identifier = destination.get_identifier(table)
 

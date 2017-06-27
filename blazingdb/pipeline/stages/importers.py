@@ -39,9 +39,10 @@ class BaseImportStage(base.BaseStage):
     async def process(self, message):
         import_pkt = message.get_packet(messages.ImportTablePacket)
         format_pkt = message.get_packet(messages.DataFormatPacket)
+        dest_pkt = message.get_packet(messages.DestinationPacket)
 
         for load_pkt in message.get_packets(messages.DataLoadPacket):
-            await self._load(import_pkt.destination, import_pkt.table, load_pkt, format_pkt)
+            await self._load(dest_pkt.destination, import_pkt.table, load_pkt, format_pkt)
 
 
 class FileImportStage(BaseImportStage):

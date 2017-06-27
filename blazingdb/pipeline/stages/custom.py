@@ -70,10 +70,11 @@ class CustomQueryStage(CustomActionStage):
         self.query = query
 
     async def _perform_query(self, message):
-        packet = message.get_packet(message.ImportTablePacket)
+        import_pkt = message.get_packet(message.ImportTablePacket)
+        dest_pkt = message.get_packet(message.DestinationPacket)
 
-        destination = packet.destination
-        table = packet.table
+        destination = dest_pkt.destination
+        table = import_pkt.table
 
         identifier = destination.get_identifier(table)
         formatted_query = self.query.format(table=identifier)
