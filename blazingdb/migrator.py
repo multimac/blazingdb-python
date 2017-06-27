@@ -61,6 +61,8 @@ class Migrator(object):
         await self.processor.shutdown()
 
         pending = asyncio.Task.all_tasks(self.loop)
+        pending.discard(asyncio.Task.current_task(self.loop))
+
         gathered = asyncio.gather(*pending, loop=self.loop, return_exceptions=True)
 
         # pragma pylint: disable=multiple-statements
