@@ -65,3 +65,27 @@ class SkipTableStage(base.BaseStage):
 
         if not self._filter_table(import_pkt.table):
             await message.forward()
+
+
+class SkipUntilStage(base.BaseStage):
+    """ Skips tables based on a given set of inclusions and exclusions """
+
+    def __init__(self, pattern):
+        super(SkipUntilStage, self).__init__(messages.ImportTablePacket)
+
+        self.pattern = pattern
+        self.matched = False
+
+    async def process(self, message):
+        """ Only calls message.forward if the message isn't filtered """
+        if self.matched:
+            await message.forward()
+            return
+
+        import_pkt = message.get_packet(messages.ImportTablePacket)
+
+        if fnmatch.fnmatch(import_pkt.table, self.pattern):
+            self.matched = True
+
+            await message.forward()
+            return
