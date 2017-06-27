@@ -12,7 +12,7 @@ from .importers import FileImportStage, StreamImportStage
 from .misc import DelayStage, PromptInputStage, SkipTableStage, SkipUntilStage
 from .sources import FilterColumnsStage, JumbleDataStage, LimitImportStage
 from .stream import StreamGenerationStage, StreamProcessingStage
-from .sync import SemaphoreStage
+from .sync import RetryStage, SemaphoreStage
 
 
 __all__ = ["base", "batch", "custom", "database", "misc", "sources"]

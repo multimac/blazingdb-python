@@ -36,6 +36,10 @@ class PipelineException(BlazingException):
     """ Thrown when an exception occurs while processing pipeline stages """
 
 
+class RetryException(BlazingException):
+    """ Thrown when an attempt to forward a message fails too many times """
+
+
 class QueryException(BlazingException):
     """ Thrown when something goes wrong attempting to query BlazingDB """
 
