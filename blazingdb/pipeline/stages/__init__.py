@@ -8,10 +8,10 @@ from .batch import PreciseByteBatchStage, RoughByteBatchStage, RowBatchStage
 from .custom import CustomActionStage, CustomCommandStage, CustomQueryStage
 from .database import CreateTableStage, DropTableStage, SourceComparisonStage, TruncateTableStage
 from .importers import FileImportStage, StreamImportStage
-from .misc import DelayStage, PromptInputStage, SkipTableStage, SkipUntilStage
+from .misc import DelayStage, PromptInputStage, RetryStage, SemaphoreStage
+from .misc import SkipTableStage, SkipUntilStage
 from .sources import FilterColumnsStage, JumbleDataStage, LimitImportStage
 from .stream import StreamGenerationStage, StreamProcessingStage
-from .sync import RetryStage, SemaphoreStage
 
 
-__all__ = ["base", "batch", "custom", "database", "importers", "misc", "sources", "stream", "sync"]
+__all__ = ["base", "batch", "custom", "database", "importers", "misc", "sources", "stream"]
