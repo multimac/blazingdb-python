@@ -53,18 +53,15 @@ class RetryStage(base.BaseStage):
             await message.forward()
         except Exception as ex:  # pylint: disable=broad-except
             self.logger.warning("Caught exception %s while processing message %s", ex, message)
-            return await self._handle(message, ex)
+            return await self.handler(message, ex)
 
         return False
-
-    async def _handle(self, message, ex):
-        pass
 
     async def process(self, message):
         attempts = 0
         while self.max_retries is None or attempts < self.max_retries:
             if not await self._attempt(message):
-                break
+                return
 
             attempts += 1
 
