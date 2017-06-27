@@ -23,6 +23,13 @@ class Message(object):
         self.stage_idx = 0
         self.system = None
 
+    def __repr__(self):
+        packet_names = list(pkt.__class__.__name__ for pkt in self.packets)
+        args = (self.__class__.__name__, self.msg_id, self.stage_idx, packet_names, self.parent)
+
+        return "<%s id=%r stage_idx=%r packets=%r parent=%r>" % args
+
+
     @classmethod
     def _build_next(cls, msg):
         """ Clones a message to be forwarded to the next stage """

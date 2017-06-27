@@ -22,7 +22,7 @@ class System(object):
 
         async def process(self, message):
             self.logger.warning("Message reached the end of the pipeline without being consumed")
-            self.logger.debug("packets=%s", message.packets)
+            self.logger.debug("%r", message)
 
     def __init__(self, stages=None, loop=None):
         self.loop = loop
