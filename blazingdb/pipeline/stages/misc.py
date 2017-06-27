@@ -70,9 +70,10 @@ class SkipTableStage(base.BaseStage):
 class SkipUntilStage(base.BaseStage):
     """ Skips tables based on a given set of inclusions and exclusions """
 
-    def __init__(self, pattern):
+    def __init__(self, pattern, include_matched=True):
         super(SkipUntilStage, self).__init__(messages.ImportTablePacket)
 
+        self.include_matched = include_matched
         self.pattern = pattern
         self.matched = False
 
@@ -87,5 +88,5 @@ class SkipUntilStage(base.BaseStage):
         if fnmatch.fnmatch(import_pkt.table, self.pattern):
             self.matched = True
 
-            await message.forward()
-            return
+            if self.include_matched:
+                await message.forward()
