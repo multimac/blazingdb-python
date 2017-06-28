@@ -10,27 +10,28 @@ import multiprocessing
 import signal
 
 
-def finalize_loop(loop):
-    """ Waits for all pending tasks in the loop to complete """
-    logging.getLogger(__name__).info("Waiting for pending tasks to complete")
-
-    pending = asyncio.Task.all_tasks(loop)
-    gathered = asyncio.gather(*pending, loop=loop, return_exceptions=True)
-
-    try:
-        loop.run_until_complete(gathered)
-    except:  # pylint: disable=bare-except
-        logging.getLogger(__name__).warning("Ignoring pending tasks")
-
-def shutdown_migrator(loop, migrator):
-    loop.run_until_complete(migrator.shutdown())
+async def migrate_async(migrator_factory):
+    loop = asyncio.get_event_loop()
+    async with migrator_factory(loop) as migrator:
+        try:
+            await migrator.migrate()
+        finally:
+            await migrator.shutdown()
 
 def shutdown_loop(loop):
     """ Shuts down the given loop, cancelling and completing all tasks """
     logging.getLogger(__name__).info("Shutting down event loop")
-    shutdown_gens = loop.shutdown_asyncgens()
 
     try:
+        pending = asyncio.Task.all_tasks(loop)
+        gathered = asyncio.gather(*pending, loop=loop, return_exceptions=True)
+
+        loop.run_until_complete(gathered)
+    except:  # pylint: disable=bare-except
+        logging.getLogger(__name__).warning("Ignoring pending tasks")
+
+    try:
+        shutdown_gens = loop.shutdown_asyncgens()
         loop.run_until_complete(shutdown_gens)
     except:  # pylint: disable=bare-except
         logging.getLogger(__name__).warning("Skipping shutdown of async generators")
@@ -42,8 +43,7 @@ def migrate(migrator_factory):
     multiprocessing.set_start_method("forkserver")
     loop = asyncio.new_event_loop()
 
-    migrator = loop.run_until_complete(migrator_factory(loop))
-    migration_task = asyncio.ensure_future(migrator.migrate(), loop=loop)
+    migration_task = asyncio.ensure_future(migrate_async(migrator_factory), loop=loop)
 
     def _interrupt():  # pylint: disable=unused-argument
         nonlocal migration_task
@@ -58,7 +58,6 @@ def migrate(migrator_factory):
 
     loop.remove_signal_handler(signal.SIGINT)
 
-    shutdown_migrator(loop, migrator)
     shutdown_loop(loop)
 
 def main():
