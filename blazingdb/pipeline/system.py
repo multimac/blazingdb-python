@@ -24,10 +24,10 @@ class System(object):
             self.logger.warning("Message reached the end of the pipeline without being consumed")
             self.logger.debug("%r", message)
 
-    def __init__(self, stages=None, loop=None):
+    def __init__(self, *stages, loop=None):
         self.loop = loop
 
-        self.stages = list(stages) if stages is not None else []
+        self.stages = list(stages)
         self.stages.append(System.WarningStage())
 
     async def process(self, message):
