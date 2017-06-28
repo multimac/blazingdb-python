@@ -5,6 +5,8 @@ Defines a test trigger which queues a single table continuously
 from . import base
 
 
+# pylint: disable=too-few-public-methods
+
 class LoopTrigger(base.TableTrigger):
     """ A simple trigger which continuously returns the same table """
 

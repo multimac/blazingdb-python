@@ -25,6 +25,10 @@ class ChainedSource(sources.BaseSource):
     def __init__(self, source):
         self.source = source
 
+    def _parse_row(self, columns, row):
+        # pragma pylint: disable=protected-access
+        return self.source._parse_row(columns, row)
+
     def get_identifier(self, table, schema=None):
         return self.source.get_identifier(table, schema)
 

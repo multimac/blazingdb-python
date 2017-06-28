@@ -7,6 +7,8 @@ import asyncio
 from . import base
 
 
+# pylint: disable=too-few-public-methods
+
 class SnsTrigger(base.TableTrigger):
     """ A trigger which returns tables from an Amazon SQS queue """
 

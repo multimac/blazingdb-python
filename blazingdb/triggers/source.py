@@ -7,6 +7,8 @@ import logging
 from . import base
 
 
+# pylint: disable=too-few-public-methods
+
 class SourceTrigger(base.TableTrigger):
     """ A simple trigger which returns all tables from a source """
 

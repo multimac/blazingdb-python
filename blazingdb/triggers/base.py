@@ -6,7 +6,10 @@ import abc
 
 from blazingdb.pipeline import messages
 
-class BaseTrigger(object):  # pylint: disable=too-few-public-methods
+
+# pylint: disable=too-few-public-methods
+
+class BaseTrigger(object):
     """ Base class for all triggers """
 
     @abc.abstractmethod
