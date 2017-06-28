@@ -35,7 +35,7 @@ class Message(object):
         if self.parent is not None:
             info.append("initial_msg_id={!r}".format(self.get_initial_message().msg_id))
 
-        return "<%s %s>" % (self.__class__.__name__, info)
+        return "<%s %s>" % (self.__class__.__name__, " ".join(info))
 
     @classmethod
     def _build_next(cls, msg):
