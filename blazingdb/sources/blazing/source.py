@@ -25,6 +25,9 @@ class BlazingSource(base.BaseSource):
         """ Closes the given source and cleans up the connector """
         self.connector.close()
 
+    def _parse_row(self, columns, row):
+        return row
+
     def get_identifier(self, table, schema=None):
         schema = self.schema if schema is None else schema
         return self.separator.join([schema, table])
@@ -64,16 +67,3 @@ class BlazingSource(base.BaseSource):
             yield [[parse_value(dt, val) for dt, val in zip(types, row)] for row in rows]
         else:
             yield rows
-
-    async def retrieve(self, table):
-        """ Retrieves data for the given table from the source """
-        columns = await self.get_columns(table)
-        select_cols = ",".join(col.name for col in columns)
-
-        results = self.query(" ".join([
-            "SELECT {0}".format(select_cols),
-            "FROM {0}".format(self.get_identifier(table))
-        ]))
-
-        async for chunk in results:
-            yield chunk

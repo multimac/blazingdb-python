@@ -11,6 +11,13 @@ Column = namedtuple("Column", ["name", "type", "size"])
 class BaseSource(object, metaclass=abc.ABCMeta):
     """ Handles retrieving data from a given source (eg. PostgreSQL) """
 
+    async def close(self):
+        """ Closes the source, releasing any contained resources """
+
+    @abc.abstractmethod
+    def _parse_row(self, columns, row):
+        """ Called to process a row retrieved from the source """
+
     @abc.abstractmethod
     def get_identifier(self, table, schema=None):
         """ Creates an identifier for the given schema and table """
@@ -27,13 +34,22 @@ class BaseSource(object, metaclass=abc.ABCMeta):
     async def query(self, query, *args):
         """ Performs a custom query against the source """
 
-    @abc.abstractmethod
-    async def retrieve(self, table):
-        """ Retrieves data for the given table from the source """
-
     async def execute(self, query, *args):
         """ Executes a custom query against the source, ignoring the results """
         results = self.query(query, *args)
 
         async for _ in results:
             return
+
+    async def retrieve(self, table):
+        """ Retrieves data for the given table from the source """
+        source_columns = await self.get_columns(table)
+        query_columns = ",".join(column.name for column in source_columns)
+
+        results = self.query(" ".join([
+            "SELECT {0}".format(query_columns),
+            "FROM {0}".format(self.get_identifier(table))
+        ]))
+
+        async for chunk in results:
+            yield list(self._parse_row(source_columns, row) for row in chunk)

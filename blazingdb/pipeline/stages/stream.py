@@ -78,10 +78,7 @@ class StreamProcessingStage(base.BaseStage):
         self.executor.shutdown()
 
     async def _process_in_executor(self, data, fmt, columns):
-        args = (list(data), fmt, columns)
-        task = self.loop.run_in_executor(self.executor, process_data, *args)
-
-        return await task
+        return await self.loop.run_in_executor(self.executor, process_data, data, fmt, columns)
 
     async def process(self, message):
         columns = message.get_packet(messages.DataColumnsPacket).columns

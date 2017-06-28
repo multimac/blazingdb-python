@@ -28,6 +28,9 @@ class PostgresSource(base.BaseSource):
         """ Closes the given source and cleans up the connection """
         await self.pool.close()
 
+    def _parse_row(self, columns, row):
+        return list(parse_value(column.type, val) for column, val in zip(columns, row))
+
     def get_identifier(self, table, schema=None):
         schema = self.schema if schema is None else schema
         return ".".join([schema, table])
@@ -75,22 +78,6 @@ class PostgresSource(base.BaseSource):
                         break
 
                     yield chunk
-
-    async def retrieve(self, table):
-        """ Retrieves data for the given table from the source """
-        columns = await self.get_columns(table)
-        select_cols = ",".join(column.name for column in columns)
-
-        results = self.query(" ".join([
-            "SELECT {0}".format(select_cols),
-            "FROM {0}".format(self.get_identifier(table))
-        ]))
-
-        def _process_row(row):
-            return [parse_value(col.type, val) for col, val in zip(columns, row)]
-
-        async for chunk in results:
-            yield map(_process_row, chunk)
 
 
 DATATYPE_MAP = {
