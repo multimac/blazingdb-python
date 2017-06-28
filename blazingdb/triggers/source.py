@@ -11,7 +11,7 @@ class SourceTrigger(base.TableTrigger):
     """ A simple trigger which returns all tables from a source """
 
     def __init__(self, source):
-        super(SourceTrigger, self).__init__(self, source)
+        super(SourceTrigger, self).__init__(source)
         self.logger = logging.getLogger(__name__)
 
     async def _poll(self):
