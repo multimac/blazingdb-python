@@ -4,6 +4,7 @@ Defines the Postgres migrator for moving data into BlazingDB from Postgres
 
 import logging
 
+from blazingdb import exceptions
 from blazingdb.util.blazing import parse_value
 
 from .. import base
@@ -60,6 +61,9 @@ class PostgresSource(base.BaseSource):
         ]))
 
         columns = [_process_column(row) async for chunk in results for row in chunk]
+
+        if not columns:
+            raise exceptions.QueryException(None, None)
 
         self.logger.debug("Retrieved %s columns for table %s from Postgres", len(columns), table)
 
