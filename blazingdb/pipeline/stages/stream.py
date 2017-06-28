@@ -4,12 +4,13 @@ which can be imported into BlazingDB
 """
 
 import asyncio
-import concurrent
 import functools
 import logging
 import operator
+import signal
 
 from blazingdb.util.blazing import DATE_FORMAT
+from blazingdb.util import process
 
 from . import base
 from .. import messages
@@ -67,7 +68,7 @@ class StreamProcessingStage(base.BaseStage):
 
         self.logger = logging.getLogger(__name__)
 
-        self.executor = concurrent.futures.ProcessPoolExecutor()
+        self.executor = process.ProcessPoolExecutor(_quiet_sigint)
         self.loop = loop if loop is not None else asyncio.get_event_loop()
 
         self.field_terminator = kwargs.get("field_terminator", self.DEFAULT_FIELD_TERMINATOR)
@@ -119,6 +120,9 @@ def _process_row(fmt, mappings, row):
     line = fmt.field_terminator.join(fields)
 
     return line + fmt.line_terminator
+
+def _quiet_sigint():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 def _wrap_field(fmt, column):
     escaped_column = column.replace(fmt.field_wrapper, "\\" + fmt.field_wrapper)
