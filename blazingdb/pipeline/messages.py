@@ -24,11 +24,18 @@ class Message(object):
         self.system = None
 
     def __repr__(self):
+        info = []
+
+        info.append("msg_id={!r}".format(self.msg_id))
+        info.append("stage_idx={!r}".format(self.stage_idx))
+
         packet_names = list(pkt.__class__.__name__ for pkt in self.packets)
-        args = (self.__class__.__name__, self.msg_id, self.stage_idx, packet_names, self.parent)
+        info.append("packets={!r}".format(packet_names))
 
-        return "<%s id=%r stage_idx=%r packets=%r parent=%r>" % args
+        if self.parent is not None:
+            info.append("initial_msg_id={!r}".format(self.get_initial_message().msg_id))
 
+        return "<%s %s>" % (self.__class__.__name__, info)
 
     @classmethod
     def _build_next(cls, msg):
