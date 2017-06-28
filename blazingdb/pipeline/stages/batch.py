@@ -46,15 +46,16 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
         """ Called periodically to monitor the progress of a batch """
 
     def _batch_generator(self):
-        remaining = yield
-
         index = 0
+        remaining = None
+
         while True:
             batch = []
             batch_data = self._init_batch()
 
             with timer.RepeatedTimer(10, self._log_progress, batch_data, loop=self.loop):
-                remaining = self._process_chunk(batch_data, batch, remaining)
+                if remaining is not None:
+                    remaining = self._process_chunk(batch_data, batch, remaining)
 
                 while remaining is None:
                     chunk = yield
@@ -106,10 +107,12 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
         complete_packet = message.get_packet(messages.DataCompletePacket, default=None)
         if complete_packet is not None:
+            # pragma pylint: disable=multiple-statements
             data, index = generator.send(None)
 
-            load_packet = messages.DataLoadPacket(data, index)
-            load_packets.append(load_packet)
+            if data:
+                load_packet = messages.DataLoadPacket(data, index)
+                load_packets.append(load_packet)
 
             self._delete_generator(initial_message.msg_id)
 

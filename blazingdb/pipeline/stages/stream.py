@@ -48,7 +48,9 @@ class StreamGenerationStage(base.BaseStage):
             tasks.append(task)
             index += 1
 
-        await asyncio.wait(tasks, loop=self.loop)
+        if tasks:
+            await asyncio.wait(tasks, loop=self.loop)
+
         await message.forward(messages.DataCompletePacket())
 
 
