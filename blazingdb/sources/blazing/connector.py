@@ -34,12 +34,6 @@ class BlazingConnector(object):
         self.baseurl = "{0}://{1}:{2}".format(protocol, host, port)
         self.semaphore = asyncio.BoundedSemaphore(request_limit, loop=loop)
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
     def close(self):
         """ Closes the given connector and cleans up the session """
         self.password = None

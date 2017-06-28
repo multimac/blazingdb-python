@@ -57,26 +57,7 @@ class Migrator(object):
     async def shutdown(self):
         """ Shuts down the migrator, cancelling any currently polled triggers """
         await self.processor.shutdown()
-
-        pending = asyncio.Task.all_tasks(self.loop)
-        pending.discard(asyncio.Task.current_task(self.loop))
-
-        gathered = asyncio.gather(*pending, loop=self.loop, return_exceptions=True)
-
-        # pragma pylint: disable=multiple-statements
-        try: await gathered
-        except concurrent.futures.CancelledError:
-            self.logger.warning("Cancelling pending tasks")
-            gathered.cancel()
-
-            try: await gathered
-            except concurrent.futures.CancelledError:
-                self.logger.warning("Ignoring cancelled tasks")
-
-        self.logger.debug("Pending tasks completed")
-
         await self.pipeline.shutdown()
-        await self.destination.close()
 
         self.logger.debug("Migrator successfully shutdown")
 
@@ -109,9 +90,13 @@ class Processor(object):
         while self.is_running:
             message = await self.queue.get()
 
+            task = asyncio.ensure_future(self.callback(message), loop=self.loop)
+
             try:
-                await asyncio.shield(self.callback(message), loop=self.loop)
+                await asyncio.shield(task, loop=self.loop)
             except concurrent.futures.CancelledError:
+                self.logger.debug("Waiting for processing of message %s to finish", message)
+                await asyncio.shield(task, loop=self.loop)
                 raise
             except Exception:  # pylint: disable=broad-except
                 self.logger.exception("Caught exception attempting to handle message %s", message)
@@ -133,6 +118,7 @@ class Processor(object):
     async def shutdown(self):
         """ Removes all pending messages from the queue and wait for running imports to finish """
         if not self.is_running:
+            await self.queue.join()
             return
 
         self.is_running = False
@@ -141,9 +127,14 @@ class Processor(object):
             task.cancel()
 
         while not self.queue.empty():
-            self.queue.get_nowait()
-            self.queue.task_done()
+            while not self.queue.empty():
+                self.queue.get_nowait()
+                self.queue.task_done()
 
             await asyncio.sleep(0)
 
-        self.logger.debug("Pending import queue cleared")
+        self.logger.debug("Pending import queue cleared, waiting on queue processors")
+
+        await self.queue.join()
+
+        self.logger.debug("Queue processing complete")

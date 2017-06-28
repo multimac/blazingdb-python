@@ -42,5 +42,4 @@ class System(object):
         await self.stages[message.stage_idx].receive(message)
 
     async def shutdown(self):
-        tasks = map(lambda stg: stg.shutdown(), self.stages)
-        await asyncio.gather(*tasks, loop=self.loop)
+        await asyncio.gather(*[stage.shutdown() for stage in self.stages], loop=self.loop)
