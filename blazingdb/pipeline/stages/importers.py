@@ -139,7 +139,7 @@ class FileOutputStage(base.BaseStage):
         format_pkt = message.get_packet(messages.DataFormatPacket)
 
         for load_pkt in message.get_packets(messages.DataLoadPacket):
-            chunk_filename = self._get_file_path(import_pkt.table, import_pkt.index)
+            chunk_filename = self._get_file_path(import_pkt.table, load_pkt.index)
             expect_warning = self._check_data(load_pkt.data, format_pkt)
 
             file_pkt = messages.DataFilePacket(chunk_filename, expect_warning)
