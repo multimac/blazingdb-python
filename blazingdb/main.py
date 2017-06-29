@@ -40,7 +40,9 @@ def shutdown_loop(loop):
 
 def migrate(migrator_factory):
     """ Performs a migration using the Migrator returned from the given factory function """
-    multiprocessing.set_start_method("forkserver")
+    if multiprocessing.get_start_method(allow_none=True) is None:
+        multiprocessing.set_start_method("forkserver")
+
     loop = asyncio.new_event_loop()
 
     migration_task = asyncio.ensure_future(migrate_async(migrator_factory), loop=loop)
