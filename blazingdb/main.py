@@ -27,13 +27,13 @@ def shutdown_loop(loop):
         gathered = asyncio.gather(*pending, loop=loop, return_exceptions=True)
 
         loop.run_until_complete(gathered)
-    except:  # pylint: disable=bare-except
+    except KeyboardInterrupt:
         logging.getLogger(__name__).warning("Ignoring pending tasks")
 
     try:
         shutdown_gens = loop.shutdown_asyncgens()
         loop.run_until_complete(shutdown_gens)
-    except:  # pylint: disable=bare-except
+    except KeyboardInterrupt:
         logging.getLogger(__name__).warning("Skipping shutdown of async generators")
 
     loop.close()
