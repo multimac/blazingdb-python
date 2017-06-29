@@ -46,7 +46,7 @@ class FileImportStage(BaseImportStage):
     DEFAULT_USER_FOLDER = "data"
 
     def __init__(self, upload_folder, user, loop=None, **kwargs):
-        super(FileImportStage, self).__init__(loop, messages.DataFilePacket, **kwargs)
+        super(FileImportStage, self).__init__(messages.DataFilePacket, loop=loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.ignore_skipdata = kwargs.get("ignore_skipdata", False)
@@ -156,7 +156,7 @@ class StreamImportStage(BaseImportStage):
     """ Imports chunks of data via a stream """
 
     def __init__(self, loop=None, **kwargs):
-        super(StreamImportStage, self).__init__(loop, messages.DataLoadPacket, **kwargs)
+        super(StreamImportStage, self).__init__(messages.DataLoadPacket, loop=loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
     async def _load(self, destination, table, data, fmt):
