@@ -18,7 +18,7 @@ async def migrate_async(migrator_factory):
         finally:
             await migrator.shutdown()
 
-def shutdown_loop(loop):
+def shutdown_loop(loop, executor):
     """ Shuts down the given loop, cancelling and completing all tasks """
     logging.getLogger(__name__).info("Shutting down event loop")
 
@@ -36,6 +36,7 @@ def shutdown_loop(loop):
     except KeyboardInterrupt:
         logging.getLogger(__name__).warning("Skipping shutdown of async generators")
 
+    executor.shutdown(wait=True)
     loop.close()
 
 def migrate(migrator_factory):
@@ -43,7 +44,10 @@ def migrate(migrator_factory):
     if multiprocessing.get_start_method(allow_none=True) is None:
         multiprocessing.set_start_method("forkserver")
 
+    executor = concurrent.futures.ThreadPoolExecutor()
+
     loop = asyncio.new_event_loop()
+    loop.set_default_executor(executor)
 
     migration_task = asyncio.ensure_future(migrate_async(migrator_factory), loop=loop)
 
@@ -60,7 +64,7 @@ def migrate(migrator_factory):
 
     loop.remove_signal_handler(signal.SIGINT)
 
-    shutdown_loop(loop)
+    shutdown_loop(loop, executor)
 
 def main():
     raise NotImplementedError("'main' method has not been implemented yet")
