@@ -76,7 +76,7 @@ class StreamProcessingStage(base.BaseStage):
         self.field_wrapper = kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER)
 
     async def shutdown(self):
-        self.executor.shutdown()
+        self.executor.shutdown(wait=True)
 
     async def _process_in_executor(self, data, fmt, columns):
         return await self.loop.run_in_executor(self.executor, process_data, data, fmt, columns)
