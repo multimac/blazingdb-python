@@ -107,7 +107,7 @@ class BlazingConnector(object):
                 if error == self.SERVER_RESTART_ERROR:
                     raise exceptions.ServerRestartException(query, results)
                 elif error == self.SERVER_IMPORT_WARNING:
-                    raise exceptions.ImportWarningException(query, results)
+                    raise exceptions.ServerImportWarning(query, results)
 
             raise exceptions.QueryException(query, results)
 
