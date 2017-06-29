@@ -13,6 +13,13 @@ class ConnectionFailedException(BlazingException):
     """ Thown when something goes wrong attempting to connect to BlazingDB """
 
 
+class InvalidImportPathException(BlazingException):
+    """ Thrown when an import path is in an invalid directory """
+
+    def __init__(self, path):
+        self.path = path
+
+
 class MigrateException(BlazingException):
     """ Thrown when an exception occurs when migrating a table """
 
@@ -70,6 +77,18 @@ class ServerRestartException(BlazingException):
 
     def __init__(self, query, response):
         super(ServerRestartException, self).__init__()
+        self.query = query
+        self.response = response
+
+    def __str__(self):
+        return "query='{0}', response='{1}'".format(self.query, self.response)
+
+
+class ServerImportWarning(BlazingException):
+    """ Thrown when a warning is returned as part of an import """
+
+    def __init__(self, query, response):
+        super(ServerImportWarning, self).__init__()
         self.query = query
         self.response = response
 

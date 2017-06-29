@@ -16,6 +16,9 @@ class BlazingConnector(object):
     DEFAULT_REQUEST_LIMIT = 5
 
     SERVER_RESTART_ERROR = "The BlazingDB server is restarting please try again in a moment."
+    SERVER_IMPORT_WARNING = " ".join([
+        "ERROR: Data imported. Warning, some errors occurred during the",
+        "import. Please check the logs for more details."])
 
     def __init__(self, host, user, password, loop=None, **kwargs):
         self.logger = logging.getLogger(__name__)
@@ -103,6 +106,8 @@ class BlazingConnector(object):
 
                 if error == self.SERVER_RESTART_ERROR:
                     raise exceptions.ServerRestartException(query, results)
+                elif error == self.SERVER_IMPORT_WARNING:
+                    raise exceptions.ImportWarningException(query, results)
 
             raise exceptions.QueryException(query, results)
 
