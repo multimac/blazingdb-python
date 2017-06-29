@@ -42,12 +42,12 @@ class PromptInputStage(custom.CustomActionStage):
 class RetryStage(base.BaseStage):
     """ Retries a given message if an exception bubbles up when forwarding it """
 
-    def __init__(self, handler, max_retries=None):
+    def __init__(self, handler, max_attempts=None):
         super(RetryStage, self).__init__(messages.Packet)
         self.logger = logging.getLogger(__name__)
 
         self.handler = handler
-        self.max_retries = max_retries
+        self.max_attempts = max_attempts
 
     async def _attempt(self, message):
         try:
@@ -60,7 +60,7 @@ class RetryStage(base.BaseStage):
 
     async def process(self, message):
         attempts = 0
-        while self.max_retries is None or attempts < self.max_retries:
+        while self.max_attempts is None or attempts < self.max_attempts:
             if not await self._attempt(message):
                 return
 
