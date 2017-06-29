@@ -83,7 +83,7 @@ class FileImportStage(BaseImportStage):
         table = import_pkt.table
 
         for file_pkt in message.get_packets(messages.DataFilePacket):
-            await self._load_chunk(destination, file_pkt.file_path, table, format_pkt)
+            await self._load_chunk(destination, file_pkt, table, format_pkt)
 
 
 class FileOutputStage(base.BaseStage):
