@@ -35,20 +35,21 @@ class System(object):
             self.logger.warning("Message reached the end of the pipeline without being consumed")
             self.logger.debug("%r", message)
 
-    def __init__(self, *stages, loop=None, **kwargs):
-        self.processor = processor.Processor(self._process_message, loop=loop, **kwargs)
+    def __init__(self, *stages, loop=None, processor_count=5):
         self.stages = list(stages) + [System.FutureResolutionStage(), System.WarningStage()]
 
+        self.processor = processor.Processor(
+            self._process_message, loop=loop, enqueue_while_stopping=True,
+            processor_count=processor_count, queue_length=0)
+
     async def _process_message(self, message):
-        message.stage_idx += 1
-        message.system = self
-
         stage = self.stages[message.stage_idx]
-
         await stage.receive(message)
 
     async def enqueue(self, message):
         """ Queues a given message to be processed """
+        message.system = self
+
         await self.processor.enqueue(message)
 
     async def process(self, message):

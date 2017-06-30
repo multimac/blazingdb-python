@@ -71,6 +71,7 @@ class Message(object):
         """ Forwards the message to the next stage in the pipeline """
         msg = copy.copy(self)
         msg.packets.update(packets)
+        msg.stage_idx += 1
 
         await self.system.enqueue(msg)
 
