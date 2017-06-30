@@ -110,6 +110,11 @@ class DestinationPacket(Packet):
     def __init__(self, destination):
         self.destination = destination
 
+class FuturePacket(Packet):
+    """ Packet containing a future to complete upon processing this message """
+    def __init__(self, future):
+        self.future = future
+
 class ImportTablePacket(Packet):
     """ Packet describing a table to be imported """
     def __init__(self, source, table):
