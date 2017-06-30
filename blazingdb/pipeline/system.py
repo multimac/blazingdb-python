@@ -2,8 +2,9 @@
 Defines classes involved in running stages of a pipeline
 """
 
-import asyncio
 import logging
+
+from blazingdb import processor
 
 from . import messages
 from .stages import base
@@ -24,18 +25,19 @@ class System(object):
             self.logger.warning("Message reached the end of the pipeline without being consumed")
             self.logger.debug("%r", message)
 
-    def __init__(self, *stages, loop=None):
-        self.loop = loop
+    def __init__(self, *stages, loop=None, **kwargs):
+        self.processor = processor.Processor(self._process_message, loop=loop, **kwargs)
+        self.stages = list(stages) + [System.WarningStage()]
 
-        self.stages = list(stages)
-        self.stages.append(System.WarningStage())
-
-    async def process(self, message):
-        """ Processes the given message through the pipeline """
+    async def _process_message(self, message):
         message.stage_idx += 1
         message.system = self
 
         await self.stages[message.stage_idx].receive(message)
 
+    async def enqueue(self, message):
+        """ Queues a given message to be processed """
+        await self.processor.enqueue(message)
+
     async def shutdown(self):
-        await asyncio.gather(*[stage.shutdown() for stage in self.stages], loop=self.loop)
+        await self.processor.shutdown()

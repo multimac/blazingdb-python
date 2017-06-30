@@ -72,7 +72,7 @@ class Message(object):
         msg = copy.copy(self)
         msg.packets.update(packets)
 
-        await self.system.process(msg)
+        await self.system.enqueue(msg)
 
 
 class Packet(object):
