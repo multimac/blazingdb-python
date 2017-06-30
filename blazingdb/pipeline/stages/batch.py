@@ -89,8 +89,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
     async def process(self, message):
         """ Generates a series of batches from the stream """
-        initial_message = message.get_initial_message()
-        generator = self._get_generator(initial_message.msg_id)
+        generator = self._get_generator(message.msg_id)
 
         load_packets = []
         for packet in message.get_packets(messages.DataLoadPacket):
@@ -114,7 +113,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
                 load_packet = messages.DataLoadPacket(data, index)
                 load_packets.append(load_packet)
 
-            self._delete_generator(initial_message.msg_id)
+            self._delete_generator(message.msg_id)
 
         if load_packets:
             await message.forward(*load_packets)

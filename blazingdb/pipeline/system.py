@@ -32,12 +32,8 @@ class System(object):
 
     async def process(self, message):
         """ Processes the given message through the pipeline """
+        message.stage_idx += 1
         message.system = self
-
-        if message.parent is not None:
-            message.stage_idx = message.parent.stage_idx + 1
-        else:
-            message.stage_idx = 0
 
         await self.stages[message.stage_idx].receive(message)
 

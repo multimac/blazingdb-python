@@ -104,7 +104,7 @@ class SingleFileStage(base.BaseStage):
         self.processors.pop(msg_id)
 
     async def process(self, message):
-        msg_id = message.get_initial_message().msg_id
+        msg_id = message.msg_id
 
         if msg_id not in self.processors:
             processor = SingleFileStage.Processor(

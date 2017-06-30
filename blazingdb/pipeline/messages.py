@@ -16,8 +16,6 @@ class Message(object):
 
     def __init__(self, *packets):
         self.msg_id = id(self)
-        self.parent = None
-
         self.packets = set(iter(packets))
 
         self.stage_idx = 0
@@ -32,30 +30,11 @@ class Message(object):
         packet_names = list(pkt.__class__.__name__ for pkt in self.packets)
         info.append("packets={!r}".format(packet_names))
 
-        if self.parent is not None:
-            info.append("initial_msg_id={!r}".format(self.get_initial_message().msg_id))
-
         return "<%s %s>" % (self.__class__.__name__, " ".join(info))
-
-    @classmethod
-    def _build_next(cls, msg):
-        """ Clones a message to be forwarded to the next stage """
-        clone = cls(*msg.packets)
-        clone.parent = msg
-
-        return clone
 
     def add_packet(self, packet):
         """ Adds the given packet to the message """
         self.packets.add(packet)
-
-    def get_initial_message(self):
-        """ Retrieves the initial message which caused this one to be created """
-        current = self
-        while current.parent is not None:
-            current = current.parent
-
-        return current
 
     def get_packet(self, packet_type, default=DEFAULT_MARKER):
         """ Retrieves one packet of the given type from the message """
@@ -90,7 +69,7 @@ class Message(object):
 
     async def forward(self, *packets):
         """ Forwards the message to the next stage in the pipeline """
-        msg = Message._build_next(self)
+        msg = copy.copy(self)
         msg.packets.update(packets)
 
         await self.system.process(msg)
