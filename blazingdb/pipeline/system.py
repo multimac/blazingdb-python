@@ -22,18 +22,8 @@ class System(object):
         async def receive(self, message):
             pass
 
-    class TriggerStage(base.BaseStage):
-        """ Triggers any futures configured on the message """
-
-        def __init__(self):
-            super(System.TriggerStage, self).__init__(packets.FuturePacket)
-
-        async def process(self, message):
-            for packet in message.get_packets(packets.FuturePacket):
-                packet.future.set_result(None)
-
     def __init__(self, *stages, loop=None, processor_count=5):
-        self.stages = list(stages) + [System.TriggerStage, System.BlackholeStage()]
+        self.stages = list(stages) + [System.BlackholeStage()]
 
         self.processor = processor.Processor(
             self._process_message, loop=loop, enqueue_while_stopping=True,
