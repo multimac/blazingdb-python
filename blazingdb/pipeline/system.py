@@ -40,7 +40,7 @@ class System(object):
             processor_count=processor_count, queue_length=0)
 
     async def _process_message(self, message):
-        await message.transport.send(self.stages[message.stage_idx])
+        await self.stages[message.stage_idx].receive(message)
 
     async def enqueue(self, message):
         """ Queues a given message to be processed """
