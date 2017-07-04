@@ -44,6 +44,8 @@ class System(object):
 
     async def enqueue(self, message):
         """ Queues a given message to be processed """
+        message.system = self
+
         await self.processor.enqueue(message)
 
     async def process(self, message, loop=None):
