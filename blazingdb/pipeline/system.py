@@ -24,16 +24,30 @@ class System(object):
 
     def __init__(self, *stages, loop=None, processor_count=5):
         self.stages = list(stages) + [System.BlackholeStage()]
+        self.tracker = dict()
 
         self.processor = processor.Processor(
             self._process_message, loop=loop, enqueue_while_stopping=True,
             processor_count=processor_count, queue_length=0)
 
+    @staticmethod
+    def _trigger_futures(message):
+        for packet in message.get_packets(packets.FuturePacket):
+            packet.future.set_result(None)
+
     async def _process_message(self, message):
+        self.tracker[message.msg_id] -= 1
+
         await self.stages[message.stage_idx].receive(message)
+
+        if self.tracker.get(message.msg_id) <= 0:
+            self._trigger_futures(message)
 
     async def enqueue(self, message):
         """ Queues a given message to be processed """
+        self.tracker.setdefault(message.msg_id, 0)
+        self.tracker[message.msg_id] += 1
+
         message.system = self
 
         await self.processor.enqueue(message)
