@@ -11,14 +11,14 @@ from blazingdb import exceptions
 from blazingdb.util.blazing import build_datatype
 
 from . import base, custom
-from .. import messages
+from .. import packets
 
 
 class CreateTableStage(base.PipelineStage):
     """ Creates the destination table before importing data """
 
     def __init__(self, **kwargs):
-        super(CreateTableStage, self).__init__(messages.ImportTablePacket)
+        super(CreateTableStage, self).__init__(packets.ImportTablePacket)
         self.logger = logging.getLogger(__name__)
         self.quiet = kwargs.get("quiet", False)
 
@@ -40,8 +40,8 @@ class CreateTableStage(base.PipelineStage):
 
     async def before(self, message):
         """ Triggers the creation of the destination table """
-        import_pkt = message.get_packet(messages.ImportTablePacket)
-        dest_pkt = message.get_packet(messages.DestinationPacket)
+        import_pkt = message.get_packet(packets.ImportTablePacket)
+        dest_pkt = message.get_packet(packets.DestinationPacket)
 
         destination = dest_pkt.destination
         table = import_pkt.table
@@ -74,8 +74,8 @@ class DropTableStage(custom.CustomActionStage):
 
     async def _drop_table(self, message):
         """ Triggers the dropping of the destination table """
-        import_pkt = message.get_packet(messages.ImportTablePacket)
-        dest_pkt = message.get_packet(messages.DestinationPacket)
+        import_pkt = message.get_packet(packets.ImportTablePacket)
+        dest_pkt = message.get_packet(packets.DestinationPacket)
 
         destination = dest_pkt.destination
         table = import_pkt.table
@@ -135,8 +135,8 @@ class SourceComparisonStage(custom.CustomActionStage):
 
     async def _perform_comparison(self, message):
         """ Performs the queries after data has been imported """
-        import_pkt = message.get_packet(messages.ImportTablePacket)
-        dest_pkt = message.get_packet(messages.DestinationPacket)
+        import_pkt = message.get_packet(packets.ImportTablePacket)
+        dest_pkt = message.get_packet(packets.DestinationPacket)
 
         destination = dest_pkt.destination
         source = import_pkt.source
@@ -172,8 +172,8 @@ class TruncateTableStage(custom.CustomActionStage):
 
     async def _truncate_table(self, message):
         """ Triggers the truncation of the destination table """
-        import_pkt = message.get_packet(messages.ImportTablePacket)
-        dest_pkt = message.get_packet(messages.DestinationPacket)
+        import_pkt = message.get_packet(packets.ImportTablePacket)
+        dest_pkt = message.get_packet(packets.DestinationPacket)
 
         destination = dest_pkt.destination
         table = import_pkt.table

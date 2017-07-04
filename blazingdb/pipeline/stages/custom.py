@@ -10,14 +10,14 @@ import json
 import logging
 
 from . import base, When
-from .. import messages
+from .. import packets
 
 
 class CustomActionStage(base.PipelineStage):
     """ Performs a custom callback before / after importing data """
 
     def __init__(self, callback, **kwargs):
-        super(CustomActionStage, self).__init__(messages.ImportTablePacket)
+        super(CustomActionStage, self).__init__(packets.ImportTablePacket)
         self.callback = callback
 
         self.when = kwargs.get("when", When.before)

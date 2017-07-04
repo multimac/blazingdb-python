@@ -14,7 +14,7 @@ import string
 from blazingdb import sources
 
 from . import base
-from .. import messages
+from .. import packets
 
 
 # pragma pylint: disable=too-few-public-methods
@@ -63,13 +63,13 @@ class FilterColumnsStage(base.BaseStage):
     """ Filters the given columns from the imported data """
 
     def __init__(self, tables):
-        super(FilterColumnsStage, self).__init__(messages.ImportTablePacket)
+        super(FilterColumnsStage, self).__init__(packets.ImportTablePacket)
         self.logger = logging.getLogger(__name__)
         self.tables = tables
 
     async def process(self, message):
         """ Replaces the stream with one which filters the columns """
-        packet = message.get_packet(messages.ImportTablePacket)
+        packet = message.get_packet(packets.ImportTablePacket)
         ignored_columns = self.tables.get(packet.table, [])
 
         self.logger.info(
@@ -141,10 +141,10 @@ class JumbleDataStage(base.BaseStage):
     """ Jumbles the data being loaded to obfuscate any sensitive information """
 
     def __init__(self):
-        super(JumbleDataStage, self).__init__(messages.ImportTablePacket)
+        super(JumbleDataStage, self).__init__(packets.ImportTablePacket)
 
     async def process(self, message):
-        packet = message.get_packet(messages.ImportTablePacket)
+        packet = message.get_packet(packets.ImportTablePacket)
         message.update(packet, source=JumbledSource(message.source))
 
         await message.forward()
@@ -206,12 +206,12 @@ class LimitImportStage(base.BaseStage):
     """ Limits the number of rows imported from the source """
 
     def __init__(self, count):
-        super(LimitImportStage, self).__init__(messages.ImportTablePacket)
+        super(LimitImportStage, self).__init__(packets.ImportTablePacket)
         self.count = count
 
     async def process(self, message):
         """ Replaces the source with one which limits the number of rows returned """
-        packet = message.get_packet(messages.ImportTablePacket)
+        packet = message.get_packet(packets.ImportTablePacket)
         message.update(packet, source=LimitedSource(message.source, self.count))
 
         await message.forward()

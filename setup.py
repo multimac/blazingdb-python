@@ -21,5 +21,5 @@ setup(
     ],
 
     packages=find_packages(),
-    install_requires=["aiofiles", "aiohttp"]
+    install_requires=["aiofiles", "aiohttp", "async_contextmanager", "async_timeout"]
 )

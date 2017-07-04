@@ -12,7 +12,7 @@ import async_timeout
 from blazingdb import exceptions
 
 from . import base
-from .. import messages
+from .. import packets
 
 
 class BaseImportStage(base.BaseStage):
@@ -46,7 +46,7 @@ class FileImportStage(BaseImportStage):
     DEFAULT_USER_FOLDER = "data"
 
     def __init__(self, upload_folder, user, loop=None, **kwargs):
-        super(FileImportStage, self).__init__(messages.DataFilePacket, loop=loop, **kwargs)
+        super(FileImportStage, self).__init__(packets.DataFilePacket, loop=loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
         self.ignore_skipdata = kwargs.get("ignore_skipdata", False)
@@ -75,15 +75,17 @@ class FileImportStage(BaseImportStage):
             if not packet.expect_warning: raise  # pylint: disable=multiple-statements
 
     async def process(self, message):
-        import_pkt = message.get_packet(messages.ImportTablePacket)
-        format_pkt = message.get_packet(messages.DataFormatPacket)
-        dest_pkt = message.get_packet(messages.DestinationPacket)
+        import_pkt = message.get_packet(packets.ImportTablePacket)
+        format_pkt = message.get_packet(packets.DataFormatPacket)
+        dest_pkt = message.get_packet(packets.DestinationPacket)
 
         destination = dest_pkt.destination
         table = import_pkt.table
 
-        for file_pkt in message.get_packets(messages.DataFilePacket):
+        for file_pkt in message.get_packets(packets.DataFilePacket):
             await self._load_chunk(destination, file_pkt, table, format_pkt)
+
+        await message.forward()
 
 
 class FileOutputStage(base.BaseStage):
@@ -94,7 +96,7 @@ class FileOutputStage(base.BaseStage):
     DEFAULT_USER_FOLDER = "data"
 
     def __init__(self, upload_folder, user, loop=None, **kwargs):
-        super(FileOutputStage, self).__init__(messages.DataLoadPacket)
+        super(FileOutputStage, self).__init__(packets.DataLoadPacket)
         self.logger = logging.getLogger(__name__)
         self.loop = loop
 
@@ -108,7 +110,8 @@ class FileOutputStage(base.BaseStage):
         """ Opens the given file """
         return aiofiles.open(filename, "w", encoding=self.encoding, loop=self.loop)
 
-    def _check_data(self, data, fmt):
+    @staticmethod
+    def _check_data(data, fmt):
         return data[0][-2:] == fmt.field_terminator + fmt.line_terminator
 
     def _get_filename(self, table, chunk):
@@ -135,14 +138,14 @@ class FileOutputStage(base.BaseStage):
             await chunk_file.writelines(chunk)
 
     async def process(self, message):
-        import_pkt = message.get_packet(messages.ImportTablePacket)
-        format_pkt = message.get_packet(messages.DataFormatPacket)
+        import_pkt = message.get_packet(packets.ImportTablePacket)
+        format_pkt = message.get_packet(packets.DataFormatPacket)
 
-        for load_pkt in message.get_packets(messages.DataLoadPacket):
+        for load_pkt in message.get_packets(packets.DataLoadPacket):
             chunk_filename = self._get_file_path(import_pkt.table, load_pkt.index)
             expect_warning = self._check_data(load_pkt.data, format_pkt)
 
-            file_pkt = messages.DataFilePacket(chunk_filename, expect_warning)
+            file_pkt = packets.DataFilePacket(chunk_filename, expect_warning)
 
             await self._write_chunk(load_pkt.data, chunk_filename)
 
@@ -156,7 +159,7 @@ class StreamImportStage(BaseImportStage):
     """ Imports chunks of data via a stream """
 
     def __init__(self, loop=None, **kwargs):
-        super(StreamImportStage, self).__init__(messages.DataLoadPacket, loop=loop, **kwargs)
+        super(StreamImportStage, self).__init__(packets.DataLoadPacket, loop=loop, **kwargs)
         self.logger = logging.getLogger(__name__)
 
     async def _load(self, destination, table, data, fmt):
@@ -167,9 +170,11 @@ class StreamImportStage(BaseImportStage):
         await self._perform_request(destination, method, fmt, table)
 
     async def process(self, message):
-        import_pkt = message.get_packet(messages.ImportTablePacket)
-        format_pkt = message.get_packet(messages.DataFormatPacket)
-        dest_pkt = message.get_packet(messages.DestinationPacket)
+        import_pkt = message.get_packet(packets.ImportTablePacket)
+        format_pkt = message.get_packet(packets.DataFormatPacket)
+        dest_pkt = message.get_packet(packets.DestinationPacket)
 
-        for load_pkt in message.get_packets(messages.DataLoadPacket):
+        for load_pkt in message.get_packets(packets.DataLoadPacket):
             await self._load(dest_pkt.destination, import_pkt.table, load_pkt.data, format_pkt)
+
+        await message.forward()

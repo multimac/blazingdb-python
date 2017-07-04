@@ -3,11 +3,10 @@ Defines the core message classes used in the pipeline
 """
 
 import copy
+import uuid
 
 from blazingdb import exceptions
 
-
-# pragma pylint: disable=too-few-public-methods
 
 class Message(object):
     """ Base class used for all messages passed within the pipeline """
@@ -15,10 +14,10 @@ class Message(object):
     DEFAULT_MARKER = object()
 
     def __init__(self, *packets):
-        self.msg_id = id(self)
+        self.msg_id = uuid.uuid4()
         self.packets = set(iter(packets))
 
-        self.stage_idx = 0
+        self.stage_idx = -1
         self.system = None
 
     def __repr__(self):
@@ -67,57 +66,12 @@ class Message(object):
         """ Removes the given packet from the message """
         self.packets.remove(packet)
 
-    async def forward(self, *packets):
+    async def forward(self, *packets, system=None):
         """ Forwards the message to the next stage in the pipeline """
+        system = system if system is not None else self.system
+
         msg = copy.copy(self)
         msg.packets.update(packets)
         msg.stage_idx += 1
 
-        await self.system.enqueue(msg)
-
-
-class Packet(object):
-    """ Base class used for all packets delivered with messages """
-
-class DataColumnsPacket(Packet):
-    """ Packet describing the columns for load and complete packets """
-    def __init__(self, columns):
-        self.columns = columns
-
-class DataCompletePacket(Packet):
-    """ Packet notifying later stages the data stream is complete """
-
-class DataFilePacket(Packet):
-    """ Packet describing a chunk of data in a file to be loaded """
-    def __init__(self, file_path, expect_warning):
-        self.file_path = file_path
-        self.expect_warning = expect_warning
-
-class DataFormatPacket(Packet):
-    """ Packet describing the format of a chunk of data """
-    def __init__(self, field_terminator, line_terminator, field_wrapper):
-        self.field_terminator = field_terminator
-        self.line_terminator = line_terminator
-        self.field_wrapper = field_wrapper
-
-class DataLoadPacket(Packet):
-    """ Packet describing a chunk of data to be loaded """
-    def __init__(self, data, index):
-        self.data = data
-        self.index = index
-
-class DestinationPacket(Packet):
-    """ Packet describing the destination for the import """
-    def __init__(self, destination):
-        self.destination = destination
-
-class FuturePacket(Packet):
-    """ Packet containing a future to complete upon processing this message """
-    def __init__(self, future):
-        self.future = future
-
-class ImportTablePacket(Packet):
-    """ Packet describing a table to be imported """
-    def __init__(self, source, table):
-        self.source = source
-        self.table = table
+        await system.enqueue(msg)

@@ -3,61 +3,57 @@ Defines classes involved in running stages of a pipeline
 """
 
 import asyncio
-import logging
 
 from blazingdb import processor
 
-from . import messages
+from . import packets
 from .stages import base
 
-
-# pragma pylint: disable=too-few-public-methods
 
 class System(object):
     """ Wraps an array of pipeline stages """
 
-    class FutureResolutionStage(base.BaseStage):
-        """ Resolves any futures contained within the message when reached """
-        def __init__(self):
-            super(System.FutureResolutionStage, self).__init__(messages.FuturePacket)
+    class BlackholeStage(base.BaseStage):
+        """ Empty stage to prevent messages continuing past end of pipeline """
 
         async def process(self, message):
-            for packet in message.get_packets(messages.FuturePacket):
+            pass
+
+        async def receive(self, message):
+            pass
+
+    class TriggerStage(base.BaseStage):
+        """ Triggers any futures configured on the message """
+
+        def __init__(self):
+            super(System.TriggerStage, self).__init__(packets.FuturePacket)
+
+        async def process(self, message):
+            for packet in message.get_packets(packets.FuturePacket):
                 packet.future.set_result(None)
 
-    class WarningStage(base.BaseStage):
-        """ Warns that a message has reached this stage in the pipeline """
-        def __init__(self):
-            super(System.WarningStage, self).__init__(messages.Packet)
-            self.logger = logging.getLogger(__name__)
-
-        async def process(self, message):
-            self.logger.warning("Message reached the end of the pipeline without being consumed")
-            self.logger.debug("%r", message)
-
     def __init__(self, *stages, loop=None, processor_count=5):
-        self.stages = list(stages) + [System.FutureResolutionStage(), System.WarningStage()]
+        self.stages = list(stages) + [System.TriggerStage, System.BlackholeStage()]
 
         self.processor = processor.Processor(
             self._process_message, loop=loop, enqueue_while_stopping=True,
             processor_count=processor_count, queue_length=0)
 
     async def _process_message(self, message):
-        stage = self.stages[message.stage_idx]
-        await stage.receive(message)
+        await message.transport.send(self.stages[message.stage_idx])
 
     async def enqueue(self, message):
         """ Queues a given message to be processed """
-        message.system = self
-
         await self.processor.enqueue(message)
 
-    async def process(self, message):
-        """ Queues a given message and waits for it to be processed """
-        loop = asyncio.get_event_loop()
-        future = loop.create_future()
+    async def process(self, message, loop=None):
+        """ Queues and waits for a given message to be processed """
+        loop = loop if loop is not None else asyncio.get_event_loop()
 
-        message.add_packet(messages.FuturePacket(future))
+        future = loop.create_future()
+        packet = packets.FuturePacket(future)
+
+        message.add_packet(packet)
 
         await self.enqueue(message)
         await future

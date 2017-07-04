@@ -57,7 +57,7 @@ class PipelineStage(BaseStage):
                 await self.after(message, False)
             except Exception:  # pylint: disable=broad-except
                 message = "Failed calling 'after' during exception handler"
-                logging.getLogger(__name__).exception.exception(message)
+                logging.getLogger(__name__).exception(message)
 
             raise
 

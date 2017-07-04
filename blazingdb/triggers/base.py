@@ -4,7 +4,7 @@ Defines the base class for all triggers
 
 import abc
 
-from blazingdb.pipeline import messages
+from blazingdb.pipeline import messages, packets
 
 
 # pylint: disable=too-few-public-methods
@@ -18,7 +18,7 @@ class BaseTrigger(object):
 
 
 class TableTrigger(BaseTrigger):
-    """ A utility class for generating ImportTablePacket messages """
+    """ A utility class for generating messages """
 
     def __init__(self, source):
         self.source = source
@@ -29,4 +29,6 @@ class TableTrigger(BaseTrigger):
 
     async def poll(self):
         async for table in self._poll():
-            yield messages.Message(messages.ImportTablePacket(self.source, table))
+            packet = packets.ImportTablePacket(self.source, table)
+
+            yield messages.Message(packet)

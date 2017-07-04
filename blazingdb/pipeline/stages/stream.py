@@ -13,7 +13,7 @@ from blazingdb.util.blazing import DATE_FORMAT
 from blazingdb.util import process
 
 from . import base
-from .. import messages
+from .. import packets
 
 
 # pylint: disable=too-few-public-methods
@@ -21,7 +21,7 @@ from .. import messages
 class StreamGenerationStage(base.BaseStage):
     """ Processes a stream of data into rows BlazingDB can import """
     def __init__(self, loop=None):
-        super(StreamGenerationStage, self).__init__(messages.ImportTablePacket)
+        super(StreamGenerationStage, self).__init__(packets.ImportTablePacket)
         self.loop = loop
 
     @staticmethod
@@ -32,18 +32,18 @@ class StreamGenerationStage(base.BaseStage):
         return source.retrieve(table)
 
     async def process(self, message):
-        import_pkt = message.get_packet(messages.ImportTablePacket)
+        import_pkt = message.get_packet(packets.ImportTablePacket)
 
         source = import_pkt.source
         table = import_pkt.table
 
         columns = await source.get_columns(table)
-        message.add_packet(messages.DataColumnsPacket(columns))
+        message.add_packet(packets.DataColumnsPacket(columns))
 
         index = 0
         tasks = list()
         async for chunk in source.retrieve(table):
-            load_pkt = messages.DataLoadPacket(chunk, index)
+            load_pkt = packets.DataLoadPacket(chunk, index)
             task = asyncio.ensure_future(message.forward(load_pkt), loop=self.loop)
 
             tasks.append(task)
@@ -52,7 +52,7 @@ class StreamGenerationStage(base.BaseStage):
         if tasks:
             await asyncio.wait(tasks, loop=self.loop)
 
-        await message.forward(messages.DataCompletePacket())
+        await message.forward(packets.DataCompletePacket())
 
 
 class StreamProcessingStage(base.BaseStage):
@@ -64,7 +64,7 @@ class StreamProcessingStage(base.BaseStage):
 
     def __init__(self, loop=None, **kwargs):
         super(StreamProcessingStage, self).__init__(
-            messages.DataColumnsPacket, messages.DataLoadPacket)
+            packets.DataColumnsPacket, packets.DataLoadPacket)
 
         self.logger = logging.getLogger(__name__)
 
@@ -82,11 +82,11 @@ class StreamProcessingStage(base.BaseStage):
         return await self.loop.run_in_executor(self.executor, process_data, data, fmt, columns)
 
     async def process(self, message):
-        columns = message.get_packet(messages.DataColumnsPacket).columns
-        format_pkt = messages.DataFormatPacket(
+        columns = message.get_packet(packets.DataColumnsPacket).columns
+        format_pkt = packets.DataFormatPacket(
             self.field_terminator, self.line_terminator, self.field_wrapper)
 
-        for load_pkt in message.get_packets(messages.DataLoadPacket):
+        for load_pkt in message.get_packets(packets.DataLoadPacket):
             processed_data = await self._process_in_executor(load_pkt.data, format_pkt, columns)
             message.update_packet(load_pkt, data=processed_data)
 

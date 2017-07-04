@@ -13,7 +13,7 @@ import logging
 from blazingdb import exceptions
 
 from . import base, custom
-from .. import messages
+from .. import packets
 
 
 class DelayStage(custom.CustomActionStage):
@@ -43,7 +43,7 @@ class RetryStage(base.BaseStage):
     """ Retries a given message if an exception bubbles up when forwarding it """
 
     def __init__(self, handler, max_attempts=None):
-        super(RetryStage, self).__init__(messages.Packet)
+        super(RetryStage, self).__init__(packets.Packet)
         self.logger = logging.getLogger(__name__)
 
         self.handler = handler
@@ -73,7 +73,7 @@ class SemaphoreStage(base.BaseStage):
     """ Uses a semaphore to prevent access to later parts of the pipeline """
 
     def __init__(self, limit, loop=None):
-        super(SemaphoreStage, self).__init__(messages.Packet)
+        super(SemaphoreStage, self).__init__(packets.Packet)
         self.semaphore = asyncio.BoundedSemaphore(limit, loop=loop)
 
     async def process(self, message):
@@ -87,7 +87,7 @@ class SingleFileStage(base.BaseStage):
     Processor = collections.namedtuple("Processor", ["task", "queue"])
 
     def __init__(self, loop=None):
-        super(SingleFileStage, self).__init__(messages.Packet)
+        super(SingleFileStage, self).__init__(packets.Packet)
 
         self.loop = loop
         self.processors = dict()
@@ -123,7 +123,7 @@ class SkipTableStage(base.BaseStage):
     """ Skips tables based on a given set of inclusions and exclusions """
 
     def __init__(self, included=None, excluded=None):
-        super(SkipTableStage, self).__init__(messages.ImportTablePacket)
+        super(SkipTableStage, self).__init__(packets.ImportTablePacket)
 
         self.included = included
         self.excluded = excluded
@@ -145,7 +145,7 @@ class SkipTableStage(base.BaseStage):
 
     async def process(self, message):
         """ Only calls message.forward if the message isn't filtered """
-        import_pkt = message.get_packet(messages.ImportTablePacket)
+        import_pkt = message.get_packet(packets.ImportTablePacket)
 
         if not self._filter_table(import_pkt.table):
             await message.forward()
@@ -155,7 +155,7 @@ class SkipUntilStage(base.BaseStage):
     """ Skips tables based on a given set of inclusions and exclusions """
 
     def __init__(self, pattern, include_matched=True):
-        super(SkipUntilStage, self).__init__(messages.ImportTablePacket)
+        super(SkipUntilStage, self).__init__(packets.ImportTablePacket)
 
         self.include_matched = include_matched
         self.pattern = pattern
@@ -167,7 +167,7 @@ class SkipUntilStage(base.BaseStage):
             await message.forward()
             return
 
-        import_pkt = message.get_packet(messages.ImportTablePacket)
+        import_pkt = message.get_packet(packets.ImportTablePacket)
 
         if fnmatch.fnmatch(import_pkt.table, self.pattern):
             self.matched = True

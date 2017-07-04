@@ -5,7 +5,7 @@ Defines the Migrator class which can be used for migrating data into BlazingDB
 import asyncio
 import logging
 
-from blazingdb.pipeline import messages
+from blazingdb.pipeline import packets
 
 from . import processor
 
@@ -27,12 +27,12 @@ class Migrator(object):
         """ Processes an import message """
         self.logger.info("Running message %s through the pipeline", message)
 
-        await self.pipeline.process(message)
+        await message.forward(system=self.pipeline)
 
     async def _poll_trigger(self, trigger):
         """ Polls a trigger, placing any returned messages on the queue """
         async for message in trigger.poll():
-            message.add_packet(messages.DestinationPacket(self.destination))
+            message.add_packet(packets.DestinationPacket(self.destination))
             await self.processor.enqueue(message)
 
     async def migrate(self):

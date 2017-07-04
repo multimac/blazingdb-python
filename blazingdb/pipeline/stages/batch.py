@@ -11,7 +11,7 @@ import operator
 from blazingdb.util import format_size, timer
 
 from . import base
-from .. import messages
+from .. import packets
 
 
 # pragma pylint: disable=too-few-public-methods
@@ -22,7 +22,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
     DEFAULT_LOG_INTERVAL = 10
 
     def __init__(self, loop=None, **kwargs):
-        super(BaseBatchStage, self).__init__(messages.DataLoadPacket, messages.DataCompletePacket)
+        super(BaseBatchStage, self).__init__(packets.DataLoadPacket, packets.DataCompletePacket)
 
         self.loop = loop
         self.generators = dict()
@@ -92,25 +92,25 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
         generator = self._get_generator(message.msg_id)
 
         load_packets = []
-        for packet in message.get_packets(messages.DataLoadPacket):
+        for packet in message.get_packets(packets.DataLoadPacket):
             batch = generator.send(packet.data)
             message.remove_packet(packet)
 
             while batch is not None:
                 data, index = batch
 
-                load_packet = messages.DataLoadPacket(data, index)
+                load_packet = packets.DataLoadPacket(data, index)
                 load_packets.append(load_packet)
 
                 batch = generator.send(None)
 
-        complete_packet = message.get_packet(messages.DataCompletePacket, default=None)
+        complete_packet = message.get_packet(packets.DataCompletePacket, default=None)
         if complete_packet is not None:
             # pragma pylint: disable=multiple-statements
             data, index = generator.send(None)
 
             if data:
-                load_packet = messages.DataLoadPacket(data, index)
+                load_packet = packets.DataLoadPacket(data, index)
                 load_packets.append(load_packet)
 
             self._delete_generator(message.msg_id)

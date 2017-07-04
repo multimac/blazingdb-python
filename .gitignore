@@ -111,3 +111,6 @@ tcl
 
 # VS Code
 .vscode/
+
+# Temporary
+logs/
