@@ -108,7 +108,7 @@ class SingleFileStage(base.BaseStage):
         while not queue.empty():
             message = await queue.get()
 
-            await message.forward()
+            await message.forward(wait=True)
             queue.task_done()
 
         self.processors.pop(msg_id)
