@@ -17,7 +17,7 @@ class Message(object):
         self.msg_id = uuid.uuid4()
         self.packets = set(iter(packets))
 
-        self.stage_idx = -1
+        self.stage_idx = 0
         self.system = None
 
     def __repr__(self):
