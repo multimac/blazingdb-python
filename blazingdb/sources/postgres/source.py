@@ -17,10 +17,6 @@ class PostgresSource(base.BaseSource):
     CURSOR_NAME = __name__
     FETCH_COUNT = 20000
 
-    PROBABILITY = None
-    PROBABILITY_DEFAULT = 1.0
-    PROBABILITY_LOSS = 0.85
-
     def __init__(self, pool, schema, **kwargs):
         super(PostgresSource, self).__init__()
         self.logger = logging.getLogger(__name__)
@@ -33,17 +29,6 @@ class PostgresSource(base.BaseSource):
     async def close(self):
         """ Closes the given source and cleans up the connection """
         await self.pool.close()
-
-    def _probability(self):
-        if PostgresSource.PROBABILITY is None:
-            PostgresSource.PROBABILITY = PostgresSource.PROBABILITY_DEFAULT
-
-        if random.expovariate(1.0) < PostgresSource.PROBABILITY:
-            PostgresSource.PROBABILITY *= PostgresSource.PROBABILITY_LOSS
-            return False
-
-        self.logger.warning("BOOM")
-        return True
 
     def _parse_row(self, columns, row):
         return list(parse_value(column.type, val) for column, val in zip(columns, row))
@@ -78,7 +63,7 @@ class PostgresSource(base.BaseSource):
 
         columns = [_process_column(row) async for chunk in results for row in chunk]
 
-        if not columns or self._probability():
+        if not columns:
             raise exceptions.QueryException(None, None)
 
         self.logger.debug("Retrieved %s columns for table %s from Postgres", len(columns), table)
