@@ -73,9 +73,12 @@ class Message(object):
         """ Removes the given packet from the message """
         self.packets.remove(packet)
 
-    async def forward(self, *packets, system=None):
+    async def forward(self, *packets, wait=False, system=None):
         """ Forwards the message to the next stage in the pipeline """
         system = system if system is not None else self.system
         msg = self._build_next(packets)
 
-        await system.enqueue(msg)
+        if wait:
+            await system.process(msg)
+        else:
+            await system.enqueue(msg)

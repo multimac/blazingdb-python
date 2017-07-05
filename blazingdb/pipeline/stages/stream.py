@@ -9,6 +9,7 @@ import logging
 import operator
 import signal
 
+from blazingdb import processor
 from blazingdb.util.blazing import DATE_FORMAT
 from blazingdb.util import process
 
@@ -25,11 +26,13 @@ class StreamGenerationStage(base.BaseStage):
         self.loop = loop
 
     @staticmethod
-    def _create_stream(data):
-        source = data["source"]
-        table = data["src_table"]
+    async def _process_message(forward_data):
+        message, packet = forward_data
 
-        return source.retrieve(table)
+        await message.forward(packet, wait=True)
+
+    def _get_processor(self):
+        return processor.Processor(self._process_message, loop=self.loop)
 
     async def process(self, message):
         import_pkt = message.get_packet(packets.ImportTablePacket)
@@ -41,16 +44,15 @@ class StreamGenerationStage(base.BaseStage):
         message.add_packet(packets.DataColumnsPacket(columns))
 
         index = 0
-        tasks = list()
+        msg_processor = self._get_processor()
         async for chunk in source.retrieve(table):
-            load_pkt = packets.DataLoadPacket(chunk, index)
-            task = asyncio.ensure_future(message.forward(load_pkt), loop=self.loop)
+            packet = packets.DataLoadPacket(chunk, index)
+            forward_data = (message, packet)
 
-            tasks.append(task)
+            await msg_processor.enqueue(forward_data)
             index += 1
 
-        if tasks:
-            await asyncio.wait(tasks, loop=self.loop)
+        await msg_processor.shutdown()
 
         await message.forward(packets.DataCompletePacket())
 
