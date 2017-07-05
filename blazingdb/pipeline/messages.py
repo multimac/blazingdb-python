@@ -31,6 +31,13 @@ class Message(object):
 
         return "<%s %s>" % (self.__class__.__name__, " ".join(info))
 
+    def _build_next(self, packets):
+        clone = copy.copy(self)
+        clone.packets = self.packets.union(packets)
+        clone.stage_idx += 1
+
+        return clone
+
     def add_packet(self, packet):
         """ Adds the given packet to the message """
         self.packets.add(packet)
@@ -69,9 +76,6 @@ class Message(object):
     async def forward(self, *packets, system=None):
         """ Forwards the message to the next stage in the pipeline """
         system = system if system is not None else self.system
-
-        msg = copy.copy(self)
-        msg.packets.update(packets)
-        msg.stage_idx += 1
+        msg = self._build_next(packets)
 
         await system.enqueue(msg)
