@@ -43,9 +43,9 @@ class Processor(object):
     async def _process_queue(self):
         """ Polls the queue for a messages to import, before calling the callback """
         while True:
-            message = await self.queue.get()
+            args = await self.queue.get()
 
-            task = asyncio.ensure_future(self.callback(message))
+            task = asyncio.ensure_future(self.callback(*args))
 
             try:
                 await asyncio.shield(task)
@@ -53,7 +53,7 @@ class Processor(object):
                 self.logger.warning("Processor task cancelled during callback")
                 raise
             except Exception:  # pylint: disable=broad-except
-                self.logger.exception("Caught exception attempting to handle message %s", message)
+                self.logger.exception("Caught exception attempting to callback with %s", args)
 
                 if not self.continue_on_error:
                     break
@@ -62,14 +62,14 @@ class Processor(object):
 
         await asyncio.shield(self.shutdown())
 
-    async def enqueue(self, message):
+    async def enqueue(self, *args):
         """ Queues a message to be processed """
         if self.state is State.Stopped:
             raise exceptions.StoppedException()
         elif self.state is State.Stopping and not self.enqueue_while_shutdown:
             raise exceptions.StoppedException()
 
-        await self.queue.put(message)
+        await self.queue.put(args)
 
     async def clear(self):
         """ Clears all pending messages from the queue """
