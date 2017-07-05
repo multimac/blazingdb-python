@@ -25,14 +25,17 @@ class StreamGenerationStage(base.BaseStage):
         super(StreamGenerationStage, self).__init__(packets.ImportTablePacket)
         self.loop = loop
 
-    @staticmethod
-    async def _process_message(forward_data):
-        message, packet = forward_data
-
-        await message.forward(packet, wait=True)
-
     def _get_processor(self):
         return processor.Processor(self._process_message, loop=self.loop)
+
+    async def _process_message(self, chunk_data):
+        message, chunk, index = chunk_data
+        future = self.loop.create_future()
+
+        packet = packets.DataLoadPacket(chunk, index, future)
+
+        await message.forward(packet)
+        await future
 
     async def process(self, message):
         import_pkt = message.get_packet(packets.ImportTablePacket)
@@ -46,10 +49,9 @@ class StreamGenerationStage(base.BaseStage):
         index = 0
         msg_processor = self._get_processor()
         async for chunk in source.retrieve(table):
-            packet = packets.DataLoadPacket(chunk, index)
-            forward_data = (message, packet)
+            chunk_data = (message, chunk, index)
 
-            await msg_processor.enqueue(forward_data)
+            await msg_processor.enqueue(chunk_data)
             index += 1
 
         await msg_processor.shutdown()

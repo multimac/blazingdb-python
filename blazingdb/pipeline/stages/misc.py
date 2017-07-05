@@ -92,6 +92,16 @@ class SingleFileStage(base.BaseStage):
         self.loop = loop
         self.processors = dict()
 
+    def _get_processor(self, msg_id):
+        if msg_id not in self.processors:
+            processor = SingleFileStage.Processor(
+                queue=asyncio.Queue(loop=self.loop),
+                task=asyncio.ensure_future(self._process_queue(msg_id), loop=self.loop))
+
+            self.processors[msg_id] = processor
+
+        return self.processors[msg_id]
+
     async def _process_queue(self, msg_id):
         queue = self.processors[msg_id].queue
 
@@ -105,15 +115,7 @@ class SingleFileStage(base.BaseStage):
 
     async def process(self, message):
         msg_id = message.msg_id
-
-        if msg_id not in self.processors:
-            processor = SingleFileStage.Processor(
-                queue=asyncio.Queue(loop=self.loop),
-                task=asyncio.ensure_future(self._process_queue(msg_id), loop=self.loop))
-
-            self.processors[msg_id] = processor
-
-        processor = self.processors[msg_id]
+        processor = self._get_processor(msg_id)
 
         await processor.queue.put(message)
         await processor.task

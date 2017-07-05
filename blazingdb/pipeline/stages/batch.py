@@ -96,6 +96,9 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
             batch = generator.send(packet.data)
             message.remove_packet(packet)
 
+            if packet.future is not None:
+                packet.future.set_result(None)
+
             while batch is not None:
                 data, index = batch
 
@@ -116,7 +119,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
             self._delete_generator(message.msg_id)
 
         if load_packets:
-            await message.forward(*load_packets)
+            await message.forward(*load_packets, wait=True)
 
 
 class ByteBatchStage(BaseBatchStage):

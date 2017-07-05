@@ -31,9 +31,10 @@ class DataFormatPacket(Packet):
 
 class DataLoadPacket(Packet):
     """ Packet describing a chunk of data to be loaded """
-    def __init__(self, data, index):
+    def __init__(self, data, index, future=None):
         self.data = data
         self.index = index
+        self.future = future
 
 class DestinationPacket(Packet):
     """ Packet describing the destination for the import """

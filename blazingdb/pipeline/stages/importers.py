@@ -152,6 +152,9 @@ class FileOutputStage(base.BaseStage):
             message.remove_packet(load_pkt)
             message.add_packet(file_pkt)
 
+            if load_pkt.future is not None:
+                load_pkt.future.set_result(None)
+
         await message.forward()
 
 
