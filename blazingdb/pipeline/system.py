@@ -40,9 +40,9 @@ class System(object):
             packet.future.set_result(None)
 
     async def _process_message(self, message):
-        self.tracker[message.msg_id] -= 1
-
         await self.stages[message.stage_idx].receive(message)
+
+        self.tracker[message.msg_id] -= 1
 
         if self.tracker.get(message.msg_id) <= 0:
             self._trigger_futures(message)
