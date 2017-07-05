@@ -3,6 +3,7 @@ Defines classes involved in running stages of a pipeline
 """
 
 import asyncio
+import logging
 
 from blazingdb import processor
 
@@ -23,6 +24,8 @@ class System(object):
             pass
 
     def __init__(self, *stages, loop=None, processor_count=5):
+        self.logger = logging.getLogger(__name__)
+
         self.stages = list(stages) + [System.BlackholeStage()]
         self.tracker = dict()
 
@@ -30,8 +33,9 @@ class System(object):
             self._process_message, loop=loop, enqueue_while_stopping=True,
             processor_count=processor_count, queue_length=0)
 
-    @staticmethod
-    def _trigger_futures(message):
+    def _trigger_futures(self, message):
+        self.logger.debug("Completing futures for %s", message)
+
         for packet in message.get_packets(packets.FuturePacket):
             packet.future.set_result(None)
 
