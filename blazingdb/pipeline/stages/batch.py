@@ -8,7 +8,6 @@ import logging
 import math
 import operator
 
-from blazingdb import processor
 from blazingdb.util import format_size, timer
 
 from . import base
@@ -27,13 +26,8 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
         self.loop = loop
         self.generators = dict()
-        self.processor = processor.Processor(self._load_chunk, loop=self.loop)
 
         self.log_interval = kwargs.get("log_interval", self.DEFAULT_LOG_INTERVAL)
-
-    @staticmethod
-    async def _load_chunk(message, load_packets):
-        await message.forward(*load_packets)
 
     @abc.abstractmethod
     def _init_batch(self):
@@ -95,7 +89,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
     async def process(self, message):
         """ Generates a series of batches from the stream """
-        generator = self._get_generator(message.msg_id)
+        generator = self._get_generator(message.initial_id)
 
         load_packets = []
         for packet in message.get_packets(packets.DataLoadPacket):
@@ -125,7 +119,7 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
             self._delete_generator(message.msg_id)
 
         if load_packets:
-            await self.processor.enqueue(message, load_packets)
+            await message.forward(*load_packets)
 
 
 class ByteBatchStage(BaseBatchStage):
