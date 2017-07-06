@@ -3,7 +3,6 @@ Defines the Postgres migrator for moving data into BlazingDB from Postgres
 """
 
 import logging
-import random
 
 from blazingdb import exceptions
 from blazingdb.util.blazing import parse_value

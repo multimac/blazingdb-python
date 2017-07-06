@@ -17,6 +17,7 @@ class InvalidImportPathException(BlazingException):
     """ Thrown when an import path is in an invalid directory """
 
     def __init__(self, path):
+        super(InvalidImportPathException, self).__init__()
         self.path = path
 
 

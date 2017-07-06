@@ -109,7 +109,6 @@ class BaseBatchStage(base.BaseStage, metaclass=abc.ABCMeta):
 
         complete_packet = message.get_packet(packets.DataCompletePacket, default=None)
         if complete_packet is not None:
-            # pragma pylint: disable=multiple-statements
             data, index = generator.send(None)
 
             if data:

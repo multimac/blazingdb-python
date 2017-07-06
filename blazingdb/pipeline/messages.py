@@ -7,24 +7,21 @@ import uuid
 
 from blazingdb import exceptions
 
-from . import handle
-
 
 class Message(object):
     """ Base class used for all messages passed within the pipeline """
 
     DEFAULT_MARKER = object()
 
-    def __init__(self, *packets, initial_id=None, loop=None, track_following=False):
+    def __init__(self, *packets, initial_id=None, handle=None):
         self.msg_id = uuid.uuid4()
         self.initial_id = initial_id if initial_id is not None else self.msg_id
 
+        self.handle = handle
         self.packets = set(iter(packets))
         self.stage_idx = 0
         self.system = None
 
-        self.loop = loop
-        self.handle = handle.Handle(loop, track_following=track_following)
 
     def __repr__(self):
         info = []
@@ -39,14 +36,23 @@ class Message(object):
         return "<%s %s>" % (self.__class__.__name__, " ".join(info))
 
     @classmethod
-    def _build_next(cls, msg, packets, track_following):
-        clone = cls(*packets, *msg.packets,
-            initial_id=msg.initial_id, loop=msg.loop, track_following=track_following)
+    def _build_next(cls, msg, packets, track_children):
+        if msg.handle is not None:
+            clone_handle = msg.handle.create_child(track_children=track_children)
+        else:
+            clone_handle = None
 
+        clone = cls(*packets, *msg.packets, initial_id=msg.initial_id, handle=clone_handle)
         clone.stage_idx = msg.stage_idx + 1
-        msg.handle.add_follower(clone.handle)
 
         return clone
+
+    def complete(self):
+        """ Signals the given message as completed """
+        if self.handle is None:
+            return
+
+        self.handle.complete()
 
     def add_packet(self, packet):
         """ Adds the given packet to the message """
@@ -83,10 +89,10 @@ class Message(object):
         """ Removes the given packet from the message """
         self.packets.remove(packet)
 
-    async def forward(self, *packets, system=None, track_following=False):
+    async def forward(self, *packets, system=None, track_children=False):
         """ Forwards the message to the next stage in the pipeline """
         system = system if system is not None else self.system
-        msg = Message._build_next(self, packets, track_following)
+        msg = Message._build_next(self, packets, track_children)
 
         await system.enqueue(msg)
         return msg.handle

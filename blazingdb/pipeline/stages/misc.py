@@ -6,7 +6,6 @@ Defines a series of miscellaneous pipeline stages, including:
 """
 
 import asyncio
-import collections
 import fnmatch
 import logging
 
@@ -84,42 +83,22 @@ class SemaphoreStage(base.BaseStage):
 class SingleFileStage(base.BaseStage):
     """ Collects messages generated from an initial message and processes them one at a time """
 
-    Processor = collections.namedtuple("Processor", ["task", "queue"])
-
     def __init__(self, loop=None):
         super(SingleFileStage, self).__init__(packets.Packet)
 
         self.loop = loop
-        self.processors = dict()
+        self.semaphores = dict()
 
-    def _get_processor(self, msg_id):
-        if msg_id not in self.processors:
-            processor = SingleFileStage.Processor(
-                queue=asyncio.Queue(loop=self.loop),
-                task=asyncio.ensure_future(self._process_queue(msg_id), loop=self.loop))
+    def _get_semaphore(self, msg_id):
+        if msg_id not in self.semaphores:
+            self.semaphores[msg_id] = asyncio.BoundedSemaphore(loop=self.loop)
 
-            self.processors[msg_id] = processor
-
-        return self.processors[msg_id]
-
-    async def _process_queue(self, msg_id):
-        queue = self.processors[msg_id].queue
-
-        while not queue.empty():
-            message = await queue.get()
-            handle = await message.forward(track_following=True)
-
-            await handle
-
-            queue.task_done()
-
-        self.processors.pop(msg_id)
+        return self.semaphores[msg_id]
 
     async def process(self, message):
-        msg_id = message.msg_id
-        processor = self._get_processor(msg_id)
-
-        await processor.queue.put(message)
+        async with self._get_semaphore(message.msg_id):
+            handle = await message.forward(track_children=True)
+            await handle
 
 
 class SkipTableStage(base.BaseStage):

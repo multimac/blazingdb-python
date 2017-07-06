@@ -4,7 +4,7 @@ Defines the base class for all triggers
 
 import abc
 
-from blazingdb.pipeline import messages, packets
+from blazingdb.pipeline import messages, handle, packets
 
 
 # pylint: disable=too-few-public-methods
@@ -30,5 +30,6 @@ class TableTrigger(BaseTrigger):
     async def poll(self):
         async for table in self._poll():
             packet = packets.ImportTablePacket(self.source, table)
+            msg_handle = handle.Handle(track_children=True)
 
-            yield messages.Message(packet)
+            yield messages.Message(packet, handle=msg_handle)

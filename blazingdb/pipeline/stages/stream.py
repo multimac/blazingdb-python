@@ -9,7 +9,6 @@ import logging
 import operator
 import signal
 
-from blazingdb import processor
 from blazingdb.util.blazing import DATE_FORMAT
 from blazingdb.util import process
 
@@ -38,7 +37,7 @@ class StreamGenerationStage(base.BaseStage):
         handles = []
         async for chunk in source.retrieve(table):
             packet = packets.DataLoadPacket(chunk, index)
-            handle = await message.forward(packet, track_following=True)
+            handle = await message.forward(packet, track_children=True)
 
             while len(handles) >= 5:
                 _, pending = await asyncio.wait(

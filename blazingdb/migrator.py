@@ -17,7 +17,7 @@ class Migrator(object):
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop
-        self.processor = processor.Processor(self._process_import, loop=loop)
+        self.processor = processor.Processor(self._process_import, loop=loop, processor_count=1)
 
         self.triggers = triggers
         self.pipeline = pipeline
@@ -27,7 +27,8 @@ class Migrator(object):
         """ Processes an import message """
         self.logger.info("Running message %s through the pipeline", message)
 
-        await self.pipeline.process(message)
+        await self.pipeline.enqueue(message)
+        await message.handle
 
     async def _poll_trigger(self, trigger):
         """ Polls a trigger, placing any returned messages on the queue """
