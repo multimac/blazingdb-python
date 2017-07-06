@@ -107,7 +107,7 @@ class SingleFileStage(base.BaseStage):
 
         while not queue.empty():
             message = await queue.get()
-            handle = await message.forward()
+            handle = await message.forward(track_following=True)
 
             await handle
 
@@ -120,7 +120,6 @@ class SingleFileStage(base.BaseStage):
         processor = self._get_processor(msg_id)
 
         await processor.queue.put(message)
-        await processor.task
 
 
 class SkipTableStage(base.BaseStage):
