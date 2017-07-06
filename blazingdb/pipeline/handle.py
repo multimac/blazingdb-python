@@ -33,7 +33,9 @@ class Handle(object):
     def create_child(self, track_children=False):
         """ Creates a new follower from the handle """
         handle = Handle(loop=self.loop, parent=self, track_children=track_children)
+
         self.add_child(handle)
+        return handle
 
     def complete(self):
         self.future.set_result(None)
