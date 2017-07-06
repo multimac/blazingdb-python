@@ -32,6 +32,7 @@ class System(object):
     async def enqueue(self, message):
         """ Queues a given message to be processed """
         message.system = self
+
         asyncio.ensure_future(self._process_message(message), loop=self.loop)
 
     async def shutdown(self):

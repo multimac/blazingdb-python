@@ -19,8 +19,9 @@ class Handle(object):
     def __await__(self):
         yield from self.future.__await__()
 
-        if self.children:
-            yield from asyncio.wait(self.children, loop=self.loop)
+        while self.children:
+            self.children, previous = [], self.children
+            yield from asyncio.wait(previous, loop=self.loop)
 
     def add_child(self, follower):
         """ Adds a follower to the handle """
