@@ -96,7 +96,7 @@ class SingleFileStage(base.BaseStage):
         return self.semaphores[msg_id]
 
     async def process(self, message):
-        async with self._get_semaphore(message.msg_id):
+        async with self._get_semaphore(message.initial_id):
             handle = await message.forward(track_children=True)
             await handle
 
