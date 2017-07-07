@@ -40,7 +40,7 @@ class StreamGenerationStage(base.BaseStage):
             packet = packets.DataLoadPacket(chunk, index)
             handle = await message.forward(packet, track_children=True)
 
-            while len(handles) >= 5:
+            while len(handles) >= 10:
                 self.logger.debug("Waiting for load packets to be processed")
 
                 _, pending = await asyncio.wait(

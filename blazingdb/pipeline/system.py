@@ -17,9 +17,6 @@ class System(object):
         async def process(self, message):
             pass
 
-        async def receive(self, message):
-            pass
-
     def __init__(self, *stages, loop=None):
         self.logger = logging.getLogger(__name__)
 
