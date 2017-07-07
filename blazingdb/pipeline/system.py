@@ -5,6 +5,7 @@ Defines classes involved in running stages of a pipeline
 import asyncio
 import logging
 
+from . import packets
 from .stages import base
 
 
@@ -13,6 +14,9 @@ class System(object):
 
     class BlackholeStage(base.BaseStage):
         """ Empty stage to prevent messages continuing past end of pipeline """
+
+        def __init__(self):
+            super(System.BlackholeStage, self).__init__(packets.Packet)
 
         async def process(self, message):
             pass
