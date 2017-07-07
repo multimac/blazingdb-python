@@ -22,7 +22,6 @@ class StreamGenerationStage(base.BaseStage):
     """ Processes a stream of data into rows BlazingDB can import """
     def __init__(self, loop=None):
         super(StreamGenerationStage, self).__init__(packets.ImportTablePacket)
-        self.logger = logging.getLogger(__name__)
         self.loop = loop
 
     async def process(self, message):
@@ -41,8 +40,6 @@ class StreamGenerationStage(base.BaseStage):
             handle = await message.forward(packet, track_children=True)
 
             while len(handles) >= 10:
-                self.logger.debug("Waiting for load packets to be processed")
-
                 _, pending = await asyncio.wait(
                     handles, loop=self.loop,
                     return_when=asyncio.FIRST_COMPLETED)
