@@ -22,13 +22,14 @@ def shutdown_loop(loop, executor):
     """ Shuts down the given loop, cancelling and completing all tasks """
     logging.getLogger(__name__).info("Shutting down event loop")
 
-    try:
-        pending = asyncio.Task.all_tasks(loop)
-        gathered = asyncio.gather(*pending, loop=loop, return_exceptions=True)
+    pending = asyncio.Task.all_tasks(loop)
+    gathered = asyncio.gather(*pending, loop=loop, return_exceptions=True)
 
+    try:
         loop.run_until_complete(gathered)
     except KeyboardInterrupt:
         logging.getLogger(__name__).warning("Ignoring pending tasks")
+        gathered.cancel()
 
     try:
         shutdown_gens = loop.shutdown_asyncgens()
