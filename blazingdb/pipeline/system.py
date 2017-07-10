@@ -48,8 +48,8 @@ class System(object):
         while self.tasks:
             self.tasks, pending = [], self.tasks
 
-            await asyncio.gather(pending,
+            await asyncio.gather(*pending,
                 loop=self.loop, return_exceptions=True)
 
-        await asyncio.gather(shutdown_tasks,
+        await asyncio.gather(*shutdown_tasks,
             loop=self.loop, return_exceptions=True)
