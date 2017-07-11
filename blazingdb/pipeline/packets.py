@@ -36,6 +36,12 @@ class DataLoadPacket(Packet):
         self.index = index
         self.future = future
 
+class DataUnloadPacket(Packet):
+    """ Packet describing the location of an unload of data """
+    def __init__(self, bucket, key):
+        self.bucket = bucket
+        self.key = key
+
 class DestinationPacket(Packet):
     """ Packet describing the destination for the import """
     def __init__(self, destination):
