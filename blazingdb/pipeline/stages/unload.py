@@ -4,7 +4,6 @@ Defines the series of stages for handling unloads from Redshift
 
 import asyncio
 import codecs
-import collections
 import json
 import re
 
@@ -23,26 +22,25 @@ class S3Transport(asyncio.ReadTransport):
         super(S3Transport, self).__init__()
 
         loop = loop if loop is not None else asyncio.get_event_loop()
-        loop.ensure_future(self._read_stream(reader, stream))
+        asyncio.ensure_future(self._read_stream(reader, stream), loop=loop)
 
         self.is_closed = False
         self.stream = stream
 
         self.buffer_amount = 4096
         self.waiter = asyncio.Event(loop=loop)
+        self.resume_reading()
 
     async def _read_stream(self, reader, stream):
-        decoder = S3Transport.Utf8Decoder(errors="strict")
-
-        final = False
-        while not final:
-            await self.waiter
+        while True:
+            await self.waiter.wait()
 
             data = await stream.read(self.buffer_amount)
-            final = not data
 
-            text = decoder.decode(data, final=final)
-            reader.feed_data(text)
+            # pragma pylint: disable=multiple-statements
+            if not data: break
+
+            reader.feed_data(data)
 
         reader.feed_eof()
         stream.close()
@@ -146,6 +144,7 @@ class UnloadProcessingStage(base.BaseStage):
 
             while True:
                 line = await reader.readline()
+                line = line.decode("utf-8")
 
                 if not line:
                     break
@@ -175,20 +174,19 @@ class UnloadProcessingStage(base.BaseStage):
         unload_pkt = message.pop_packet(packets.DataUnloadPacket)
 
         generator = self._batch_generator()
-        generator.send(None)
+        await generator.asend(None)
 
         handles = []
-
-        for url in self._read_manifest(unload_pkt.bucket, unload_pkt.key):
+        manifest = unload_pkt.key + "manifest"
+        for url in await self._read_manifest(unload_pkt.bucket, manifest):
             bucket, key = self._parse_s3_url(url)
 
-            stream = self._create_stream(bucket, key)
+            stream = await self._create_stream(bucket, key)
             reader = asyncio.StreamReader(loop=self.loop)
-
-            # pragma pylint: disable=unused-variable
             transport = S3Transport(reader, stream, loop=self.loop)
+            reader.set_transport(transport)
 
-            batch = generator.send(reader)
+            batch = await generator.asend(reader)
             while batch is not None:
                 data, index = batch
 
@@ -203,11 +201,16 @@ class UnloadProcessingStage(base.BaseStage):
 
                     handles = list(pending)
 
+                batch = await generator.asend(None)
                 handles.append(handle)
 
-        data, index = generator.send(None)
-        packet = packets.DataLoadPacket(data, index)
-        handle = await message.forward(packet, track_children=True)
+        data, index = await generator.asend(None)
+
+        if data:
+            packet = packets.DataLoadPacket(data, index)
+            handle = await message.forward(packet, track_children=True)
+
+            handles.append(handle)
 
         await asyncio.wait(handles + [handle], loop=self.loop)
         await message.forward(packets.DataCompletePacket())
