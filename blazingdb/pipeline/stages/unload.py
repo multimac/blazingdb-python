@@ -59,6 +59,44 @@ class S3Transport(asyncio.ReadTransport):
         self.waiter.set()
 
 
+class UnloadGenerationStage(base.BaseStage):
+    """ Performs an UNLOAD query on Redshift to export data for a table """
+
+    def __init__(self, bucket, path_prefix=None):
+        super(UnloadGenerationStage, self).__init__(packets.ImportTablePacket)
+
+        self.bucket = bucket
+        self.path_prefix = path_prefix
+
+    def process(self, message):
+        import_pkt = message.get_packet(packets.ImportTablePacket)
+
+        source = import_pkt.source
+        table = import_pkt.table
+
+        key = table + "/slice_"
+        if self.path_prefix is not None:
+            key = self.path_prefix + "/" + key
+
+        columns = await source.get_columns(table)
+        query_columns = ",".join(column.name for column in columns)
+        query = " ".join([
+            "SELECT {0}".format(query_columns),
+            "FROM {0}".format(source.get_identifier(table))
+        ])
+
+        message.add_packet(packets.DataColumnsPacket(columns))
+        message.add_packet(packets.DataUnloadPacket(self.bucket, key))
+
+        await source.execute(" ".join([
+            "UNLOAD ({0})".format(query),
+            "TO 's3://{0}/{1}'".format(self.bucket, key),
+            "MANIFEST ALLOWOVERWRITE"
+        ]))
+
+        await message.forward()
+
+
 class UnloadProcessingStage(base.BaseStage):
     """ Processes a DataUnloadPacket and transforms it into a stream of DataLoadPacket """
 
