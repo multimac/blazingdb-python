@@ -69,6 +69,11 @@ class PostgresSource(base.BaseSource):
 
         return columns
 
+    async def execute(self, query, *args):
+        """ Executes a custom query against the source, ignoring the results """
+        async with self.pool.acquire() as connection:
+            await connection.execute(query, *args)
+
     async def query(self, query, *args):
         """ Performs a custom query against the source """
         async with self.pool.acquire() as connection:

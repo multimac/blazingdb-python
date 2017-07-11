@@ -31,15 +31,12 @@ class BaseSource(object, metaclass=abc.ABCMeta):
         """ Retrieves a list of columns for the given table from the source """
 
     @abc.abstractmethod
-    async def query(self, query, *args):
-        """ Performs a custom query against the source """
-
     async def execute(self, query, *args):
         """ Executes a custom query against the source, ignoring the results """
-        results = self.query(query, *args)
 
-        async for _ in results:
-            return
+    @abc.abstractmethod
+    async def query(self, query, *args):
+        """ Performs a custom query against the source """
 
     async def retrieve(self, table):
         """ Retrieves data for the given table from the source """

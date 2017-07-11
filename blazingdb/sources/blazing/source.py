@@ -56,6 +56,11 @@ class BlazingSource(base.BaseSource):
 
         return columns
 
+    async def execute(self, query, *args): # pragma pylint: disable=multiple-statements
+        """ Executes a custom query against the source, ignoring the results """
+        results = self.query(query, *args)
+        async for _ in results: return
+
     async def query(self, query, *args):
         """ Performs a custom query against the source """
         if args:
