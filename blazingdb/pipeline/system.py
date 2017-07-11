@@ -28,16 +28,15 @@ class System(object):
         self.stages = list(stages) + [System.BlackholeStage()]
         self.tasks = set()
 
-    async def _process_message(self, message):
-        await self.stages[message.stage_idx].receive(message)
-        self.tasks.remove(asyncio.Task.current_task())
-
     async def enqueue(self, message):
         """ Queues a given message to be processed """
+        async def _process_message(message):
+            await self.stages[message.stage_idx].receive(message)
+            self.tasks.remove(asyncio.Task.current_task())
+
         message.system = self
 
-        coroutine = self._process_message(message)
-        task = asyncio.ensure_future(coroutine, loop=self.loop)
+        task = asyncio.ensure_future(_process_message(message), loop=self.loop)
 
         self.tasks.add(task)
 
