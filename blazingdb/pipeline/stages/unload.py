@@ -4,6 +4,7 @@ Defines the series of stages for handling unloads from Redshift
 
 import asyncio
 import codecs
+import collections
 import json
 import re
 
@@ -62,11 +63,26 @@ class S3Transport(asyncio.ReadTransport):
 class UnloadGenerationStage(base.BaseStage):
     """ Performs an UNLOAD query on Redshift to export data for a table """
 
-    def __init__(self, bucket, path_prefix=None):
+    def __init__(self, bucket, access_key, secret_key, path_prefix=None, session_token=None):
         super(UnloadGenerationStage, self).__init__(packets.ImportTablePacket)
 
         self.bucket = bucket
         self.path_prefix = path_prefix
+
+        self.access_key = access_key
+        self.secret_key = secret_key
+        self.session_token = session_token
+
+    def _generate_credentials(self):
+        segments = [
+            "ACCESS_KEY_ID '{0}'".format(self.access_key),
+            "SECRET_ACCESS_KEY '{0}'".format(self.secret_key)
+        ]
+
+        if self.session_token is not None:
+            segments.append("SESSION_TOKEN '{0}'".format(self.session_token))
+
+        return " ".join(segments)
 
     async def process(self, message):
         import_pkt = message.get_packet(packets.ImportTablePacket)
@@ -80,18 +96,19 @@ class UnloadGenerationStage(base.BaseStage):
 
         columns = await source.get_columns(table)
         query_columns = ",".join(column.name for column in columns)
+
+        message.add_packet(packets.DataColumnsPacket(columns))
+        message.add_packet(packets.DataUnloadPacket(self.bucket, key))
+
         query = " ".join([
             "SELECT {0}".format(query_columns),
             "FROM {0}".format(source.get_identifier(table))
         ])
 
-        message.add_packet(packets.DataColumnsPacket(columns))
-        message.add_packet(packets.DataUnloadPacket(self.bucket, key))
-
         await source.execute(" ".join([
             "UNLOAD ({0})".format(query),
             "TO 's3://{0}/{1}'".format(self.bucket, key),
-            "MANIFEST ALLOWOVERWRITE"
+            "MANIFEST ALLOWOVERWRITE {0}".format(self._generate_credentials())
         ]))
 
         await message.forward()
