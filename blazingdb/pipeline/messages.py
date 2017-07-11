@@ -74,6 +74,22 @@ class Message(object):
         check_type = lambda packet: isinstance(packet, packet_types)
         return set(filter(check_type, self.packets))
 
+    def pop_packet(self, packet_type, default=DEFAULT_MARKER):
+        """ Retrieves one packet of the given type and removes it from the message """
+        packet = self.get_packet(packet_type, default=default)
+
+        self.remove_packet(packet)
+        return packet
+
+    def pop_packets(self, *packet_types):
+        """ Retrieves and removes packets of the given types from the message """
+        packets = self.get_packets(*packet_types)
+
+        for packet in packets:
+            self.remove_packet(packet)
+
+        return packets
+
     def update_packet(self, packet, **updates):
         """ Updates values in the given packet """
         self.packets.remove(packet)
