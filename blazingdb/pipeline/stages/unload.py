@@ -68,7 +68,7 @@ class UnloadGenerationStage(base.BaseStage):
         self.bucket = bucket
         self.path_prefix = path_prefix
 
-    def process(self, message):
+    async def process(self, message):
         import_pkt = message.get_packet(packets.ImportTablePacket)
 
         source = import_pkt.source
