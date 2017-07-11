@@ -47,11 +47,6 @@ class DestinationPacket(Packet):
     def __init__(self, destination):
         self.destination = destination
 
-class FuturePacket(Packet):
-    """ Packet containing future to be completed later on """
-    def __init__(self, future):
-        self.future = future
-
 class ImportTablePacket(Packet):
     """ Packet describing a table to be imported """
     def __init__(self, source, table):
