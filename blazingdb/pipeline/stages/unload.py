@@ -104,7 +104,7 @@ class UnloadGenerationStage(base.BaseStage):
         ])
 
         await source.execute(" ".join([
-            "UNLOAD ('{0}')".format(query),
+            "UNLOAD ('{0}')".format(query.replace("'", "''")),
             "TO 's3://{0}/{1}'".format(self.bucket, key),
             "MANIFEST ALLOWOVERWRITE {0}".format(self._generate_credentials())
         ]))
