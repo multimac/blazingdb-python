@@ -285,7 +285,7 @@ class UnloadRetrievalStage(base.BaseStage):
 class UnloadProcessingStage(base.BaseStage):
     """ Processes a DataUnloadPacket and transforms it into a stream of DataLoadPacket """
 
-    def __init__(self, loop=None, **kwargs):
+    def __init__(self, loop=None):
         super(UnloadProcessingStage, self).__init__(packets.DataLoadPacket)
         self.logger = logging.getLogger(__name__)
 
