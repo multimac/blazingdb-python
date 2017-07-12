@@ -291,7 +291,8 @@ class UnloadProcessingStage(base.BaseStage):
     @staticmethod
     def _process_data(column, data):
         # pragma pylint: disable=multiple-statements
-        if column.type == "long": return int(data)
+        if not data: return None
+        elif column.type == "long": return int(data)
         elif column.type == "double": return float(data)
         elif column.type == "string": return data
         elif column.type == "date":
