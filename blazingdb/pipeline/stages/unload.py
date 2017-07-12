@@ -119,7 +119,7 @@ class UnloadStream(object):
         """ Retrieves a stream for the object """
         return await self.client.get_object(Bucket=bucket, Key=key)
 
-    async def _populate_reader(self):
+    async def _cycle_reader(self):
         """ Parses the next url in the queue and creates a reader from it """
         bucket, key = self._parse_s3_url(self.urls.popleft())
         response = await self._retrieve_object(bucket, key)
@@ -128,17 +128,22 @@ class UnloadStream(object):
         self.current_reader = reader
         self.current_transport = transport
 
-    def at_eof(self):
+    async def _ensure_reader(self):
+        if self.current_reader is None:
+            await self._cycle_reader()
+
+        while self.urls and self.current_reader.at_eof():
+            await self._cycle_reader()
+
+    async def at_eof(self):
         """ Determines whether or not there is any futher data in the slices """
-        return not self.urls and self.current_reader.at_eof()
+        await self._ensure_reader()
+
+        return self.current_reader.at_eof()
 
     async def readline(self):
         """ Reads the next line from the stream """
-        if self.current_reader is None:
-            await self._populate_reader()
-
-        while self.urls and self.current_reader.at_eof():
-            await self._populate_reader()
+        await self._ensure_reader()
 
         line = await self.current_reader.readline()
         line = line.decode(self.current_transport.encoding)
@@ -234,10 +239,11 @@ class UnloadRetrievalStage(base.BaseStage):
         rows = []
 
         for _ in range(0, self.batch_count):
-            if stream.at_eof():
+            row = await stream.readline()
+
+            if not row:
                 break
 
-            row = await stream.readline()
             rows.append(row)
 
         return rows
