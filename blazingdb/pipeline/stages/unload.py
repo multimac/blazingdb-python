@@ -7,9 +7,13 @@ import cgi
 import collections
 import csv
 import datetime
+import functools
 import json
 import logging
 import re
+import signal
+
+from blazingdb.util import process
 
 from . import base
 from .. import packets
@@ -74,7 +78,19 @@ class S3ReadTransport(asyncio.ReadTransport):
         self.waiter.set()
 
 
-class UnloadSliceStream(object):
+class UnloadDialect(csv.Dialect):
+    """ The dialect used by the Amazon Redshift UNLOAD command """
+    delimiter = UNLOAD_DELIMITER
+    doublequote = False
+    escapechar = "\\"
+    lineterminator = "\n"
+    quotechar = None
+    quoting = csv.QUOTE_NONE
+    skipinitialspace = False
+    strict = True
+
+
+class UnloadStream(object):
     """ Reads rows out of a series of unloaded slices of data from S3 """
 
     def __init__(self, client, urls, loop=None):
@@ -127,83 +143,6 @@ class UnloadSliceStream(object):
         line = line.decode(self.current_transport.encoding)
 
         return line
-
-class UnloadStreamReader(object):
-    """ Reads lines from an UnloadSliceStream and processes them into rows """
-
-    class Dialect(csv.Dialect):
-        """ The dialect used by the Amazon Redshift UNLOAD command """
-        delimiter = UNLOAD_DELIMITER
-        doublequote = False
-        escapechar = "\\"
-        lineterminator = "\n"
-        quotechar = None
-        quoting = csv.QUOTE_NONE
-        skipinitialspace = False
-        strict = True
-
-    class Queue(object):
-        """ An interable queue for consumption by csv.reader """
-
-        def __init__(self):
-            self.queue = collections.deque()
-
-        def __iter__(self):
-            return self
-
-        def __next__(self):
-            if not self.queue:
-                raise StopIteration
-
-            return self.queue.popleft()
-
-        def empty(self):
-            return not bool(self.queue)
-
-        def push(self, elements):
-            self.queue.extend(elements)
-            return self
-
-    DEFAULT_QUEUE_BUFFER = 24000
-
-    def __init__(self, stream, **kwargs):
-        self.stream = stream
-
-        self.queue_buffer = kwargs.get("queue_buffer", UnloadStreamReader.DEFAULT_QUEUE_BUFFER)
-        self.queue = UnloadStreamReader.Queue()
-
-        self.csv_reader = csv.reader(
-            self.queue, dialect=UnloadStreamReader.Dialect())
-
-    async def _read_stream(self):
-        """ Reads the next line from the stream """
-        return await self.stream.readline()
-
-    async def _populate_queue(self):
-        """ Populates the internal queue from the stream """
-        lines = []
-        for _ in range(0, self.queue_buffer):
-            if self.stream.at_eof():
-                break
-
-            line = await self._read_stream()
-
-            if not line:
-                continue
-
-            lines.append(line)
-
-        self.queue.push(lines)
-
-    async def readrow(self):
-        """ Reads the next row from the stream """
-        if self.queue.empty():
-            if self.stream.at_eof():
-                return None
-
-            await self._populate_queue()
-
-        return next(self.csv_reader)
 
 
 class UnloadGenerationStage(base.BaseStage):
@@ -272,46 +211,32 @@ class UnloadGenerationStage(base.BaseStage):
         await message.forward()
 
 
-class UnloadProcessingStage(base.BaseStage):
+class UnloadRetrievalStage(base.BaseStage):
     """ Processes a DataUnloadPacket and transforms it into a stream of DataLoadPacket """
 
-    DEFAULT_BATCH_COUNT = 24000
+    DEFAULT_BATCH_COUNT = 4000
     DEFAULT_PENDING_HANDLES = 10
 
     def __init__(self, client, loop=None, **kwargs):
-        super(UnloadProcessingStage, self).__init__(packets.DataUnloadPacket)
+        super(UnloadRetrievalStage, self).__init__(packets.DataUnloadPacket)
         self.logger = logging.getLogger(__name__)
 
-        self.loop = loop if loop is not None else asyncio.get_event_loop()
+        self.loop = loop
         self.client = client
 
-        self.batch_count = kwargs.get("batch_count", UnloadProcessingStage.DEFAULT_BATCH_COUNT)
-        self.pending_handles = kwargs.get("pending_handles", UnloadProcessingStage.DEFAULT_PENDING_HANDLES)
+        self.batch_count = kwargs.get(
+            "batch_count", UnloadRetrievalStage.DEFAULT_BATCH_COUNT)
+        self.pending_handles = kwargs.get(
+            "pending_handles", UnloadRetrievalStage.DEFAULT_PENDING_HANDLES)
 
-    @staticmethod
-    def _process_data(column, data):
-        # pragma pylint: disable=multiple-statements
-        if not data: return None
-        elif column.type == "long": return int(data)
-        elif column.type == "double": return float(data)
-        elif column.type == "string": return data
-        elif column.type == "date":
-            return datetime.datetime.strptime(data, PYTHON_DATE_FORMAT)
-
-        raise ValueError("unknown column type, {0}".format(column.type))
-
-    async def _read_batch(self, reader, columns):
+    async def _read_batch(self, stream):
         rows = []
 
         for _ in range(0, self.batch_count):
-            row = await reader.readrow()
-
-            if row is None:
+            if stream.at_eof():
                 break
 
-            for i, column in enumerate(columns):
-                row[i] = self._process_data(column, row[i])
-
+            row = await stream.readline()
             rows.append(row)
 
         return rows
@@ -326,18 +251,15 @@ class UnloadProcessingStage(base.BaseStage):
 
     async def process(self, message):
         unload_pkt = message.pop_packet(packets.DataUnloadPacket)
-        columns_pkt = message.get_packet(packets.DataColumnsPacket)
 
         manifest = unload_pkt.key + "manifest"
         urls = await self._read_manifest(unload_pkt.bucket, manifest)
-
-        stream = UnloadSliceStream(self.client, urls, loop=self.loop)
-        reader = UnloadStreamReader(stream)
+        stream = UnloadStream(self.client, urls, loop=self.loop)
 
         index = 0
         handles = []
         while True:
-            data = await self._read_batch(reader, columns_pkt.columns)
+            data = await self._read_batch(stream)
 
             if not data:
                 break
@@ -357,3 +279,61 @@ class UnloadProcessingStage(base.BaseStage):
 
         await asyncio.wait(handles, loop=self.loop)
         await message.forward(packets.DataCompletePacket())
+
+
+class UnloadProcessingStage(base.BaseStage):
+    """ Processes a DataUnloadPacket and transforms it into a stream of DataLoadPacket """
+
+    def __init__(self, loop=None, **kwargs):
+        super(UnloadProcessingStage, self).__init__(packets.DataLoadPacket)
+        self.logger = logging.getLogger(__name__)
+
+        self.executor = process.ProcessPoolExecutor(_quiet_sigint)
+        self.loop = loop if loop is not None else asyncio.get_event_loop()
+
+    async def shutdown(self):
+        self.executor.shutdown(wait=True)
+
+    async def _process_in_executor(self, data, columns):
+        return await self.loop.run_in_executor(self.executor, process_data, data, columns)
+
+    async def process(self, message):
+        columns = message.get_packet(packets.DataColumnsPacket).columns
+
+        for load_pkt in message.get_packets(packets.DataLoadPacket):
+            processed_data = await self._process_in_executor(load_pkt.data, columns)
+            message.update_packet(load_pkt, data=processed_data)
+
+        await message.forward()
+
+
+def process_data(data, columns):
+    reader = csv.reader(data, dialect=UnloadDialect())
+    mappings = [_create_mapping(col) for col in columns]
+    process_row = functools.partial(_process_row, mappings)
+
+    return list(map(process_row, reader))
+
+def _create_mapping(column):
+    if column.type == "long":
+        return int
+    elif column.type == "double":
+        return float
+    elif column.type == "string":
+        return str
+    elif column.type == "date":
+        return _parse_date
+
+    raise ValueError("unknown column type, {0}".format(column.type))
+
+def _parse_date(data):
+    return datetime.datetime.strptime(data, PYTHON_DATE_FORMAT)
+
+def _process_row(mappings, row):
+    def _map_column(func, column):
+        return func(column) if column else None
+
+    return list(map(_map_column, mappings, row))
+
+def _quiet_sigint():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
