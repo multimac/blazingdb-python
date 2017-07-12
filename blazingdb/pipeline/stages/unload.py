@@ -10,6 +10,7 @@ import datetime
 import functools
 import json
 import logging
+import os
 import re
 import signal
 
@@ -28,7 +29,7 @@ UNLOAD_DELIMITER = "|"
 class S3ReadTransport(asyncio.ReadTransport):
     """ Custom asyncio.ReadTransport for reading from a StreamingResponse """
 
-    DEFAULT_BUFFER_AMOUNT = 4096
+    DEFAULT_BUFFER_AMOUNT = 65536
     DEFAULT_CHARSET = "utf-8"
 
     get_protocol = None
@@ -214,8 +215,8 @@ class UnloadGenerationStage(base.BaseStage):
 class UnloadRetrievalStage(base.BaseStage):
     """ Processes a DataUnloadPacket and transforms it into a stream of DataLoadPacket """
 
-    DEFAULT_BATCH_COUNT = 4000
-    DEFAULT_PENDING_HANDLES = 10
+    DEFAULT_BATCH_COUNT = 10000
+    DEFAULT_PENDING_HANDLES = os.cpu_count() * 2
 
     def __init__(self, client, loop=None, **kwargs):
         super(UnloadRetrievalStage, self).__init__(packets.DataUnloadPacket)
