@@ -7,6 +7,7 @@ import asyncio
 import functools
 import logging
 import operator
+import os
 import signal
 
 from blazingdb.util.blazing import DATE_FORMAT
@@ -20,9 +21,15 @@ from .. import packets
 
 class StreamGenerationStage(base.BaseStage):
     """ Processes a stream of data into rows BlazingDB can import """
-    def __init__(self, loop=None):
+
+    DEFAULT_PENDING_HANDLES = os.cpu_count() * 2
+
+    def __init__(self, loop=None, **kwargs):
         super(StreamGenerationStage, self).__init__(packets.ImportTablePacket)
         self.loop = loop
+
+        self.pending_handles = kwargs.get(
+            "pending_handles", StreamGenerationStage.DEFAULT_PENDING_HANDLES)
 
     async def process(self, message):
         import_pkt = message.get_packet(packets.ImportTablePacket)
@@ -39,7 +46,7 @@ class StreamGenerationStage(base.BaseStage):
             packet = packets.DataLoadPacket(chunk, index)
             handle = await message.forward(packet, track_children=True)
 
-            while len(handles) >= 10:
+            while len(handles) >= self.pending_handles:
                 _, pending = await asyncio.wait(
                     handles, loop=self.loop,
                     return_when=asyncio.FIRST_COMPLETED)
