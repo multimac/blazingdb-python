@@ -20,20 +20,20 @@ class Handle(object):
         yield from self.future.__await__()
 
         while self.children:
-            self.children, previous = [], self.children
-            yield from asyncio.wait(previous, loop=self.loop)
+            self.children, pending = [], self.children
+            yield from asyncio.wait(pending, loop=self.loop)
 
     def add_child(self, follower):
         """ Adds a follower to the handle """
         if self.children is not None:
             self.children.append(follower)
-
-        if self.parent is not None:
+        elif self.parent is not None:
             self.parent.add_child(follower)
 
     def create_child(self, track_children=False):
         """ Creates a new follower from the handle """
-        handle = Handle(loop=self.loop, parent=self, track_children=track_children)
+        handle = Handle(loop=self.loop, parent=self,
+            track_children=track_children)
 
         self.add_child(handle)
         return handle

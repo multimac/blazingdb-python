@@ -5,7 +5,6 @@ Defines the Postgres migrator for moving data into BlazingDB from Postgres
 import logging
 
 from blazingdb import exceptions
-from blazingdb.util.blazing import parse_value
 
 from .. import base
 
@@ -28,9 +27,6 @@ class PostgresSource(base.BaseSource):
     async def close(self):
         """ Closes the given source and cleans up the connection """
         await self.pool.close()
-
-    def _parse_row(self, columns, row):
-        return list(parse_value(column.type, val) for column, val in zip(columns, row))
 
     def get_identifier(self, table, schema=None):
         schema = self.schema if schema is None else schema

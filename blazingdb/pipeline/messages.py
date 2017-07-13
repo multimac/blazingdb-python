@@ -22,7 +22,6 @@ class Message(object):
         self.stage_idx = 0
         self.system = None
 
-
     def __repr__(self):
         info = []
 
@@ -90,6 +89,10 @@ class Message(object):
 
         return packets
 
+    def remove_packet(self, packet):
+        """ Removes the given packet from the message """
+        self.packets.remove(packet)
+
     def update_packet(self, packet, **updates):
         """ Updates values in the given packet """
         self.packets.remove(packet)
@@ -100,10 +103,6 @@ class Message(object):
 
         self.packets.add(packet)
         return packet
-
-    def remove_packet(self, packet):
-        """ Removes the given packet from the message """
-        self.packets.remove(packet)
 
     async def forward(self, *packets, system=None, track_children=False):
         """ Forwards the message to the next stage in the pipeline """

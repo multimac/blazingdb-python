@@ -3,7 +3,6 @@ Defines the base stage class for use during data migration
 """
 
 import abc
-import logging
 
 import enum
 
@@ -28,12 +27,13 @@ class BaseStage(object, metaclass=abc.ABCMeta):
 
     async def receive(self, message):
         """ Called when a given message is received """
-        if any(message.get_packets(*self.types)):
-            await self.process(message)
-        else:
-            await message.forward()
-
-        message.complete()
+        try:
+            if any(message.get_packets(*self.types)):
+                await self.process(message)
+            else:
+                await message.forward()
+        finally:
+            message.complete()
 
     async def shutdown(self):
         pass
@@ -45,22 +45,12 @@ class PipelineStage(BaseStage):
     async def before(self, message):
         pass
 
-    async def after(self, message, success):
+    async def after(self, message):
         pass
 
     async def process(self, message):
         """ Processes the current stage """
         await self.before(message)
+        await (await message.forward(track_children=True))
 
-        try:
-            await message.forward()
-        except Exception:
-            try:
-                await self.after(message, False)
-            except Exception:  # pylint: disable=broad-except
-                message = "Failed calling 'after' during exception handler"
-                logging.getLogger(__name__).exception(message)
-
-            raise
-
-        await self.after(message, True)
+        await self.after(message)

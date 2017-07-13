@@ -18,6 +18,7 @@ from blazingdb.util import process
 
 from . import base
 from .. import packets
+from ..util import get_columns
 
 
 # pragma pylint: disable=too-few-public-methods
@@ -25,59 +26,6 @@ from .. import packets
 PYTHON_DATE_FORMAT = "%Y-%m-%d"
 UNLOAD_DATE_FORMAT = "YYYY-MM-DD"
 UNLOAD_DELIMITER = "|"
-
-class S3ReadTransport(asyncio.ReadTransport):
-    """ Custom asyncio.ReadTransport for reading from a StreamingResponse """
-
-    DEFAULT_BUFFER_AMOUNT = 65536
-    DEFAULT_CHARSET = "utf-8"
-
-    get_protocol = None
-    set_protocol = None
-
-    def __init__(self, reader, response, loop=None, **kwargs):
-        super(S3ReadTransport, self).__init__()
-
-        loop = loop if loop is not None else asyncio.get_event_loop()
-        self.task = asyncio.ensure_future(self._read_stream(reader), loop=loop)
-
-        _, type_params = cgi.parse_header(response["ContentType"])
-        self.encoding = type_params.get("charset", S3ReadTransport.DEFAULT_CHARSET)
-
-        self.is_closed = False
-        self.buffer_amount = kwargs.get("buffer_amount", S3ReadTransport.DEFAULT_BUFFER_AMOUNT)
-        self.waiter = asyncio.Event(loop=loop)
-        self.stream = response["Body"]
-
-        self.resume_reading()
-
-    async def _read_stream(self, reader):
-        while True:
-            await self.waiter.wait()
-
-            data = await self.stream.read(self.buffer_amount)
-
-            if not data:
-                break
-
-            reader.feed_data(data)
-
-        reader.feed_eof()
-        self.close()
-
-    def close(self):
-        self.stream.close()
-        self.is_closed = True
-
-    def is_closing(self):
-        return self.is_closed
-
-    def pause_reading(self):
-        self.waiter.clear()
-
-    def resume_reading(self):
-        self.waiter.set()
-
 
 class UnloadDialect(csv.Dialect):
     """ The dialect used by the Amazon Redshift UNLOAD command """
@@ -151,6 +99,59 @@ class UnloadStream(object):
         return line
 
 
+class S3ReadTransport(asyncio.ReadTransport):
+    """ Custom asyncio.ReadTransport for reading from a StreamingResponse """
+
+    DEFAULT_BUFFER_AMOUNT = 65536
+    DEFAULT_CHARSET = "utf-8"
+
+    get_protocol = None
+    set_protocol = None
+
+    def __init__(self, reader, response, loop=None, **kwargs):
+        super(S3ReadTransport, self).__init__()
+
+        loop = loop if loop is not None else asyncio.get_event_loop()
+        self.task = asyncio.ensure_future(self._read_stream(reader), loop=loop)
+
+        _, type_params = cgi.parse_header(response["ContentType"])
+        self.encoding = type_params.get("charset", S3ReadTransport.DEFAULT_CHARSET)
+
+        self.is_closed = False
+        self.buffer_amount = kwargs.get("buffer_amount", S3ReadTransport.DEFAULT_BUFFER_AMOUNT)
+        self.waiter = asyncio.Event(loop=loop)
+        self.stream = response["Body"]
+
+        self.resume_reading()
+
+    async def _read_stream(self, reader):
+        while True:
+            await self.waiter.wait()
+
+            data = await self.stream.read(self.buffer_amount)
+
+            if not data:
+                break
+
+            reader.feed_data(data)
+
+        reader.feed_eof()
+        self.close()
+
+    def close(self):
+        self.stream.close()
+        self.is_closed = True
+
+    def is_closing(self):
+        return self.is_closed
+
+    def pause_reading(self):
+        self.waiter.clear()
+
+    def resume_reading(self):
+        self.waiter.set()
+
+
 class UnloadGenerationStage(base.BaseStage):
     """ Performs an UNLOAD query on Redshift to export data for a table """
 
@@ -193,7 +194,7 @@ class UnloadGenerationStage(base.BaseStage):
         if self.path_prefix is not None:
             key = self.path_prefix + "/" + key
 
-        columns = await source.get_columns(table)
+        columns = await get_columns(message, add_if_missing=True)
         query_columns = ",".join(map(self._build_query_column, columns))
 
         message.add_packet(packets.DataColumnsPacket(columns))
@@ -315,6 +316,7 @@ class UnloadProcessingStage(base.BaseStage):
 
 
 def process_data(data, columns):
+    """ Processes the csv data resulting from an UNLOAD """
     reader = csv.reader(data, dialect=UnloadDialect())
     mappings = [_create_mapping(col) for col in columns]
     process_row = functools.partial(_process_row, mappings)

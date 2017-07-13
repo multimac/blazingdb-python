@@ -15,6 +15,7 @@ from blazingdb.util import process
 
 from . import base
 from .. import packets
+from ..util import get_columns
 
 
 # pylint: disable=too-few-public-methods
@@ -31,18 +32,26 @@ class StreamGenerationStage(base.BaseStage):
         self.pending_handles = kwargs.get(
             "pending_handles", StreamGenerationStage.DEFAULT_PENDING_HANDLES)
 
+    @staticmethod
+    def _retrieve(source, table, columns):
+        query_columns = ",".join(column.name for column in columns)
+        query = " ".join([
+            "SELECT {0}".format(query_columns),
+            "FROM {0}".format(source.get_identifier(table))
+        ])
+
+        return source.query(query)
+
     async def process(self, message):
         import_pkt = message.get_packet(packets.ImportTablePacket)
 
-        source = import_pkt.source
         table = import_pkt.table
-
-        columns = await source.get_columns(table)
-        message.add_packet(packets.DataColumnsPacket(columns))
+        source = import_pkt.source
+        columns = await get_columns(message, add_if_missing=True)
 
         index = 0
         handles = []
-        async for chunk in source.retrieve(table):
+        async for chunk in self._retrieve(source, table, columns):
             packet = packets.DataLoadPacket(chunk, index)
             handle = await message.forward(packet, track_children=True)
 

@@ -26,9 +26,6 @@ class BlazingSource(base.BaseSource):
         """ Closes the given source and cleans up the connector """
         self.connector.close()
 
-    def _parse_row(self, columns, row):
-        return row
-
     def get_identifier(self, table, schema=None):
         schema = self.schema if schema is None else schema
         return self.separator.join([schema, table])
@@ -56,10 +53,12 @@ class BlazingSource(base.BaseSource):
 
         return columns
 
-    async def execute(self, query, *args): # pragma pylint: disable=multiple-statements
+    async def execute(self, query, *args):
         """ Executes a custom query against the source, ignoring the results """
         results = self.query(query, *args)
-        async for _ in results: return
+
+        async for _ in results:
+            return
 
     async def query(self, query, *args):
         """ Performs a custom query against the source """

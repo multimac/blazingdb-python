@@ -28,15 +28,20 @@ class System(object):
         self.stages = list(stages) + [System.BlackholeStage()]
         self.tasks = set()
 
-    async def enqueue(self, message):
-        """ Queues a given message to be processed """
-        async def _process_message(message):
+    async def _process_message(self, message):
+        try:
             await self.stages[message.stage_idx].receive(message)
+        except:
+            self.logger.exception("Exception occurred while process message %r", message)
+            raise
+        finally:
             self.tasks.remove(asyncio.Task.current_task())
 
+    async def enqueue(self, message):
+        """ Queues a given message to be processed """
         message.system = self
 
-        task = asyncio.ensure_future(_process_message(message), loop=self.loop)
+        task = asyncio.ensure_future(self._process_message(message), loop=self.loop)
 
         self.tasks.add(task)
 
