@@ -14,7 +14,7 @@ import os
 import re
 import signal
 
-from blazingdb.util import process
+from blazingdb.util import process, timer
 
 from . import base
 from .. import packets
@@ -44,8 +44,10 @@ class UnloadStream(object):
 
     def __init__(self, client, urls, loop=None):
         self.loop = loop if loop is not None else asyncio.get_event_loop()
-        self.urls = collections.deque(urls)
+        self.logger = logging.getLogger(__name__)
+
         self.client = client
+        self.urls = collections.deque(urls)
 
         self.current_reader = None
         self.current_transport = None
@@ -70,6 +72,10 @@ class UnloadStream(object):
     async def _cycle_reader(self):
         """ Parses the next url in the queue and creates a reader from it """
         bucket, key = self._parse_s3_url(self.urls.popleft())
+
+        self.logger.info("Starting to process unloaded chunk: %s", key)
+        self.logger.debug("Remaining urls: %s", self.urls)
+
         response = await self._retrieve_object(bucket, key)
         reader, transport = self._create_reader(response)
 
@@ -104,42 +110,76 @@ class S3ReadTransport(asyncio.ReadTransport):
 
     DEFAULT_BUFFER_AMOUNT = 65536
     DEFAULT_CHARSET = "utf-8"
+    DEFAULT_TIMER_INTERVAL = 5
 
     get_protocol = None
     set_protocol = None
 
     def __init__(self, reader, response, loop=None, **kwargs):
         super(S3ReadTransport, self).__init__()
+        self.logger = logging.getLogger(__name__)
 
         loop = loop if loop is not None else asyncio.get_event_loop()
-        self.task = asyncio.ensure_future(self._read_stream(reader), loop=loop)
+        buffer_amount = kwargs.get("buffer_amount", S3ReadTransport.DEFAULT_BUFFER_AMOUNT)
+        self._start_reader(loop, reader, response["Body"], buffer_amount)
 
         _, type_params = cgi.parse_header(response["ContentType"])
         self.encoding = type_params.get("charset", S3ReadTransport.DEFAULT_CHARSET)
-
-        self.is_closed = False
-        self.buffer_amount = kwargs.get("buffer_amount", S3ReadTransport.DEFAULT_BUFFER_AMOUNT)
         self.waiter = asyncio.Event(loop=loop)
-        self.stream = response["Body"]
+        self.is_closed = False
+
+        timer_interval = kwargs.get("timer_interval", S3ReadTransport.DEFAULT_TIMER_INTERVAL)
+        self.timer = timer.RepeatedTimer(timer_interval, self._print_state, loop=loop)
+        self.last_checked = self.was_resumed = False
 
         self.resume_reading()
 
-    async def _read_stream(self, reader):
+    def _start_reader(self, loop, reader, stream, buffer_amount):
+        coroutine = self._safe_read_stream(reader, stream, buffer_amount)
+        asyncio.ensure_future(coroutine, loop=loop)
+
+    def _print_state(self):
+        if self.was_resumed != self.last_checked:
+            state = "resumed in" if self.was_resumed else "paused for"
+
+            self.logger.debug("S3ReadTransport was %s the last %s seconds: %s",
+                state, self.timer.interval, id(self))
+
+        self.last_checked = self.was_resumed
+        self.was_resumed = False
+
+    async def _read_stream(self, reader, stream, buffer_amount):
         while True:
             await self.waiter.wait()
 
-            data = await self.stream.read(self.buffer_amount)
+            if self.is_closed:
+                break
+
+            data = await stream.read(buffer_amount)
 
             if not data:
                 break
 
             reader.feed_data(data)
 
-        reader.feed_eof()
-        self.close()
+    async def _safe_read_stream(self, reader, stream, buffer_amount):
+        self.logger.debug("Starting to process S3ReadTransport: %s", id(self))
+        self.timer.start()
+
+        try:
+            await self._read_stream(reader, stream, buffer_amount)
+        except:
+            self.logger.exception("Failed reading from S3ReadTransport: %s", id(self))
+            raise
+        else:
+            self.logger.debug("Finished reading from S3ReadTransport: %s", id(self))
+        finally:
+            self.timer.stop()
+
+            reader.feed_eof()
+            stream.close()
 
     def close(self):
-        self.stream.close()
         self.is_closed = True
 
     def is_closing(self):
@@ -149,6 +189,7 @@ class S3ReadTransport(asyncio.ReadTransport):
         self.waiter.clear()
 
     def resume_reading(self):
+        self.was_resumed = True
         self.waiter.set()
 
 
