@@ -13,15 +13,19 @@ from . import processor
 class Migrator(object):
     """ Handles migrating data from a source into BlazingDB """
 
-    def __init__(self, triggers, pipeline, destination, loop=None):
+    DEFAULT_PROCESSOR_COUNT = 5
+
+    def __init__(self, triggers, pipeline, destination, loop=None, **kwargs):
         self.logger = logging.getLogger(__name__)
 
         self.loop = loop
-        self.processor = processor.Processor(self._process_import, loop=loop, processor_count=1)
-
         self.triggers = triggers
         self.pipeline = pipeline
         self.destination = destination
+
+        processor_count = kwargs.get("processor_count", Migrator.DEFAULT_PROCESSOR_COUNT)
+        self.processor = processor.Processor(self._process_import,
+            loop=loop, processor_count=processor_count)
 
     async def _process_import(self, message):
         """ Processes an import message """
