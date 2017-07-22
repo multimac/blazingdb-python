@@ -40,3 +40,6 @@ class Handle(object):
 
     def complete(self):
         self.future.set_result(None)
+
+    def done(self):
+        self.future.done()

@@ -42,65 +42,44 @@ class UnloadDialect(csv.Dialect):
 class UnloadStream(object):
     """ Reads rows out of a series of unloaded slices of data from S3 """
 
-    def __init__(self, client, urls, loop=None):
-        self.loop = loop if loop is not None else asyncio.get_event_loop()
-        self.logger = logging.getLogger(__name__)
+    def __init__(self, response, loop=None):
+        loop = loop if loop is not None else asyncio.get_event_loop()
+        self.reader, self.transport = self._create_reader(response, loop)
 
-        self.client = client
-        self.urls = collections.deque(urls)
+    @classmethod
+    async def create_stream(cls, client, url, loop=None):
+        """ Creates an UnloadStream for the given s3 url """
+        bucket, key = cls._parse_s3_url(url)
 
-        self.current_reader = None
-        self.current_transport = None
+        logger = logging.getLogger(__name__)
+        logger.info("Starting to process unloaded chunk: %s", key)
+
+        response = await client.get_object(Bucket=bucket, Key=key)
+        return cls(response, loop=loop)
 
     @staticmethod
     def _parse_s3_url(url):
         match = re.match("s3://([a-z0-9,.-]+)/(.*)", url)
         return match.group(1, 2) if match else None
 
-    def _create_reader(self, response):
-        """ Creates an asyncio.StreamReader for reading the given response """
-        reader = asyncio.StreamReader(loop=self.loop)
-        transport = S3ReadTransport(reader, response, loop=self.loop)
+    @staticmethod
+    def _create_reader(response, loop):
+        """ Creates an asyncio.StreamReader for reading the given item """
+        reader = asyncio.StreamReader(loop=loop)
+
+        transport = S3ReadTransport(reader, response, loop=loop)
         reader.set_transport(transport)
 
         return reader, transport
 
-    async def _retrieve_object(self, bucket, key):
-        """ Retrieves a stream for the object """
-        return await self.client.get_object(Bucket=bucket, Key=key)
-
-    async def _cycle_reader(self):
-        """ Parses the next url in the queue and creates a reader from it """
-        bucket, key = self._parse_s3_url(self.urls.popleft())
-
-        self.logger.info("Starting to process unloaded chunk: %s", key)
-        self.logger.debug("Remaining urls: %s", self.urls)
-
-        response = await self._retrieve_object(bucket, key)
-        reader, transport = self._create_reader(response)
-
-        self.current_reader = reader
-        self.current_transport = transport
-
-    async def _ensure_reader(self):
-        if self.current_reader is None:
-            await self._cycle_reader()
-
-        while self.urls and self.current_reader.at_eof():
-            await self._cycle_reader()
-
-    async def at_eof(self):
+    def at_eof(self):
         """ Determines whether or not there is any futher data in the slices """
-        await self._ensure_reader()
-
-        return self.current_reader.at_eof()
+        return self.reader.at_eof()
 
     async def readline(self):
         """ Reads the next line from the stream """
-        await self._ensure_reader()
-
-        line = await self.current_reader.readline()
-        line = line.decode(self.current_transport.encoding)
+        line = await self.reader.readline()
+        line = line.decode(self.transport.encoding)
 
         return line
 
@@ -263,7 +242,7 @@ class UnloadRetrievalStage(base.BaseStage):
     """ Processes a DataUnloadPacket and transforms it into a stream of DataLoadPacket """
 
     DEFAULT_BATCH_COUNT = 10000
-    DEFAULT_PENDING_HANDLES = os.cpu_count() * 2
+    DEFAULT_PENDING_HANDLES = 4
 
     def __init__(self, client, loop=None, **kwargs):
         super(UnloadRetrievalStage, self).__init__(packets.DataUnloadPacket)
@@ -296,35 +275,36 @@ class UnloadRetrievalStage(base.BaseStage):
         async with response["Body"] as stream:
             manifest_json = json.loads(await stream.read())
 
-        return [entry["url"] for entry in manifest_json["entries"]]
+        return collections.deque(entry["url"] for entry in manifest_json["entries"])
 
     async def process(self, message):
         unload_pkt = message.pop_packet(packets.DataUnloadPacket)
-
         manifest = unload_pkt.key + "manifest"
+
         urls = await self._read_manifest(unload_pkt.bucket, manifest)
-        stream = UnloadStream(self.client, urls, loop=self.loop)
 
         index = 0
         handles = []
-        while True:
-            data = await self._read_batch(stream)
+        while urls:
+            stream = await UnloadStream.create_stream(self.client, urls.popleft(), loop=self.loop)
 
-            if not data:
-                break
+            while not stream.at_eof():
+                data = await self._read_batch(stream)
 
-            packet = packets.DataLoadPacket(data, index)
-            handle = await message.forward(packet, track_children=True)
+                if not data:
+                    break
 
-            handles.append(handle)
-            index += 1
+                packet = packets.DataLoadPacket(data, index)
+                handle = await message.forward(packet, track_children=True)
 
+                handles.append(handle)
+                index += 1
+
+            pending_iter = asyncio.as_completed(handles, loop=self.loop)
             while len(handles) >= self.pending_handles:
-                _, pending = await asyncio.wait(
-                    handles, loop=self.loop,
-                    return_when=asyncio.FIRST_COMPLETED)
+                await next(pending_iter)
 
-                handles = list(pending)
+            handles = [handle for handle in handles if handle.done()]
 
         await asyncio.wait(handles, loop=self.loop)
         await message.forward(packets.DataCompletePacket())
