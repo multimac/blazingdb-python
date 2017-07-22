@@ -142,7 +142,6 @@ class S3ReadTransport(asyncio.ReadTransport):
             reader.feed_data(data)
 
     async def _safe_read_stream(self, reader, stream, buffer_amount):
-        self.logger.debug("Starting to process S3ReadTransport: %s", id(self))
         self.timer.start()
 
         try:
@@ -150,8 +149,6 @@ class S3ReadTransport(asyncio.ReadTransport):
         except:
             self.logger.exception("Failed reading from S3ReadTransport: %s", id(self))
             raise
-        else:
-            self.logger.debug("Finished reading from S3ReadTransport: %s", id(self))
         finally:
             self.timer.stop()
 
