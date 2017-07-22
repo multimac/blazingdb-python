@@ -301,8 +301,11 @@ class UnloadRetrievalStage(base.BaseStage):
                 index += 1
 
             pending_iter = asyncio.as_completed(handles, loop=self.loop)
-            while len(handles) >= self.pending_handles:
-                await next(pending_iter)
+            for future in pending_iter:
+                if len(handles) <= self.pending_handles:
+                    break
+
+                await future
 
             handles = [handle for handle in handles if handle.done()]
 
