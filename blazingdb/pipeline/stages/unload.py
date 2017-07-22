@@ -306,7 +306,9 @@ class UnloadRetrievalStage(base.BaseStage):
 
             handles = [handle for handle in handles if handle.done()]
 
-        await asyncio.wait(handles, loop=self.loop)
+        if handles:
+            await asyncio.wait(handles, loop=self.loop)
+
         await message.forward(packets.DataCompletePacket())
 
 
