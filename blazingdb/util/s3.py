@@ -53,9 +53,8 @@ class S3ReadTransport(asyncio.ReadTransport):
             await self._process_stream()
         except concurrent.futures.CancelledError:
             raise
-        except:
+        except Exception:  # pylint: disable=broad-except
             self.logger.exception("Failed reading from S3")
-            raise
         finally:
             self.reader.feed_eof()
             self.stream.close()
