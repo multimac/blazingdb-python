@@ -31,9 +31,8 @@ class System(object):
     async def _process_message(self, message):
         try:
             await self.stages[message.stage_idx].receive(message)
-        except:
+        except Exception:  # pylint: disable=broad-except
             self.logger.exception("Exception occurred while process message %r", message)
-            raise
         finally:
             self.tasks.remove(asyncio.Task.current_task())
 
