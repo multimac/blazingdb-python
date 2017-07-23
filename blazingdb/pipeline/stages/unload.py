@@ -3,18 +3,21 @@ Defines the series of stages for handling unloads from Redshift
 """
 
 import asyncio
-import cgi
+import codecs
 import collections
 import csv
 import datetime
 import functools
+import hashlib
 import json
 import logging
-import os
-import re
+import os.path
 import signal
+import tempfile
 
-from blazingdb.util import process, timer
+import aiofiles
+
+from blazingdb.util import process, s3
 
 from . import base
 from .. import packets
@@ -27,6 +30,32 @@ PYTHON_DATE_FORMAT = "%Y-%m-%d"
 UNLOAD_DATE_FORMAT = "YYYY-MM-DD"
 UNLOAD_DELIMITER = "|"
 
+async def buffer_s3_file(client, url, loop=None, **kwargs):
+    """ Buffers an S3 file locally to allow lazy reading of data """
+    hasher = hashlib.sha1()
+    hasher.update(url.encode("utf-8"))
+    url_hash = hasher.hexdigest()
+
+    temp_dir = tempfile.TemporaryDirectory()
+    temp_filename = os.path.join(temp_dir.name, url_hash)
+
+    buffer_file = await aiofiles.open(temp_filename, "w+")
+    reader, transport = await s3.open_s3(client, url, loop=loop, **kwargs)
+
+    await buffer_file.truncate()
+    while True:
+        line = await reader.readline()
+        line = line.decode(transport.get_encoding())
+
+        if not line:
+            break
+
+        await buffer_file.write(line)
+
+    await buffer_file.seek(0)
+    return buffer_file, temp_dir
+
+
 class UnloadDialect(csv.Dialect):
     """ The dialect used by the Amazon Redshift UNLOAD command """
     delimiter = UNLOAD_DELIMITER
@@ -37,136 +66,6 @@ class UnloadDialect(csv.Dialect):
     quoting = csv.QUOTE_NONE
     skipinitialspace = False
     strict = True
-
-
-class UnloadStream(object):
-    """ Reads rows out of a series of unloaded slices of data from S3 """
-
-    def __init__(self, response, loop=None):
-        loop = loop if loop is not None else asyncio.get_event_loop()
-        self.reader, self.transport = self._create_reader(response, loop)
-
-    @classmethod
-    async def create_stream(cls, client, url, loop=None):
-        """ Creates an UnloadStream for the given s3 url """
-        bucket, key = cls._parse_s3_url(url)
-
-        logger = logging.getLogger(__name__)
-        logger.info("Starting to process unloaded chunk: %s", key)
-
-        response = await client.get_object(Bucket=bucket, Key=key)
-        return cls(response, loop=loop)
-
-    @staticmethod
-    def _parse_s3_url(url):
-        match = re.match("s3://([a-z0-9,.-]+)/(.*)", url)
-        return match.group(1, 2) if match else None
-
-    @staticmethod
-    def _create_reader(response, loop):
-        """ Creates an asyncio.StreamReader for reading the given item """
-        reader = asyncio.StreamReader(loop=loop)
-
-        transport = S3ReadTransport(reader, response, loop=loop)
-        reader.set_transport(transport)
-
-        return reader, transport
-
-    def at_eof(self):
-        """ Determines whether or not there is any futher data in the slices """
-        return self.reader.at_eof()
-
-    async def readline(self):
-        """ Reads the next line from the stream """
-        line = await self.reader.readline()
-        line = line.decode(self.transport.encoding)
-
-        return line
-
-
-class S3ReadTransport(asyncio.ReadTransport):
-    """ Custom asyncio.ReadTransport for reading from a StreamingResponse """
-
-    DEFAULT_BUFFER_AMOUNT = 65536
-    DEFAULT_CHARSET = "utf-8"
-    DEFAULT_TIMER_INTERVAL = 5
-
-    get_protocol = None
-    set_protocol = None
-
-    def __init__(self, reader, response, loop=None, **kwargs):
-        super(S3ReadTransport, self).__init__()
-        self.logger = logging.getLogger(__name__)
-
-        loop = loop if loop is not None else asyncio.get_event_loop()
-        buffer_amount = kwargs.get("buffer_amount", S3ReadTransport.DEFAULT_BUFFER_AMOUNT)
-        self._start_reader(loop, reader, response["Body"], buffer_amount)
-
-        _, type_params = cgi.parse_header(response["ContentType"])
-        self.encoding = type_params.get("charset", S3ReadTransport.DEFAULT_CHARSET)
-        self.waiter = asyncio.Event(loop=loop)
-        self.is_closed = False
-
-        timer_interval = kwargs.get("timer_interval", S3ReadTransport.DEFAULT_TIMER_INTERVAL)
-        self.timer = timer.RepeatedTimer(timer_interval, self._print_state, loop=loop)
-        self.last_checked = self.was_resumed = False
-
-        self.resume_reading()
-
-    def _start_reader(self, loop, reader, stream, buffer_amount):
-        coroutine = self._safe_read_stream(reader, stream, buffer_amount)
-        asyncio.ensure_future(coroutine, loop=loop)
-
-    def _print_state(self):
-        if self.was_resumed != self.last_checked:
-            state = "resumed in" if self.was_resumed else "paused for"
-
-            self.logger.debug("S3ReadTransport was %s the last %s seconds: %s",
-                state, self.timer.interval, id(self))
-
-        self.last_checked = self.was_resumed
-        self.was_resumed = False
-
-    async def _read_stream(self, reader, stream, buffer_amount):
-        while True:
-            await self.waiter.wait()
-
-            if self.is_closed:
-                break
-
-            data = await stream.read(buffer_amount)
-
-            if not data:
-                break
-
-            reader.feed_data(data)
-
-    async def _safe_read_stream(self, reader, stream, buffer_amount):
-        self.timer.start()
-
-        try:
-            await self._read_stream(reader, stream, buffer_amount)
-        except:
-            self.logger.exception("Failed reading from S3ReadTransport: %s", id(self))
-            raise
-        finally:
-            self.timer.stop()
-
-            reader.feed_eof()
-            stream.close()
-
-    def close(self):
-        self.is_closed = True
-
-    def is_closing(self):
-        return self.is_closed
-
-    def pause_reading(self):
-        self.waiter.clear()
-
-    def resume_reading(self):
-        self.was_resumed = True
-        self.waiter.set()
 
 
 class UnloadGenerationStage(base.BaseStage):
@@ -244,27 +143,40 @@ class UnloadRetrievalStage(base.BaseStage):
     def __init__(self, client, loop=None, **kwargs):
         super(UnloadRetrievalStage, self).__init__(packets.DataUnloadPacket)
         self.logger = logging.getLogger(__name__)
-
-        self.loop = loop
         self.client = client
+        self.loop = loop
 
         self.batch_count = kwargs.get(
             "batch_count", UnloadRetrievalStage.DEFAULT_BATCH_COUNT)
         self.pending_handles = kwargs.get(
             "pending_handles", UnloadRetrievalStage.DEFAULT_PENDING_HANDLES)
 
-    async def _read_batch(self, stream):
-        rows = []
+    async def _limit_pending(self, pending):
+        if len(pending) <= self.pending_handles:
+            return pending
 
-        for _ in range(0, self.batch_count):
-            row = await stream.readline()
+        pending_iter = asyncio.as_completed(pending, loop=self.loop)
+        for future in pending_iter:
+            await future
 
-            if not row:
+            if len(pending) <= self.pending_handles:
                 break
 
-            rows.append(row)
+        return [handle for handle in pending if not handle.done()]
 
-        return rows
+    async def _read_batch(self, stream, transport):
+        lines = []
+
+        for _ in range(0, self.batch_count):
+            line = await stream.readline()
+            line = line.decode(transport.get_encoding())
+
+            if not line:
+                break
+
+            lines.append(line)
+
+        return lines
 
     async def _read_manifest(self, bucket, key):
         response = await self.client.get_object(Bucket=bucket, Key=key)
@@ -281,33 +193,26 @@ class UnloadRetrievalStage(base.BaseStage):
         urls = await self._read_manifest(unload_pkt.bucket, manifest)
 
         index = 0
-        handles = []
+        pending = []
+
         while urls:
-            stream = await UnloadStream.create_stream(self.client, urls.popleft(), loop=self.loop)
+            await self._limit_pending(pending)
 
-            while not stream.at_eof():
-                data = await self._read_batch(stream)
+            s3_file, transport = await s3.open_s3(self.client, urls.popleft(), loop=self.loop)
+            while True:
+                batch = await self._read_batch(s3_file, transport)
 
-                if not data:
+                if not batch:
                     break
 
-                packet = packets.DataLoadPacket(data, index)
+                packet = packets.DataLoadPacket(batch, index)
                 handle = await message.forward(packet, track_children=True)
 
-                handles.append(handle)
+                pending.append(handle)
                 index += 1
 
-            pending_iter = asyncio.as_completed(handles, loop=self.loop)
-            for future in pending_iter:
-                if len(handles) <= self.pending_handles:
-                    break
-
-                await future
-
-            handles = [handle for handle in handles if handle.done()]
-
-        if handles:
-            await asyncio.wait(handles, loop=self.loop)
+        if pending:
+            await asyncio.wait(pending, loop=self.loop)
 
         await message.forward(packets.DataCompletePacket())
 
