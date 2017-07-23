@@ -39,6 +39,9 @@ class Handle(object):
         return handle
 
     def complete(self):
+        if self.future.cancelled():
+            return
+
         self.future.set_result(None)
 
     def done(self):
