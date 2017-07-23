@@ -21,5 +21,12 @@ class SourceTrigger(base.TableTrigger):
 
         self.logger.info("Tables to be imported: %s", ", ".join(tables))
 
+        blah = False
         for table in tables:
+            if table == "dim_supervisor_scd":
+                blah = True
+
+            if not blah and table not in ["absence", "application", "application_event"]:
+                continue
+
             yield table
