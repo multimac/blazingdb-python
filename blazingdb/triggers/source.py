@@ -26,7 +26,7 @@ class SourceTrigger(base.TableTrigger):
             if table == "dim_supervisor_scd":
                 blah = True
 
-            if not blah and table not in ["absence", "application", "application_event"]:
+            if not blah:
                 continue
 
             yield table
