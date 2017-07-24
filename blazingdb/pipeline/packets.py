@@ -18,9 +18,8 @@ class DataCompletePacket(Packet):
 
 class DataFilePacket(Packet):
     """ Packet describing a chunk of data in a file to be loaded """
-    def __init__(self, file_path, expect_warning):
+    def __init__(self, file_path):
         self.file_path = file_path
-        self.expect_warning = expect_warning
 
 class DataFormatPacket(Packet):
     """ Packet describing the format of a chunk of data """

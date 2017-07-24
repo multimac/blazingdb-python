@@ -48,6 +48,7 @@ class FileImportStage(BaseImportStage):
     def __init__(self, upload_folder, user, loop=None, **kwargs):
         super(FileImportStage, self).__init__(packets.DataFilePacket, loop=loop, **kwargs)
         self.logger = logging.getLogger(__name__)
+        self.loop = loop
 
         self.ignore_skipdata = kwargs.get("ignore_skipdata", False)
         self.upload_folder = os.path.join(upload_folder, user)
@@ -61,6 +62,12 @@ class FileImportStage(BaseImportStage):
 
         return os.path.relpath(chunk_filename, self.upload_folder)
 
+    async def _should_raise_warning(self, file_path, fmt):
+        newline = fmt.line_terminator
+
+        async with aiofiles.open(file_path, loop=self.loop, newline=newline) as data_file:
+            return (await data_file.readline()).endswith(fmt.field_terminator)
+
     async def _load_chunk(self, destination, packet, table, fmt):
         """ Loads a chunk of data into Blazing """
         query_filename = self._get_import_path(packet.file_path)
@@ -72,7 +79,8 @@ class FileImportStage(BaseImportStage):
             self.logger.info("Loading chunk %s into blazing", query_filename)
             await self._perform_request(destination, method, fmt, table)
         except exceptions.ServerImportWarning:
-            if not packet.expect_warning: raise  # pylint: disable=multiple-statements
+            if not await self._should_raise_warning(packet.file_path, fmt):
+                raise
 
     async def process(self, message):
         import_pkt = message.get_packet(packets.ImportTablePacket)
