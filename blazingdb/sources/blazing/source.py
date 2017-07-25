@@ -17,10 +17,9 @@ class BlazingSource(base.BaseSource):
         super(BlazingSource, self).__init__()
         self.logger = logging.getLogger(__name__)
 
+        self.separator = kwargs.get("separator", "$")
         self.connector = connector
         self.schema = schema
-
-        self.separator = kwargs.get("separator", "$")
 
     async def close(self):
         """ Closes the given source and cleans up the connector """

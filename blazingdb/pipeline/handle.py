@@ -39,6 +39,7 @@ class Handle(object):
         return handle
 
     def complete(self):
+        """ Flags the handle as completed """
         if self.future.cancelled():
             return
 

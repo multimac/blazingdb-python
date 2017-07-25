@@ -118,10 +118,6 @@ class FileOutputStage(base.BaseStage):
         """ Opens the given file """
         return aiofiles.open(filename, "w", encoding=self.encoding, loop=self.loop)
 
-    @staticmethod
-    def _check_data(data, fmt):
-        return data[0][-2:] == fmt.field_terminator + fmt.line_terminator
-
     def _get_filename(self, table, chunk):
         """ Generates a filename for the given chunk of a table """
         filename = "{0}_{1}".format(table, chunk)
@@ -143,22 +139,17 @@ class FileOutputStage(base.BaseStage):
         self.logger.info("Writing chunk file: %s", file_path)
 
         async with self._open_file(file_path) as chunk_file:
-            await chunk_file.writelines(chunk)
+            await chunk_file.writelines(chunk.readlines())
 
     async def process(self, message):
         import_pkt = message.get_packet(packets.ImportTablePacket)
-        format_pkt = message.get_packet(packets.DataFormatPacket)
 
-        for load_pkt in message.get_packets(packets.DataLoadPacket):
+        for load_pkt in message.pop_packets(packets.DataLoadPacket):
             chunk_filename = self._get_file_path(import_pkt.table, load_pkt.index)
-            expect_warning = self._check_data(load_pkt.data, format_pkt)
+            message.add_packet(packets.DataFilePacket(chunk_filename))
 
-            file_pkt = packets.DataFilePacket(chunk_filename, expect_warning)
+            await self._write_chunk(load_pkt.stream, chunk_filename)
 
-            await self._write_chunk(load_pkt.data, chunk_filename)
-
-            message.remove_packet(load_pkt)
-            message.add_packet(file_pkt)
 
         await message.forward()
 

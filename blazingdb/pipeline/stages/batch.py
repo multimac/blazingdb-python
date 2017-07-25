@@ -2,11 +2,10 @@
 Defines the base batcher class for generating batches of data to load into BlazingDB
 """
 
-import abc
-import collections
+import io
 import logging
-import math
-import operator
+
+import aiofiles
 
 from blazingdb.util import format_size, timer
 
@@ -21,13 +20,68 @@ class BatchStage(base.BaseStage):
 
     DEFAULT_LOG_INTERVAL = 10
 
-    def __init__(self, batcher, loop=None, **kwargs):
-        super(BatchStage, self).__init__(packets.DataLoadPacket, packets.DataCompletePacket)
+    def __init__(self, batch_size, loop=None, **kwargs):
+        super(BatchStage, self).__init__(packets.DataFilePacket, packets.DataCompletePacket)
+        self.logger = logging.getLogger(__name__)
+
         self.generators = dict()
-        self.batcher = batcher
         self.loop = loop
 
+        self.batch_size = batch_size
         self.log_interval = kwargs.get("log_interval", BatchStage.DEFAULT_LOG_INTERVAL)
+
+    async def _generate_batch(self):
+        def _log_progress(stream):
+            read_size = format_size(stream.tell())
+            limit_size = format_size(self.batch_size)
+
+            self.logger.info("Read %s of %s byte(s)", read_size, limit_size)
+
+        index = 0
+        data_file = None
+        while True:
+            stream = io.StringIO(newline='')
+
+            while stream.tell() < self.batch_size:
+                log_timer = timer.RepeatedTimer(self.log_interval,
+                    _log_progress, stream, loop=self.loop)
+
+                with log_timer:
+                    if data_file is None:
+                        data_args = yield
+
+                        if data_args is None:
+                            if stream.tell() > 0:
+                                yield stream, index
+
+                            return
+
+                        data_file_path, format_pkt = data_args
+                        data_file = await aiofiles.open(data_file_path,
+                            newline=format_pkt.line_terminator)
+
+                    read_amount = self.batch_size - stream.tell()
+                    lines = await data_file.readlines(read_amount)
+
+                    if not lines:
+                        data_file = None
+                        continue
+
+                    stream.writelines(lines)
+
+            yield stream, index
+
+            index += 1
+
+    def _get_generator(self, msg_id):
+        if msg_id in self.generators:
+            return self.generators[msg_id]
+
+        generator = self._generate_batch()
+        generator.send(None)
+
+        self.generators[msg_id] = generator
+        return generator
 
     def _delete_generator(self, msg_id):
         if msg_id not in self.generators:
@@ -36,234 +90,32 @@ class BatchStage(base.BaseStage):
         generator = self.generators.pop(msg_id)
         generator.close()
 
-    def _get_generator(self, msg_id):
-        if msg_id in self.generators:
-            return self.generators[msg_id]
-
-        generator = self._batch_generator()
-        generator.send(None)
-
-        self.generators[msg_id] = generator
-        return generator
-
-    def _batch_generator(self):
-        batcher = self.batcher
-        remaining = None
-        index = 0
-
-        while True:
-            batch = []
-            batch_data = batcher.init_batch()
-
-            with timer.RepeatedTimer(10, batcher.log_progress, batch_data, loop=self.loop):
-                if remaining is not None:
-                    remaining = batcher.process_chunk(batch_data, batch, remaining)
-
-                while remaining is None:
-                    chunk = yield
-
-                    if chunk is None:
-                        break
-
-                    remaining = batcher.process_chunk(batch_data, batch, chunk)
-
-            batcher.log_complete(batch_data)
-
-            yield (batch, index)
-            index += 1
-
     async def process(self, message):
         """ Generates a series of batches from the stream """
         generator = self._get_generator(message.initial_id)
+        format_pkt = message.get_packet(packets.DataFormatPacket)
 
         load_packets = []
-        for packet in message.get_packets(packets.DataLoadPacket):
-            batch = generator.send(packet.data)
-            message.remove_packet(packet)
+        for packet in message.pop_packets(packets.DataFilePacket):
+            batch = await generator.asend(packet.file_path, format_pkt)
 
             while batch is not None:
-                data, index = batch
-
-                load_packet = packets.DataLoadPacket(data, index)
+                stream, index = batch
+                load_packet = packets.DataLoadPacket(stream, index)
                 load_packets.append(load_packet)
 
-                batch = generator.send(None)
+                batch = await generator.asend(None)
 
         complete_packet = message.get_packet(packets.DataCompletePacket, default=None)
         if complete_packet is not None:
-            data, index = generator.send(None)
+            batch = await generator.asend(None)
 
-            if data:
-                load_packet = packets.DataLoadPacket(data, index)
+            if batch:
+                stream, index = batch
+                load_packet = packets.DataLoadPacket(stream, index)
                 load_packets.append(load_packet)
 
             self._delete_generator(message.msg_id)
 
         if load_packets:
             await message.forward(*load_packets)
-
-
-class BaseBatcher(object, metaclass=abc.ABCMeta):
-    """ Customisable class for batching rows """
-
-    @abc.abstractmethod
-    def init_batch(self):
-        """ Initializes a batch, returning an object to be passed as data to other calls """
-
-    @abc.abstractmethod
-    def process_chunk(self, data, batch, chunk):
-        """ Called to process rows in a chunk into a batch """
-
-    @abc.abstractmethod
-    def log_complete(self, data):
-        """ Called upon completion of a batch to perform a final log message """
-
-    @abc.abstractmethod
-    def log_progress(self, data):
-        """ Called periodically to monitor the progress of a batch """
-
-
-class ByteBatcher(BaseBatcher):
-    """ Handles performing requests to load data into Blazing """
-
-    DEFAULT_ENCODING = "utf-8"
-
-    def __init__(self, size, **kwargs):
-        self.logger = logging.getLogger(__name__)
-
-        self.encoding = kwargs.get("encoding", self.DEFAULT_ENCODING)
-        self.size = size
-
-    @abc.abstractmethod
-    def process_chunk(self, data, batch, chunk):
-        """ Called to process rows in a chunk into a batch """
-
-    def init_batch(self):
-        return {
-            "batch_length": 0,
-            "byte_count": 0,
-            "last_count": -1
-        }
-
-    def log_complete(self, data):
-        self.logger.info(
-            "Read %s (%s row(s)) from the stream",
-            format_size(data["byte_count"]),
-            data["batch_length"]
-        )
-
-    def log_progress(self, data):
-        if data["byte_count"] == data["last_count"]:
-            return
-
-        self.logger.info(
-            "Read %s of %s (%s row(s)) from the stream",
-            format_size(data["byte_count"]),
-            format_size(self.size),
-            data["batch_length"]
-        )
-
-        data["last_count"] = data["byte_count"]
-
-
-class PreciseByteBatcher(ByteBatcher):
-    """ Handles performing requests to load data into Blazing """
-
-    def _update_batch(self, data, row):
-        encoded_row = row.encode(self.encoding)
-        data["byte_count"] += len(encoded_row)
-        data["batch_length"] += 1
-
-    def _reached_limit(self, data):
-        return data["byte_count"] >= self.size
-
-    def process_chunk(self, data, batch, chunk):
-        chunk = collections.deque(chunk)
-
-        while chunk:
-            row = chunk.popleft()
-            batch.append(row)
-
-            self._update_batch(data, row)
-
-            if self._reached_limit(data):
-                return chunk
-
-        return None
-
-
-class RoughByteBatcher(ByteBatcher):
-    """ Handles performing requests to load data into Blazing """
-
-    ROWS_IN_AVERAGE = 50
-
-    def _determine_row_size(self, chunk):
-        encoded = map(operator.methodcaller("encode", self.encoding), chunk)
-        return sum(map(len, encoded)) / len(chunk)
-
-    def process_chunk(self, data, batch, chunk):
-        chunk = list(chunk)
-
-        rows_in_average = chunk[:self.ROWS_IN_AVERAGE]
-        avg_size = self._determine_row_size(rows_in_average)
-
-        difference = self.size - data["byte_count"]
-        rough_size = avg_size * len(chunk)
-
-        if rough_size <= difference:
-            data["byte_count"] += rough_size
-            data["batch_length"] += len(chunk)
-
-            batch.extend(chunk)
-            return None
-
-        proportion = difference / rough_size
-        row_count = math.floor(len(chunk) * proportion)
-
-        data["byte_count"] += avg_size * row_count
-        data["batch_length"] += row_count
-
-        batch.extend(chunk[:row_count])
-        return chunk[row_count:]
-
-
-class RowBatcher(BaseBatcher):
-    """ Handles performing requests to load data into Blazing """
-
-    def __init__(self, count):
-        self.logger = logging.getLogger(__name__)
-        self.count = count
-
-    def init_batch(self):
-        return {"batch_length": 0, "last_count": -1}
-
-    def process_chunk(self, data, batch, chunk):
-        chunk = list(chunk)
-
-        difference = self.count - data["batch_length"]
-        chunk_length = len(chunk)
-
-        if chunk_length <= difference:
-            data["batch_length"] += chunk_length
-            batch.extend(chunk)
-
-            return None
-
-        data["batch_length"] += difference
-        batch.extend(chunk[:difference])
-
-        return chunk[difference:]
-
-    def log_complete(self, data):
-        self.logger.info("Read %s row(s) from the stream", data["batch_length"])
-
-    def log_progress(self, data):
-        if data["batch_length"] == data["last_count"]:
-            return
-
-        self.logger.info(
-            "Read %s of %s row(s) from the stream",
-            data["batch_length"], data["last_count"]
-        )
-
-        data["last_count"] = data["batch_length"]

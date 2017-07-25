@@ -3,16 +3,17 @@ Defines the series of stages for handling unloads from Redshift
 """
 
 import asyncio
-import codecs
 import collections
 import csv
 import datetime
 import functools
-import hashlib
 import json
 import logging
+import os
 import os.path
+import random
 import signal
+import string
 import tempfile
 
 import aiofiles
@@ -29,31 +30,6 @@ from ..util import get_columns
 PYTHON_DATE_FORMAT = "%Y-%m-%d"
 UNLOAD_DATE_FORMAT = "YYYY-MM-DD"
 UNLOAD_DELIMITER = "|"
-
-async def buffer_s3_file(client, url, loop=None, **kwargs):
-    """ Buffers an S3 file locally to allow lazy reading of data """
-    hasher = hashlib.sha1()
-    hasher.update(url.encode("utf-8"))
-    url_hash = hasher.hexdigest()
-
-    temp_dir = tempfile.TemporaryDirectory()
-    temp_filename = os.path.join(temp_dir.name, url_hash)
-
-    buffer_file = await aiofiles.open(temp_filename, "w+")
-    reader, transport = await s3.open_s3(client, url, loop=loop, **kwargs)
-
-    await buffer_file.truncate()
-    while True:
-        line = await reader.readline()
-        line = line.decode(transport.get_encoding())
-
-        if not line:
-            break
-
-        await buffer_file.write(line)
-
-    await buffer_file.seek(0)
-    return buffer_file, temp_dir
 
 
 class UnloadDialect(csv.Dialect):
@@ -137,8 +113,7 @@ class UnloadGenerationStage(base.BaseStage):
 class UnloadRetrievalStage(base.BaseStage):
     """ Processes a DataUnloadPacket and transforms it into a stream of DataLoadPacket """
 
-    DEFAULT_BATCH_COUNT = 10000
-    DEFAULT_PENDING_HANDLES = 4
+    DEFAULT_PENDING_HANDLES = os.cpu_count() * 2
 
     def __init__(self, client, loop=None, **kwargs):
         super(UnloadRetrievalStage, self).__init__(packets.DataUnloadPacket)
@@ -146,10 +121,29 @@ class UnloadRetrievalStage(base.BaseStage):
         self.client = client
         self.loop = loop
 
-        self.batch_count = kwargs.get(
-            "batch_count", UnloadRetrievalStage.DEFAULT_BATCH_COUNT)
+        self.temp_directory = tempfile.TemporaryDirectory()
+
         self.pending_handles = kwargs.get(
             "pending_handles", UnloadRetrievalStage.DEFAULT_PENDING_HANDLES)
+
+    async def shutdown(self):
+        self.temp_directory.cleanup()
+
+    async def _cache_s3_file(self, s3_file, transport):
+        filename = "".join(random.choices(string.ascii_lowercase + string.digits, k=16))
+        file_path = os.path.join(self.temp_directory.name, filename + ".unloaded")
+
+        async with aiofiles.open(file_path, "w", encoding="utf-8") as local_file:
+            while not s3_file.at_eof():
+                line = await s3_file.read(65536)
+                line = line.decode(transport.get_encoding())
+
+                if not line:
+                    break
+
+                await local_file.write(line)
+
+        return file_path
 
     async def _limit_pending(self, pending):
         if len(pending) <= self.pending_handles:
@@ -163,20 +157,6 @@ class UnloadRetrievalStage(base.BaseStage):
                 break
 
         return [handle for handle in pending if not handle.done()]
-
-    async def _read_batch(self, stream, transport):
-        lines = []
-
-        for _ in range(0, self.batch_count):
-            line = await stream.readline()
-            line = line.decode(transport.get_encoding())
-
-            if not line:
-                break
-
-            lines.append(line)
-
-        return lines
 
     async def _read_manifest(self, bucket, key):
         response = await self.client.get_object(Bucket=bucket, Key=key)
@@ -192,24 +172,18 @@ class UnloadRetrievalStage(base.BaseStage):
 
         urls = await self._read_manifest(unload_pkt.bucket, manifest)
 
-        index = 0
         pending = []
-
         while urls:
             await self._limit_pending(pending)
 
             s3_file, transport = await s3.open_s3(self.client, urls.popleft(), loop=self.loop)
-            while True:
-                batch = await self._read_batch(s3_file, transport)
+            file_path = await self._cache_s3_file(s3_file, transport)
 
-                if not batch:
-                    break
+            packet = packets.DataFilePacket(file_path)
+            handle = await message.forward(packet, track_children=True)
 
-                packet = packets.DataLoadPacket(batch, index)
-                handle = await message.forward(packet, track_children=True)
-
-                pending.append(handle)
-                index += 1
+            pending.append(handle)
+            transport.close()
 
         if pending:
             await asyncio.wait(pending, loop=self.loop)
@@ -218,38 +192,68 @@ class UnloadRetrievalStage(base.BaseStage):
 
 
 class UnloadProcessingStage(base.BaseStage):
-    """ Processes a DataUnloadPacket and transforms it into a stream of DataLoadPacket """
+    """ Processes a DataUnloadPacket and transforms it into a stream of DataFilePacket """
 
-    def __init__(self, loop=None):
-        super(UnloadProcessingStage, self).__init__(packets.DataLoadPacket)
+    DEFAULT_FIELD_TERMINATOR = "|"
+    DEFAULT_FIELD_WRAPPER = "\""
+    DEFAULT_LINE_TERMINATOR = "\n"
+
+    def __init__(self, loop=None, **kwargs):
+        super(UnloadProcessingStage, self).__init__(packets.DataFilePacket)
         self.logger = logging.getLogger(__name__)
 
         self.executor = process.ProcessPoolExecutor(_quiet_sigint)
         self.loop = loop if loop is not None else asyncio.get_event_loop()
 
+        self.format_pkt = packets.DataFormatPacket(
+            kwargs.get("field_terminator", self.DEFAULT_FIELD_TERMINATOR),
+            kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR),
+            kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER))
+
     async def shutdown(self):
         self.executor.shutdown(wait=True)
 
-    async def _process_in_executor(self, data, columns):
-        return await self.loop.run_in_executor(self.executor, process_data, data, columns)
+    async def _process_in_executor(self, file_path, columns):
+        return await self.loop.run_in_executor(self.executor,
+            process_data, file_path, self.format_pkt, columns)
 
     async def process(self, message):
         columns = message.get_packet(packets.DataColumnsPacket).columns
 
-        for load_pkt in message.get_packets(packets.DataLoadPacket):
-            processed_data = await self._process_in_executor(load_pkt.data, columns)
-            message.update_packet(load_pkt, data=processed_data)
+        for file_pkt in message.get_packets(packets.DataFilePacket):
+            processed_path = await self._process_in_executor(file_pkt.file_path, columns)
+            message.update_packet(file_pkt, data=processed_path)
 
+        message.add_packet(self.format_pkt)
         await message.forward()
 
 
-def process_data(data, columns):
+def process_data(input_file_path, output_fmt, columns):
     """ Processes the csv data resulting from an UNLOAD """
-    reader = csv.reader(data, dialect=UnloadDialect())
+    class OutputDialect(csv.Dialect):
+        """ The dialect used by the Amazon Redshift UNLOAD command """
+        delimiter = output_fmt.field_terminator
+        doublequote = False
+        escapechar = "\\"
+        lineterminator = output_fmt.line_terminator
+        quotechar = output_fmt.field_wrapper
+        quoting = csv.QUOTE_NONNUMERIC
+        skipinitialspace = False
+        strict = True
+
+    output_file_path = os.path.splitext(input_file_path)[0] + ".processed"
+
     mappings = [_create_mapping(col) for col in columns]
     process_row = functools.partial(_process_row, mappings)
 
-    return list(map(process_row, reader))
+    with open(input_file_path, newline="") as input_file:
+        reader = csv.reader(input_file, dialect=UnloadDialect())
+
+        with open(output_file_path, "w", newline="") as output_file:
+            writer = csv.writer(output_file, dialect=OutputDialect())
+            writer.writerows(map(process_row, reader))
+
+    return output_file_path
 
 def _create_mapping(column):
     if column.type == "long":

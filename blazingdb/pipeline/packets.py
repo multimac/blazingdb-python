@@ -30,8 +30,8 @@ class DataFormatPacket(Packet):
 
 class DataLoadPacket(Packet):
     """ Packet describing a chunk of data to be loaded """
-    def __init__(self, data, index):
-        self.data = data
+    def __init__(self, stream, index):
+        self.stream = stream
         self.index = index
 
 class DataUnloadPacket(Packet):
