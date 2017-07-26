@@ -9,9 +9,26 @@ import logging
 import re
 
 
-async def open_s3(client, url, loop=None, **kwargs):
+def parse_url(url):
+    match = re.match("s3://([a-z0-9,.-]+)/(.*)", url)
+    return match.group(1, 2) if match else None
+
+def open_file(client, bucket, key):
+    """ Retrieves a stream and the charset for the file on S3 """
+    logger = logging.getLogger(__name__)
+    logger.info("Reading S3 file: %s", key)
+
+    response = client.get_object(Bucket=bucket, Key=key)
+    _, type_params = cgi.parse_header(response["ContentType"])
+
+    stream = response["Body"]
+    charset = type_params.get("charset", None)
+
+    return stream, charset
+
+def open_reader(client, bucket, key, loop=None, **kwargs):
     """ Opens a file in S3 and returns a stream """
-    stream = await S3Stream.open(client, url)
+    stream = S3Stream.open(client, bucket, key)
     reader = asyncio.StreamReader()
 
     transport = S3ReadTransport(reader, stream, loop=loop, **kwargs)
@@ -40,11 +57,17 @@ class S3ReadTransport(asyncio.ReadTransport):
 
         self.resume_reading()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     async def _process_stream(self):
         while not self.stream.at_eof:
             await self.waiter.wait()
 
-            data = await self.stream.read(self.buffer_amount)
+            data = self.stream.read(self.buffer_amount)
 
             self.reader.feed_data(data)
 
@@ -89,31 +112,16 @@ class S3Stream(object):
         self.at_eof = False
 
     @classmethod
-    async def open(cls, client, url):
-        """ Creates an S3ReadTransport for the given file on S3 """
-        bucket, key = cls._parse_s3_url(url)
-
-        logger = logging.getLogger(__name__)
-        logger.info("Reading S3 file: %s", key)
-
-        response = await client.get_object(Bucket=bucket, Key=key)
-        _, type_params = cgi.parse_header(response["ContentType"])
-
-        stream = response["Body"]
-        charset = type_params.get("charset", None)
-        return cls(stream, charset)
-
-    @staticmethod
-    def _parse_s3_url(url):
-        match = re.match("s3://([a-z0-9,.-]+)/(.*)", url)
-        return match.group(1, 2) if match else None
+    def open(cls, client, bucket, key):
+        """ Creates an S3Stream for the given file on S3 """
+        return cls(*open_file(client, bucket, key))
 
     def close(self):
         self.stream.close()
 
-    async def read(self, amount):
+    def read(self, amount):
         """ Reads a chunk of data from the S3 file """
-        data = await self.stream.read(amount)
+        data = self.stream.read(amount)
 
         self.at_eof = not bool(data)
         return data

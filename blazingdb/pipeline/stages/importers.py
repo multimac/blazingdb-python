@@ -3,6 +3,7 @@ Defines the importing stages of the pipeline
 """
 
 import abc
+import csv
 import logging
 import os.path
 
@@ -103,8 +104,13 @@ class FileOutputStage(base.BaseStage):
     DEFAULT_FILE_EXTENSION = "dat"
     DEFAULT_USER_FOLDER = "data"
 
+    DEFAULT_DATE_FORMAT = "%Y-%m-%d"
+    DEFAULT_FIELD_TERMINATOR = "|"
+    DEFAULT_LINE_TERMINATOR = "\n"
+    DEFAULT_FIELD_WRAPPER = "\""
+
     def __init__(self, upload_folder, user, loop=None, **kwargs):
-        super(FileOutputStage, self).__init__(packets.DataLoadPacket)
+        super(FileOutputStage, self).__init__(packets.DataFramePacket)
         self.logger = logging.getLogger(__name__)
         self.loop = loop
 
@@ -114,9 +120,11 @@ class FileOutputStage(base.BaseStage):
         self.upload_folder = os.path.join(upload_folder, user)
         self.user_folder = kwargs.get("user_folder", self.DEFAULT_USER_FOLDER)
 
-    def _open_file(self, filename):
-        """ Opens the given file """
-        return aiofiles.open(filename, "w", encoding=self.encoding, loop=self.loop)
+        self.format_pkt = packets.DataFormatPacket(
+            field_terminator=kwargs.get("field_terminator", self.DEFAULT_FIELD_TERMINATOR),
+            line_terminator=kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR),
+            field_wrapper=kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER),
+            date_format=kwargs.get("date_format", self.DEFAULT_DATE_FORMAT))
 
     def _get_filename(self, table, chunk):
         """ Generates a filename for the given chunk of a table """
@@ -134,46 +142,24 @@ class FileOutputStage(base.BaseStage):
 
         return os.path.join(self.upload_folder, file_path)
 
-    async def _write_chunk(self, chunk, file_path):
-        """ Writes a chunk of data to disk """
-        self.logger.info("Writing chunk file: %s", file_path)
+    def _write_chunk(self, frame, file_path, format_pkt):
+        """ Writes a data frame to disk """
+        self.logger.info("Writing frame file: %s", file_path)
 
-        async with self._open_file(file_path) as chunk_file:
-            await chunk_file.writelines(chunk.readlines())
+        frame.to_csv(file_path, sep=format_pkt.field_terminator,
+            line_terminator=format_pkt.line_terminator, quotechar=format_pkt.field_wrapper,
+            quoting=csv.QUOTE_NONNUMERIC, doublequote=False, escapechar="\\",
+            header=False, index=False, date_format=format_pkt.date_format)
 
     async def process(self, message):
         import_pkt = message.get_packet(packets.ImportTablePacket)
+        format_pkt = message.get_packet(packets.DataFormatPacket,
+            default=self.format_pkt, add_if_missing=True)
 
-        for load_pkt in message.pop_packets(packets.DataLoadPacket):
-            chunk_filename = self._get_file_path(import_pkt.table, load_pkt.index)
+        for frame_pkt in message.pop_packets(packets.DataFramePacket):
+            chunk_filename = self._get_file_path(import_pkt.table, frame_pkt.index)
             message.add_packet(packets.DataFilePacket(chunk_filename))
 
-            await self._write_chunk(load_pkt.stream, chunk_filename)
-
-
-        await message.forward()
-
-
-class StreamImportStage(BaseImportStage):
-    """ Imports chunks of data via a stream """
-
-    def __init__(self, loop=None, **kwargs):
-        super(StreamImportStage, self).__init__(packets.DataLoadPacket, loop=loop, **kwargs)
-        self.logger = logging.getLogger(__name__)
-
-    async def _load(self, destination, table, data, fmt):
-        """ Streams a chunk of data into Blazing """
-        method = "stream '{0}'".format("".join(data))
-
-        self.logger.info("Streaming %s row(s) into %s", len(data), table)
-        await self._perform_request(destination, method, fmt, table)
-
-    async def process(self, message):
-        import_pkt = message.get_packet(packets.ImportTablePacket)
-        format_pkt = message.get_packet(packets.DataFormatPacket)
-        dest_pkt = message.get_packet(packets.DestinationPacket)
-
-        for load_pkt in message.get_packets(packets.DataLoadPacket):
-            await self._load(dest_pkt.destination, import_pkt.table, load_pkt.data, format_pkt)
+            self._write_chunk(frame_pkt.frame, chunk_filename, format_pkt)
 
         await message.forward()

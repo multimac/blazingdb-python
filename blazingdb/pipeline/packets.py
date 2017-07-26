@@ -23,15 +23,16 @@ class DataFilePacket(Packet):
 
 class DataFormatPacket(Packet):
     """ Packet describing the format of a chunk of data """
-    def __init__(self, field_terminator, line_terminator, field_wrapper):
+    def __init__(self, field_terminator, line_terminator, field_wrapper, date_format):
         self.field_terminator = field_terminator
         self.line_terminator = line_terminator
         self.field_wrapper = field_wrapper
+        self.date_format = date_format
 
-class DataLoadPacket(Packet):
-    """ Packet describing a chunk of data to be loaded """
-    def __init__(self, stream, index):
-        self.stream = stream
+class DataFramePacket(Packet):
+    """ Packet describing a pandas DataFrame of data """
+    def __init__(self, frame, index):
+        self.frame = frame
         self.index = index
 
 class DataUnloadPacket(Packet):

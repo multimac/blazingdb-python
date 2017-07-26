@@ -3,22 +3,16 @@ Defines the series of stages for handling unloads from Redshift
 """
 
 import asyncio
-import collections
+import contextlib
 import csv
-import datetime
-import functools
 import json
 import logging
 import os
-import os.path
-import random
-import signal
-import string
-import tempfile
+import types
 
-import aiofiles
+import pandas
 
-from blazingdb.util import process, s3
+from blazingdb.util import s3
 
 from . import base
 from .. import packets
@@ -27,10 +21,14 @@ from ..util import get_columns
 
 # pragma pylint: disable=too-few-public-methods
 
-PYTHON_DATE_FORMAT = "%Y-%m-%d"
 UNLOAD_DATE_FORMAT = "YYYY-MM-DD"
 UNLOAD_DELIMITER = "|"
 
+TYPE_MAP = {
+    "long": "int64",
+    "double": "float64",
+    "string": "str"
+}
 
 class UnloadDialect(csv.Dialect):
     """ The dialect used by the Amazon Redshift UNLOAD command """
@@ -58,13 +56,6 @@ class UnloadGenerationStage(base.BaseStage):
         self.secret_key = secret_key
         self.session_token = session_token
 
-    @staticmethod
-    def _build_query_column(column):
-        if column.type == "date":
-            return "to_char({0}, '{1}')".format(column.name, UNLOAD_DATE_FORMAT)
-
-        return column.name
-
     def _generate_credentials(self):
         segments = [
             "ACCESS_KEY_ID '{0}'".format(self.access_key),
@@ -87,7 +78,7 @@ class UnloadGenerationStage(base.BaseStage):
             key = self.path_prefix + "/" + key
 
         columns = await get_columns(message, add_if_missing=True)
-        query_columns = ",".join(map(self._build_query_column, columns))
+        query_columns = ",".join(column.name for column in columns)
 
         message.add_packet(packets.DataColumnsPacket(columns))
         message.add_packet(packets.DataUnloadPacket(self.bucket, key))
@@ -113,7 +104,8 @@ class UnloadGenerationStage(base.BaseStage):
 class UnloadRetrievalStage(base.BaseStage):
     """ Processes a DataUnloadPacket and transforms it into a stream of DataLoadPacket """
 
-    DEFAULT_PENDING_HANDLES = os.cpu_count() * 2
+    DEFAULT_CHUNK_SIZE = 65536
+    DEFAULT_PENDING_HANDLES = os.cpu_count()
 
     def __init__(self, client, loop=None, **kwargs):
         super(UnloadRetrievalStage, self).__init__(packets.DataUnloadPacket)
@@ -121,29 +113,44 @@ class UnloadRetrievalStage(base.BaseStage):
         self.client = client
         self.loop = loop
 
-        self.temp_directory = tempfile.TemporaryDirectory()
-
+        self.chunk_size = kwargs.get(
+            "chunk_size", UnloadRetrievalStage.DEFAULT_CHUNK_SIZE)
         self.pending_handles = kwargs.get(
             "pending_handles", UnloadRetrievalStage.DEFAULT_PENDING_HANDLES)
 
-    async def shutdown(self):
-        self.temp_directory.cleanup()
+    @staticmethod
+    def _attach_iter_method(stream, chunk_size):
+        def _iter(target):
+            while True:
+                data = target.read(chunk_size)
 
-    async def _cache_s3_file(self, s3_file, transport):
-        filename = "".join(random.choices(string.ascii_lowercase + string.digits, k=16))
-        file_path = os.path.join(self.temp_directory.name, filename + ".unloaded")
-
-        async with aiofiles.open(file_path, "w", encoding="utf-8") as local_file:
-            while not s3_file.at_eof():
-                line = await s3_file.read(65536)
-                line = line.decode(transport.get_encoding())
-
-                if not line:
+                if not data:
                     break
 
-                await local_file.write(line)
+                yield data
 
-        return file_path
+        stream.__iter__ = types.MethodType(_iter, stream)
+
+        return stream
+
+    async def _retrieve_file(self, url, columns):
+        bucket, key = s3.parse_url(url)
+        stream, _ = s3.open_file(self.client, bucket, key)
+        stream = self._attach_iter_method(stream, self.chunk_size)
+
+        with contextlib.closing(stream):
+            names = [column.name for column in columns]
+            date_cols = [i for i, column in enumerate(columns) if column.type == "date"]
+
+            dtypes = {
+                column.name: TYPE_MAP[column.type]
+                for column in columns if column.type in TYPE_MAP}
+
+            return pandas.read_csv(stream,
+                names=names, dtype=dtypes, parse_dates=date_cols,
+                infer_datetime_format=True, engine="c",
+                na_values="", keep_default_na=False,
+                dialect=UnloadDialect())
 
     async def _limit_pending(self, pending):
         if len(pending) <= self.pending_handles:
@@ -159,122 +166,32 @@ class UnloadRetrievalStage(base.BaseStage):
         return [handle for handle in pending if not handle.done()]
 
     async def _read_manifest(self, bucket, key):
-        response = await self.client.get_object(Bucket=bucket, Key=key)
+        stream, _ = s3.open_file(self.client, bucket, key)
 
-        async with response["Body"] as stream:
-            manifest_json = json.loads(await stream.read())
+        with contextlib.closing(stream):
+            manifest_json = json.loads(stream.read())
 
-        return collections.deque(entry["url"] for entry in manifest_json["entries"])
+        return [entry["url"] for entry in manifest_json["entries"]]
 
     async def process(self, message):
         unload_pkt = message.pop_packet(packets.DataUnloadPacket)
         manifest = unload_pkt.key + "manifest"
 
         urls = await self._read_manifest(unload_pkt.bucket, manifest)
+        columns = await get_columns(message)
 
         pending = []
-        while urls:
+        for i, url in enumerate(urls):
             await self._limit_pending(pending)
 
-            s3_file, transport = await s3.open_s3(self.client, urls.popleft(), loop=self.loop)
-            file_path = await self._cache_s3_file(s3_file, transport)
+            frame = await self._retrieve_file(url, columns)
 
-            packet = packets.DataFilePacket(file_path)
+            packet = packets.DataFramePacket(frame, i)
             handle = await message.forward(packet, track_children=True)
 
             pending.append(handle)
-            transport.close()
 
         if pending:
             await asyncio.wait(pending, loop=self.loop)
 
         await message.forward(packets.DataCompletePacket())
-
-
-class UnloadProcessingStage(base.BaseStage):
-    """ Processes a DataUnloadPacket and transforms it into a stream of DataFilePacket """
-
-    DEFAULT_FIELD_TERMINATOR = "|"
-    DEFAULT_FIELD_WRAPPER = "\""
-    DEFAULT_LINE_TERMINATOR = "\n"
-
-    def __init__(self, loop=None, **kwargs):
-        super(UnloadProcessingStage, self).__init__(packets.DataFilePacket)
-        self.logger = logging.getLogger(__name__)
-
-        self.executor = process.ProcessPoolExecutor(_quiet_sigint)
-        self.loop = loop if loop is not None else asyncio.get_event_loop()
-
-        self.format_pkt = packets.DataFormatPacket(
-            kwargs.get("field_terminator", self.DEFAULT_FIELD_TERMINATOR),
-            kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR),
-            kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER))
-
-    async def shutdown(self):
-        self.executor.shutdown(wait=True)
-
-    async def _process_in_executor(self, file_path, columns):
-        return await self.loop.run_in_executor(self.executor,
-            process_data, file_path, self.format_pkt, columns)
-
-    async def process(self, message):
-        columns = message.get_packet(packets.DataColumnsPacket).columns
-
-        for file_pkt in message.get_packets(packets.DataFilePacket):
-            processed_path = await self._process_in_executor(file_pkt.file_path, columns)
-            message.update_packet(file_pkt, data=processed_path)
-
-        message.add_packet(self.format_pkt)
-        await message.forward()
-
-
-def process_data(input_file_path, output_fmt, columns):
-    """ Processes the csv data resulting from an UNLOAD """
-    class OutputDialect(csv.Dialect):
-        """ The dialect used by the Amazon Redshift UNLOAD command """
-        delimiter = output_fmt.field_terminator
-        doublequote = False
-        escapechar = "\\"
-        lineterminator = output_fmt.line_terminator
-        quotechar = output_fmt.field_wrapper
-        quoting = csv.QUOTE_NONNUMERIC
-        skipinitialspace = False
-        strict = True
-
-    output_file_path = os.path.splitext(input_file_path)[0] + ".processed"
-
-    mappings = [_create_mapping(col) for col in columns]
-    process_row = functools.partial(_process_row, mappings)
-
-    with open(input_file_path, newline="") as input_file:
-        reader = csv.reader(input_file, dialect=UnloadDialect())
-
-        with open(output_file_path, "w", newline="") as output_file:
-            writer = csv.writer(output_file, dialect=OutputDialect())
-            writer.writerows(map(process_row, reader))
-
-    return output_file_path
-
-def _create_mapping(column):
-    if column.type == "long":
-        return int
-    elif column.type == "double":
-        return float
-    elif column.type == "string":
-        return str
-    elif column.type == "date":
-        return _parse_date
-
-    raise ValueError("unknown column type, {0}".format(column.type))
-
-def _parse_date(data):
-    return datetime.datetime.strptime(data, PYTHON_DATE_FORMAT)
-
-def _process_row(mappings, row):
-    def _map_column(func, column):
-        return func(column) if column else None
-
-    return list(map(_map_column, mappings, row))
-
-def _quiet_sigint():
-    signal.signal(signal.SIGINT, signal.SIG_IGN)
