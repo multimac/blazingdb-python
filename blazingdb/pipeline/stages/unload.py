@@ -31,13 +31,12 @@ TYPE_MAP = {
     "string": "str"
 }
 
-def retrieve_unloaded_file(url, access_key, secret_key, columns, chunk_size):
+def retrieve_unloaded_file(bucket, key, access_key, secret_key, columns, chunk_size):
     """ Retrieves an unloaded file from S3 into a pandas.DataFrame """
     session = botocore.session.get_session()
     client = session.create_client("s3",
         aws_access_key_id=access_key, aws_secret_access_key=secret_key)
 
-    bucket, key = s3.parse_url(url)
     stream, _ = s3.open_file(client, bucket, key)
     stream = _attach_iter_method(stream, chunk_size)
 
@@ -171,10 +170,12 @@ class UnloadRetrievalStage(base.BaseStage):
         for future in pending_iter:
             await future
 
+            pending = [handle for handle in pending if not handle.done()]
+
             if len(pending) <= self.pending_handles:
                 break
 
-        return [handle for handle in pending if not handle.done()]
+        return pending
 
     async def _read_manifest(self, bucket, key):
         stream, _ = s3.open_file(self.client, bucket, key)
@@ -185,8 +186,11 @@ class UnloadRetrievalStage(base.BaseStage):
         return [entry["url"] for entry in manifest_json["entries"]]
 
     async def _retrieve_file(self, url, columns):
+        bucket, key = s3.parse_url(url)
+        self.logger.info("Retrieving unloaded file: %s", key)
+
         return await self.loop.run_in_executor(self.executor, retrieve_unloaded_file,
-            url, self.access_key, self.secret_key, columns, self.chunk_size)
+            bucket, key, self.access_key, self.secret_key, columns, self.chunk_size)
 
     async def process(self, message):
         unload_pkt = message.pop_packet(packets.DataUnloadPacket)
@@ -197,8 +201,7 @@ class UnloadRetrievalStage(base.BaseStage):
 
         pending = []
         for i, url in enumerate(urls):
-            await self._limit_pending(pending)
-
+            pending = await self._limit_pending(pending)
             frame = await self._retrieve_file(url, columns)
 
             packet = packets.DataFramePacket(frame, i)

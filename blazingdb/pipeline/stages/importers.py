@@ -154,7 +154,8 @@ class FileOutputStage(base.BaseStage):
         return os.path.join(self.upload_folder, file_path)
 
     async def _write_frame(self, frame, file_path, format_pkt):
-        self.logger.info("Writing frame file: %s", file_path)
+        relative_path = os.path.relpath(file_path, self.upload_folder)
+        self.logger.info("Writing frame file: %s", relative_path)
 
         await self.loop.run_in_executor(self.executor, write_frame,
             frame, file_path, format_pkt)
@@ -166,8 +167,7 @@ class FileOutputStage(base.BaseStage):
 
         for frame_pkt in message.pop_packets(packets.DataFramePacket):
             chunk_filename = self._get_file_path(import_pkt.table, frame_pkt.index)
-            message.add_packet(packets.DataFilePacket(chunk_filename))
-
             await self._write_frame(frame_pkt.frame, chunk_filename, format_pkt)
 
-        await message.forward()
+            file_pkt = packets.DataFilePacket(chunk_filename)
+            await message.forward(file_pkt)
