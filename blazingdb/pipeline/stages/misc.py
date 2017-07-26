@@ -24,6 +24,18 @@ class DelayStage(custom.CustomActionStage):
         await asyncio.sleep(self.delay)
 
 
+class InjectPacketStage(custom.CustomActionStage):
+    """ Injects a series of packets into messages passing through """
+
+    def __init__(self, *msg_packets, **kwargs):
+        super(InjectPacketStage, self).__init__(self._inject, packets.Packet, **kwargs)
+        self.msg_packets = msg_packets
+
+    async def _inject(self, message):
+        for packet in self.msg_packets:
+            message.add_packet(packet)
+
+
 class PromptInputStage(custom.CustomActionStage):
     """ Prompts for user input to continue before / after importing data """
 
