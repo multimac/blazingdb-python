@@ -57,13 +57,16 @@ class Message(object):
         """ Adds the given packet to the message """
         self.packets.add(packet)
 
-    def get_packet(self, packet_type, default=DEFAULT_MARKER):
+    def get_packet(self, packet_type, default=DEFAULT_MARKER, add_if_missing=False):
         """ Retrieves one packet of the given type from the message """
         try:
             check_type = lambda packet: isinstance(packet, packet_type)
             return next(filter(check_type, self.packets))
         except StopIteration:
             if default is not Message.DEFAULT_MARKER:
+                if add_if_missing:
+                    self.add_packet(default)
+
                 return default
 
             raise exceptions.PacketMissingException(packet_type)
