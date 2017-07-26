@@ -2,6 +2,8 @@
 Defines the base batcher class for generating batches of data to load into BlazingDB
 """
 
+import logging
+
 import pandas
 
 from . import base
@@ -16,7 +18,9 @@ class BatchStage(base.BaseStage):
     DEFAULT_LOG_INTERVAL = 10
 
     def __init__(self, batch_size):
-        super(BatchStage, self).__init__(packets.DataFilePacket, packets.DataCompletePacket)
+        super(BatchStage, self).__init__(packets.DataFramePacket, packets.DataCompletePacket)
+        self.logger = logging.getLogger(__name__)
+
         self.batch_size = batch_size
         self.generators = dict()
 
@@ -27,12 +31,12 @@ class BatchStage(base.BaseStage):
         while True:
             while True:
                 memory_usage = frame_data.memory_usage().sum()
-                row_count = frame_data.shape()[0]
+                row_count = frame_data.shape[0]
 
                 if memory_usage < self.batch_size:
                     break
 
-                batch_rows = (self.batch_size / memory_usage) * row_count
+                batch_rows = int((self.batch_size / memory_usage) * row_count)
 
                 batch_frame = frame_data.iloc[:batch_rows]
                 frame_data = frame_data.iloc[batch_rows:]
@@ -74,7 +78,7 @@ class BatchStage(base.BaseStage):
 
         frame_packets = []
         for packet in message.pop_packets(packets.DataFramePacket):
-            batch = await generator.send(packet.frame)
+            batch = generator.send(packet.frame)
 
             while batch is not None:
                 frame, index = batch
@@ -82,13 +86,13 @@ class BatchStage(base.BaseStage):
                 frame_packet = packets.DataFramePacket(frame, index)
                 frame_packets.append(frame_packet)
 
-                batch = await generator.send(None)
+                batch = generator.send(None)
 
         complete_packet = message.get_packet(
             packets.DataCompletePacket, default=None)
 
         if complete_packet is not None:
-            batch = await generator.send(None)
+            batch = generator.send(None)
 
             if batch:
                 frame, index = batch
@@ -99,4 +103,7 @@ class BatchStage(base.BaseStage):
             self._delete_generator(message.msg_id)
 
         if frame_packets:
+            self.logger.info("Created %s segments of data from message %s",
+                len(frame_packets), message.msg_id)
+
             await message.forward(*frame_packets)

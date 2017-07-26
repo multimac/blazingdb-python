@@ -10,9 +10,10 @@ import logging
 import os
 import types
 
+import botocore.session
 import pandas
 
-from blazingdb.util import s3
+from blazingdb.util import process, s3
 
 from . import base
 from .. import packets
@@ -29,6 +30,45 @@ TYPE_MAP = {
     "double": "float64",
     "string": "str"
 }
+
+def retrieve_unloaded_file(url, access_key, secret_key, columns, chunk_size):
+    """ Retrieves an unloaded file from S3 into a pandas.DataFrame """
+    session = botocore.session.get_session()
+    client = session.create_client("s3",
+        aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+
+    bucket, key = s3.parse_url(url)
+    stream, _ = s3.open_file(client, bucket, key)
+    stream = _attach_iter_method(stream, chunk_size)
+
+    with contextlib.closing(stream):
+        names = [column.name for column in columns]
+        date_cols = [i for i, column in enumerate(columns) if column.type == "date"]
+
+        dtypes = {
+            column.name: TYPE_MAP[column.type]
+            for column in columns if column.type in TYPE_MAP}
+
+        return pandas.read_csv(stream,
+            names=names, dtype=dtypes, parse_dates=date_cols,
+            infer_datetime_format=True, engine="c",
+            na_values="", keep_default_na=False,
+            dialect=UnloadDialect())
+
+def _attach_iter_method(stream, chunk_size):
+    def _iter(target):
+        while True:
+            data = target.read(chunk_size)
+
+            if not data:
+                break
+
+            yield data
+
+    stream.__iter__ = types.MethodType(_iter, stream)
+
+    return stream
+
 
 class UnloadDialect(csv.Dialect):
     """ The dialect used by the Amazon Redshift UNLOAD command """
@@ -107,50 +147,21 @@ class UnloadRetrievalStage(base.BaseStage):
     DEFAULT_CHUNK_SIZE = 65536
     DEFAULT_PENDING_HANDLES = os.cpu_count()
 
-    def __init__(self, client, loop=None, **kwargs):
+    def __init__(self, access_key, secret_key, loop=None, **kwargs):
         super(UnloadRetrievalStage, self).__init__(packets.DataUnloadPacket)
         self.logger = logging.getLogger(__name__)
-        self.client = client
         self.loop = loop
 
-        self.chunk_size = kwargs.get(
-            "chunk_size", UnloadRetrievalStage.DEFAULT_CHUNK_SIZE)
-        self.pending_handles = kwargs.get(
-            "pending_handles", UnloadRetrievalStage.DEFAULT_PENDING_HANDLES)
+        self.access_key = access_key
+        self.secret_key = secret_key
 
-    @staticmethod
-    def _attach_iter_method(stream, chunk_size):
-        def _iter(target):
-            while True:
-                data = target.read(chunk_size)
+        self.client = botocore.session.get_session().create_client("s3",
+            aws_access_key_id=access_key, aws_secret_access_key=secret_key)
 
-                if not data:
-                    break
+        self.executor = process.ProcessPoolExecutor(process.quiet_sigint)
 
-                yield data
-
-        stream.__iter__ = types.MethodType(_iter, stream)
-
-        return stream
-
-    async def _retrieve_file(self, url, columns):
-        bucket, key = s3.parse_url(url)
-        stream, _ = s3.open_file(self.client, bucket, key)
-        stream = self._attach_iter_method(stream, self.chunk_size)
-
-        with contextlib.closing(stream):
-            names = [column.name for column in columns]
-            date_cols = [i for i, column in enumerate(columns) if column.type == "date"]
-
-            dtypes = {
-                column.name: TYPE_MAP[column.type]
-                for column in columns if column.type in TYPE_MAP}
-
-            return pandas.read_csv(stream,
-                names=names, dtype=dtypes, parse_dates=date_cols,
-                infer_datetime_format=True, engine="c",
-                na_values="", keep_default_na=False,
-                dialect=UnloadDialect())
+        self.chunk_size = kwargs.get("chunk_size", self.DEFAULT_CHUNK_SIZE)
+        self.pending_handles = kwargs.get("pending_handles", self.DEFAULT_PENDING_HANDLES)
 
     async def _limit_pending(self, pending):
         if len(pending) <= self.pending_handles:
@@ -172,6 +183,10 @@ class UnloadRetrievalStage(base.BaseStage):
             manifest_json = json.loads(stream.read())
 
         return [entry["url"] for entry in manifest_json["entries"]]
+
+    async def _retrieve_file(self, url, columns):
+        return await self.loop.run_in_executor(self.executor, retrieve_unloaded_file,
+            url, self.access_key, self.secret_key, columns, self.chunk_size)
 
     async def process(self, message):
         unload_pkt = message.pop_packet(packets.DataUnloadPacket)

@@ -7,7 +7,11 @@ import concurrent
 from concurrent.futures.process import _process_worker
 
 import multiprocessing
+import signal
 
+
+def quiet_sigint():
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
 
 def _init_process_worker(call_queue, result_queue, initializer, init_args):
     if initializer is not None:

@@ -11,9 +11,18 @@ import aiofiles
 import async_timeout
 
 from blazingdb import exceptions
+from blazingdb.util import process
 
 from . import base
 from .. import packets
+
+
+def write_frame(frame, file_path, format_pkt):
+    """ Writes a data frame to disk """
+    frame.to_csv(file_path, sep=format_pkt.field_terminator,
+        line_terminator=format_pkt.line_terminator, quotechar=format_pkt.field_wrapper,
+        quoting=csv.QUOTE_NONNUMERIC, doublequote=False, escapechar="\\",
+        header=False, index=False, date_format=format_pkt.date_format)
 
 
 class BaseImportStage(base.BaseStage):
@@ -114,6 +123,8 @@ class FileOutputStage(base.BaseStage):
         self.logger = logging.getLogger(__name__)
         self.loop = loop
 
+        self.executor = process.ProcessPoolExecutor(process.quiet_sigint)
+
         self.encoding = kwargs.get("encoding", self.DEFAULT_FILE_ENCODING)
         self.file_extension = kwargs.get("file_extension", self.DEFAULT_FILE_EXTENSION)
 
@@ -142,14 +153,11 @@ class FileOutputStage(base.BaseStage):
 
         return os.path.join(self.upload_folder, file_path)
 
-    def _write_chunk(self, frame, file_path, format_pkt):
-        """ Writes a data frame to disk """
+    async def _write_frame(self, frame, file_path, format_pkt):
         self.logger.info("Writing frame file: %s", file_path)
 
-        frame.to_csv(file_path, sep=format_pkt.field_terminator,
-            line_terminator=format_pkt.line_terminator, quotechar=format_pkt.field_wrapper,
-            quoting=csv.QUOTE_NONNUMERIC, doublequote=False, escapechar="\\",
-            header=False, index=False, date_format=format_pkt.date_format)
+        await self.loop.run_in_executor(self.executor, write_frame,
+            frame, file_path, format_pkt)
 
     async def process(self, message):
         import_pkt = message.get_packet(packets.ImportTablePacket)
@@ -160,6 +168,6 @@ class FileOutputStage(base.BaseStage):
             chunk_filename = self._get_file_path(import_pkt.table, frame_pkt.index)
             message.add_packet(packets.DataFilePacket(chunk_filename))
 
-            self._write_chunk(frame_pkt.frame, chunk_filename, format_pkt)
+            await self._write_frame(frame_pkt.frame, chunk_filename, format_pkt)
 
         await message.forward()
