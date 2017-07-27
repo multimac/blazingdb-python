@@ -2,6 +2,7 @@
 Defines the base batcher class for generating batches of data to load into BlazingDB
 """
 
+import gc
 import logging
 
 import pandas
@@ -36,14 +37,19 @@ class BatchStage(base.BaseStage):
                 if memory_usage < self.batch_size:
                     break
 
-                batch_rows = int((self.batch_size / memory_usage) * row_count)
+                batch_ratio = self.batch_size / memory_usage
+                batch_rows = int(batch_ratio * row_count)
 
-                batch_frame = frame_data.iloc[:batch_rows]
+                batch_frame = frame_data.iloc[:batch_rows].copy()
                 frame_data = frame_data.iloc[batch_rows:]
 
                 yield batch_frame, index
 
                 index += 1
+
+            # Free up memory by shrinking the frame_data and collecting the old frame
+            frame_data = frame_data.copy()
+            gc.collect()
 
             next_frame = yield
 
