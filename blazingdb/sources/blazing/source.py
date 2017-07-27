@@ -4,8 +4,9 @@ Defines the Postgres migrator for moving data into BlazingDB from Postgres
 
 import logging
 
+import pandas
+
 from blazingdb import exceptions
-from blazingdb.util.blazing import parse_value
 
 from .. import base
 
@@ -32,7 +33,7 @@ class BlazingSource(base.BaseSource):
     async def get_tables(self):
         """ Retrieves a list of the tables in this source """
         results = self.query("LIST TABLES")
-        tables = [row[0] async for chunk in results for row in chunk]
+        tables = [table async for frame in results for table in frame.iloc[:, 0]]
 
         self.logger.debug("Retrieved %s tables from Blazing", len(tables))
 
@@ -43,7 +44,10 @@ class BlazingSource(base.BaseSource):
         identifier = self.get_identifier(table)
         results = self.query("DESCRIBE TABLE {0}".format(identifier))
 
-        columns = [base.Column(*row) async for chunk in results for row in chunk]
+        def _process_column(row):
+            return base.Column(name=row[0], type=convert_datatype(row[1]), size=row[2])
+
+        columns = [_process_column(row[1]) async for frame in results for row in frame.iterrows()]
 
         if not columns:
             raise exceptions.QueryException(None, None)
@@ -65,12 +69,31 @@ class BlazingSource(base.BaseSource):
             raise NotImplementedError("Parameterized queries are unsupported by Blazing")
 
         results = await self.connector.query(query)
+        frame = pandas.DataFrame(results["rows"])
 
-        # This is a hack to simulate BlazingDB's check when returning column types
-        rows = results["rows"]
-        types = results["columnTypes"]
+        if results["columnTypes"] is not None:
+            types = [convert_datatype(t) for t in results["columnTypes"]]
 
-        if "select" in query.lower():
-            yield [[parse_value(dt, val) for dt, val in zip(types, row)] for row in rows]
-        else:
-            yield rows
+            for i, column_type in enumerate(types):
+                if column_type == "str":
+                    continue
+
+                frame[i] = frame[i].astype(column_type)
+
+        yield frame
+
+
+DATATYPE_MAP = {
+    "bool": "bool", "date": "date",
+
+    "float": "float", "double": "float",
+
+    "char": "long", "short": "long",
+    "int": "long", "long": "long",
+
+    "string": "str"
+}
+
+def convert_datatype(datatype):
+    """ Converts a BlazingDB data type into a Python data type """
+    return DATATYPE_MAP[datatype]

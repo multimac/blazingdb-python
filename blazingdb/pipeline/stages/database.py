@@ -7,6 +7,8 @@ Defines a series of pipeline stages for affecting database tables, including:
 
 import logging
 
+import pandas
+
 from blazingdb import exceptions
 from blazingdb.util.blazing import build_datatype
 
@@ -124,7 +126,11 @@ class SourceComparisonStage(custom.CustomActionStage):
         identifier = source.get_identifier(table)
 
         formatted_query = self.query.format(table=identifier, column=column)
-        return [item async for chunk in source.query(formatted_query) for item in chunk]
+
+        try:
+            return pandas.concat([frame async for frame in source.query(formatted_query)])
+        except exceptions.QueryException:
+            return pandas.DataFrame()
 
     async def _perform_comparison(self, message):
         """ Performs the queries after data has been imported """
@@ -139,18 +145,19 @@ class SourceComparisonStage(custom.CustomActionStage):
         src_results = await self._query_source(source, table, columns[0].name)
         dest_results = await self._query_source(destination, table, columns[0].name)
 
-        different = self._compare_results(dest_results, src_results)
+        if src_results.shape == dest_results.shape:
+            comp_results = src_results == dest_results
 
-        if not different:
-            return False
+            if comp_results.all().all():
+                return False
 
         self.logger.warning(" ".join([
             "Comparison query on table %s differed",
             "between the source and the destination"
         ]), table)
 
-        self.logger.debug("Source: %s", src_results)
-        self.logger.debug("Destination: %s", dest_results)
+        self.logger.debug("Source:\n %s", src_results)
+        self.logger.debug("Destination:\n %s", dest_results)
 
 
 class TruncateTableStage(custom.CustomActionStage):
