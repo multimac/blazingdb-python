@@ -24,7 +24,7 @@ def write_frame(frame, file_path, format_pkt):
     gc.collect()
     frame.to_csv(file_path, sep=format_pkt.field_terminator,
         line_terminator=format_pkt.line_terminator, quotechar=format_pkt.field_wrapper,
-        quoting=csv.QUOTE_NONNUMERIC, doublequote=False, escapechar="\\",
+        quoting=csv.QUOTE_MINIMAL, doublequote=False, escapechar="\\",
         header=False, index=False, date_format=format_pkt.date_format)
 
 

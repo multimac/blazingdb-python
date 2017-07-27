@@ -22,9 +22,7 @@ from ..util import get_columns
 
 # pragma pylint: disable=too-few-public-methods
 
-UNLOAD_DATE_FORMAT = "YYYY-MM-DD"
 UNLOAD_DELIMITER = "|"
-
 TYPE_MAP = {
     "long": "int64",
     "double": "float64",
@@ -52,11 +50,12 @@ def retrieve_unloaded_file(bucket, key, access_key, secret_key, columns, chunk_s
             column.name: TYPE_MAP[column.type]
             for column in columns if column.type in TYPE_MAP}
 
-        return pandas.read_csv(stream,
+        return pandas.read_csv(stream, sep=UNLOAD_DELIMITER,
+            lineterminator="\n", quotechar=None, quoting=csv.QUOTE_NONE,
+            doublequote=False, escapechar="\\", na_values="",
             names=names, dtype=dtypes, parse_dates=date_cols,
             infer_datetime_format=True, engine="c",
-            na_values="", keep_default_na=False,
-            dialect=UnloadDialect())
+            keep_default_na=False)
 
 def _attach_iter_method(stream, chunk_size):
     def _iter(target):
@@ -71,18 +70,6 @@ def _attach_iter_method(stream, chunk_size):
     stream.__iter__ = types.MethodType(_iter, stream)
 
     return stream
-
-
-class UnloadDialect(csv.Dialect):
-    """ The dialect used by the Amazon Redshift UNLOAD command """
-    delimiter = UNLOAD_DELIMITER
-    doublequote = False
-    escapechar = "\\"
-    lineterminator = "\n"
-    quotechar = None
-    quoting = csv.QUOTE_NONE
-    skipinitialspace = False
-    strict = True
 
 
 class UnloadGenerationStage(base.BaseStage):
