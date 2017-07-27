@@ -19,6 +19,9 @@ from .. import packets
 
 def write_frame(frame, file_path, format_pkt):
     """ Writes a data frame to disk """
+    import gc
+
+    gc.collect()
     frame.to_csv(file_path, sep=format_pkt.field_terminator,
         line_terminator=format_pkt.line_terminator, quotechar=format_pkt.field_wrapper,
         quoting=csv.QUOTE_NONNUMERIC, doublequote=False, escapechar="\\",

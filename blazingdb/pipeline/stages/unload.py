@@ -33,12 +33,16 @@ TYPE_MAP = {
 
 def retrieve_unloaded_file(bucket, key, access_key, secret_key, columns, chunk_size):
     """ Retrieves an unloaded file from S3 into a pandas.DataFrame """
+    import gc
+
     session = botocore.session.get_session()
     client = session.create_client("s3",
         aws_access_key_id=access_key, aws_secret_access_key=secret_key)
 
     stream, _ = s3.open_file(client, bucket, key)
     stream = _attach_iter_method(stream, chunk_size)
+
+    gc.collect()
 
     with contextlib.closing(stream):
         names = [column.name for column in columns]
