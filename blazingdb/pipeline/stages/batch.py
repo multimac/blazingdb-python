@@ -59,7 +59,7 @@ class BatchStage(base.BaseStage):
             frame_data = pandas.concat(
                 [frame_data, next_frame])
 
-        yield batch_frame, index
+        yield frame_data, index
 
     def _get_generator(self, msg_id):
         if msg_id in self.generators:
