@@ -50,7 +50,9 @@ class PipelineStage(BaseStage):
 
     async def process(self, message):
         """ Processes the current stage """
-        await self.before(message)
+        if await self.before(message) is False:
+            return
+
         await (await message.forward(track_children=True))
 
         await self.after(message)

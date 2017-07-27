@@ -142,7 +142,7 @@ class SourceComparisonStage(custom.CustomActionStage):
         different = self._compare_results(dest_results, src_results)
 
         if not different:
-            return
+            return False
 
         self.logger.warning(" ".join([
             "Comparison query on table %s differed",

@@ -15,18 +15,18 @@ class CustomActionStage(base.PipelineStage):
         self.callback = callback
 
     async def _perform_callback(self, message):
-        await self.callback(message)
+        return await self.callback(message)
 
     async def before(self, message):
         """ Triggers the callback if it has queued to run before the import """
         if When.before not in self.when:
             return
 
-        await self._perform_callback(message)
+        return await self._perform_callback(message)
 
     async def after(self, message):
         """ Triggers the callback if it has queued to run after the import """
         if When.after not in self.when:
             return
 
-        await self._perform_callback(message)
+        return await self._perform_callback(message)
