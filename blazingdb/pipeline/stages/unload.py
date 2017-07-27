@@ -153,17 +153,11 @@ class UnloadRetrievalStage(base.BaseStage):
         self.pending_handles = kwargs.get("pending_handles", self.DEFAULT_PENDING_HANDLES)
 
     async def _limit_pending(self, pending):
-        if len(pending) <= self.pending_handles:
-            return pending
+        while len(pending) > self.pending_handles:
+            _, pending = await asyncio.wait(pending,
+                loop=self.loop, return_when=asyncio.FIRST_COMPLETED)
 
-        pending_iter = asyncio.as_completed(pending, loop=self.loop)
-        for future in pending_iter:
-            await future
-
-            pending = [handle for handle in pending if not handle.done()]
-
-            if len(pending) <= self.pending_handles:
-                break
+            pending = list(pending)
 
         return pending
 
