@@ -54,8 +54,8 @@ def retrieve_unloaded_file(bucket, key, access_key, secret_key, columns, chunk_s
             lineterminator="\n", quotechar=None, quoting=csv.QUOTE_NONE,
             doublequote=False, escapechar="\\", na_values="",
             names=names, dtype=dtypes, parse_dates=date_cols,
-            infer_datetime_format=True, engine="c",
-            keep_default_na=False)
+            infer_datetime_format=True, keep_default_na=False,
+            engine="c", low_memory=False)
 
 def _attach_iter_method(stream, chunk_size):
     def _iter(target):
