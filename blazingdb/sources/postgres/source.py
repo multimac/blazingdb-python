@@ -2,6 +2,7 @@
 Defines the Postgres migrator for moving data into BlazingDB from Postgres
 """
 
+import math
 import logging
 
 import pandas
@@ -50,7 +51,10 @@ class PostgresSource(base.BaseSource):
     async def get_columns(self, table):
         """ Retrieves a list of columns for the given table from the source """
         def _process_column(row):
-            return base.Column(name=row[0], type=convert_datatype(row[1]), size=row[2])
+            datatype = convert_datatype(row[1])
+            size = int(row[2]) if not math.isnan(row[2]) else None
+
+            return base.Column(name=row[0], type=datatype, size=size)
 
         results = self.query(" ".join([
             "SELECT column_name, data_type, character_maximum_length",
