@@ -123,7 +123,6 @@ class UnloadGenerationStage(base.BaseStage):
         columns = await get_columns(message, add_if_missing=True)
         query_columns = ",".join(column.name for column in columns)
 
-        message.add_packet(packets.DataColumnsPacket(columns))
         message.add_packet(packets.DataUnloadPacket(self.bucket, key))
 
         query = " ".join([
