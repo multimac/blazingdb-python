@@ -24,8 +24,9 @@ from ..util import get_columns
 
 UNLOAD_DELIMITER = "|"
 TYPE_MAP = {
-    "long": "int64",
-    "double": "float64",
+    "bool": "bool",
+    "long": "float",
+    "double": "float",
     "string": "str"
 }
 
