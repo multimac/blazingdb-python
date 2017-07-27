@@ -144,7 +144,7 @@ class UnloadRetrievalStage(base.BaseStage):
     """ Processes a DataUnloadPacket and transforms it into a stream of DataLoadPacket """
 
     DEFAULT_CHUNK_SIZE = 65536
-    DEFAULT_PENDING_HANDLES = os.cpu_count()
+    DEFAULT_PENDING_HANDLES = os.cpu_count() / 2
 
     def __init__(self, access_key, secret_key, loop=None, **kwargs):
         super(UnloadRetrievalStage, self).__init__(packets.DataUnloadPacket)
