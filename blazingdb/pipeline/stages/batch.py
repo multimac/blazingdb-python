@@ -25,6 +25,10 @@ class BatchStage(base.BaseStage):
         self.batch_size = batch_size
         self.generators = dict()
 
+    async def shutdown(self):
+        for gen in self.generators.values():
+            gen.close()
+
     def _generate_batch(self):
         frame_data = yield
 
@@ -72,9 +76,6 @@ class BatchStage(base.BaseStage):
         return generator
 
     def _delete_generator(self, msg_id):
-        if msg_id not in self.generators:
-            return
-
         generator = self.generators.pop(msg_id)
         generator.close()
 

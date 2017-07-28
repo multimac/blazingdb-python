@@ -64,8 +64,7 @@ class SingleFileStage(base.BaseStage):
 
     async def process(self, message):
         async with self._get_semaphore(message.initial_id):
-            handle = await message.forward(track_children=True)
-            await handle
+            await (await message.forward(track_children=True))
 
 
 class SkipTableStage(base.BaseStage):

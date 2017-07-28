@@ -31,8 +31,6 @@ class Processor(object):
         queue_length = kwargs.get("queue_length", processor_count)
 
         self.continue_on_error = kwargs.get("continue_on_error", False)
-        self.enqueue_while_shutdown = kwargs.get("enqueue_while_stopping", False)
-
         self.processors = self._create_processors(self._process_queue, processor_count, loop)
         self.queue = asyncio.Queue(queue_length, loop=loop)
 
@@ -45,18 +43,14 @@ class Processor(object):
         while True:
             args = await self.queue.get()
 
-            task = asyncio.ensure_future(self.callback(*args))
-
             try:
-                await asyncio.shield(task)
+                await self.callback(*args)
             except concurrent.futures.CancelledError:
                 self.logger.warning("Processor task cancelled during callback")
                 raise
             except Exception:  # pylint: disable=broad-except
                 self.logger.exception("Caught exception attempting to callback with %s", args)
-
-                if not self.continue_on_error:
-                    break
+                if not self.continue_on_error: break  # pylint: disable=multiple-statements
             finally:
                 self.queue.task_done()
 
@@ -64,9 +58,7 @@ class Processor(object):
 
     async def enqueue(self, *args):
         """ Queues a message to be processed """
-        if self.state is State.Stopped:
-            raise exceptions.StoppedException()
-        elif self.state is State.Stopping and not self.enqueue_while_shutdown:
+        if self.state is not State.Running:
             raise exceptions.StoppedException()
 
         await self.queue.put(args)
@@ -88,10 +80,14 @@ class Processor(object):
             return
 
         self.state = State.Stopping
-        self.logger.debug("Processor stopping")
-
         self.logger.debug("Waiting on processor tasks to complete")
-        await self.queue.join()
+
+        await self.clear()
+
+        try:
+            await self.queue.join()
+        except concurrent.futures.CancelledError:
+            self.logger.debug("Forcefully cancelling running processors")
 
         for task in self.processors:
             task.cancel()

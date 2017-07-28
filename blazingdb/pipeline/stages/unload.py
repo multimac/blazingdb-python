@@ -156,6 +156,14 @@ class UnloadRetrievalStage(base.BaseStage):
         self.chunk_size = kwargs.get("chunk_size", self.DEFAULT_CHUNK_SIZE)
         self.pending_handles = kwargs.get("pending_handles", self.DEFAULT_PENDING_HANDLES)
 
+    def _read_manifest(self, bucket, key):
+        stream, _ = s3.open_file(self.client, bucket, key)
+
+        with contextlib.closing(stream):
+            manifest_json = json.loads(stream.read())
+
+        return [entry["url"] for entry in manifest_json["entries"]]
+
     async def _limit_pending(self, pending):
         while len(pending) > self.pending_handles:
             _, pending = await asyncio.wait(pending,
@@ -164,14 +172,6 @@ class UnloadRetrievalStage(base.BaseStage):
             pending = list(pending)
 
         return pending
-
-    async def _read_manifest(self, bucket, key):
-        stream, _ = s3.open_file(self.client, bucket, key)
-
-        with contextlib.closing(stream):
-            manifest_json = json.loads(stream.read())
-
-        return [entry["url"] for entry in manifest_json["entries"]]
 
     async def _retrieve_file(self, url, columns):
         bucket, key = s3.parse_url(url)
@@ -184,7 +184,7 @@ class UnloadRetrievalStage(base.BaseStage):
         unload_pkt = message.pop_packet(packets.DataUnloadPacket)
         manifest = unload_pkt.key + "manifest"
 
-        urls = await self._read_manifest(unload_pkt.bucket, manifest)
+        urls = self._read_manifest(unload_pkt.bucket, manifest)
         columns = await get_columns(message)
 
         pending = []

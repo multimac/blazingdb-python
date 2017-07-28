@@ -24,6 +24,7 @@ class Migrator(object):
         self.destination = destination
 
         processor_count = kwargs.get("processor_count", Migrator.DEFAULT_PROCESSOR_COUNT)
+
         self.processor = processor.Processor(self._process_import,
             loop=loop, processor_count=processor_count)
 

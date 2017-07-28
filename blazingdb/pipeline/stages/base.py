@@ -33,7 +33,8 @@ class BaseStage(object, metaclass=abc.ABCMeta):
             else:
                 await message.forward()
         finally:
-            message.complete()
+            if not message.handle.cancelled():
+                message.complete()
 
     async def shutdown(self):
         pass

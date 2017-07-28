@@ -80,7 +80,7 @@ class FileImportStage(BaseImportStage):
         newline = fmt.line_terminator
 
         async with aiofiles.open(file_path, loop=self.loop, newline=newline) as data_file:
-            return (await data_file.readline()).endswith(fmt.field_terminator)
+            return (await data_file.readline()).endswith(fmt.field_terminator + newline)
 
     async def _load_chunk(self, destination, packet, table, fmt):
         """ Loads a chunk of data into Blazing """
