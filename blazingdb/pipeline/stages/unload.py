@@ -137,6 +137,8 @@ class UnloadRetrievalStage(base.BaseStage):
     DEFAULT_CHUNK_SIZE = 65536
     DEFAULT_PENDING_HANDLES = os.cpu_count() / 2
 
+    EXECUTOR_WORKER_COUNT = os.cpu_count() // 2
+
     def __init__(self, access_key, secret_key, loop=None, **kwargs):
         super(UnloadRetrievalStage, self).__init__(packets.DataUnloadPacket)
         self.logger = logging.getLogger(__name__)
@@ -148,7 +150,8 @@ class UnloadRetrievalStage(base.BaseStage):
         self.client = botocore.session.get_session().create_client("s3",
             aws_access_key_id=access_key, aws_secret_access_key=secret_key)
 
-        self.executor = process.ProcessPoolExecutor(process.quiet_sigint)
+        self.executor = process.ProcessPoolExecutor(
+            process.quiet_sigint, max_workers=self.EXECUTOR_WORKER_COUNT)
 
         self.chunk_size = kwargs.get("chunk_size", self.DEFAULT_CHUNK_SIZE)
         self.pending_handles = kwargs.get("pending_handles", self.DEFAULT_PENDING_HANDLES)

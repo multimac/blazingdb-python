@@ -5,6 +5,7 @@ Defines the importing stages of the pipeline
 import abc
 import csv
 import logging
+import os
 import os.path
 
 import aiofiles
@@ -121,12 +122,15 @@ class FileOutputStage(base.BaseStage):
     DEFAULT_LINE_TERMINATOR = "\n"
     DEFAULT_FIELD_WRAPPER = "\""
 
+    EXECUTOR_WORKER_COUNT = os.cpu_count() // 2
+
     def __init__(self, upload_folder, user, loop=None, **kwargs):
         super(FileOutputStage, self).__init__(packets.DataFramePacket)
         self.logger = logging.getLogger(__name__)
         self.loop = loop
 
-        self.executor = process.ProcessPoolExecutor(process.quiet_sigint)
+        self.executor = process.ProcessPoolExecutor(
+            process.quiet_sigint, max_workers=self.EXECUTOR_WORKER_COUNT)
 
         self.encoding = kwargs.get("encoding", self.DEFAULT_FILE_ENCODING)
         self.file_extension = kwargs.get("file_extension", self.DEFAULT_FILE_EXTENSION)
