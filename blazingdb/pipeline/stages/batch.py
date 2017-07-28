@@ -107,7 +107,7 @@ class BatchStage(base.BaseStage):
                 frame_packet = packets.DataFramePacket(frame, index)
                 frame_packets.append(frame_packet)
 
-            self._delete_generator(message.msg_id)
+            self._delete_generator(message.initial_id)
 
         if frame_packets:
             self.logger.info("Created %s segments of data from message %s",
