@@ -22,6 +22,12 @@ def write_frame(frame, file_path, format_pkt):
     """ Writes a data frame to disk """
     import gc
 
+    def _escape_backslash(item):
+        return item.replace("\\", "\\\\") if isinstance(item, str) else item
+
+    for name in frame.select_dtypes(include=["object"]).columns:
+        frame[name] = frame[name].apply(_escape_backslash)
+
     gc.collect()
     frame.to_csv(file_path, sep=format_pkt.field_terminator,
         line_terminator=format_pkt.line_terminator, quotechar=format_pkt.field_wrapper,
