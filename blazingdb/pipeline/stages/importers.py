@@ -18,6 +18,8 @@ from . import base
 from .. import packets
 
 
+BLAZING_DATE_FORMAT = "%Y-%m-%d"
+
 def write_frame(frame, file_path, format_pkt):
     """ Writes a data frame to disk """
     import gc
@@ -32,7 +34,7 @@ def write_frame(frame, file_path, format_pkt):
     frame.to_csv(file_path, sep=format_pkt.field_terminator,
         line_terminator=format_pkt.line_terminator, quotechar=format_pkt.field_wrapper,
         quoting=csv.QUOTE_MINIMAL, doublequote=False, escapechar="\\",
-        header=False, index=False, date_format=format_pkt.date_format)
+        header=False, index=False, date_format=BLAZING_DATE_FORMAT)
 
 
 class BaseImportStage(base.BaseStage):
@@ -123,7 +125,6 @@ class FileOutputStage(base.BaseStage):
     DEFAULT_FILE_EXTENSION = "dat"
     DEFAULT_USER_FOLDER = "data"
 
-    DEFAULT_DATE_FORMAT = "%Y-%m-%d"
     DEFAULT_FIELD_TERMINATOR = "|"
     DEFAULT_LINE_TERMINATOR = "\n"
     DEFAULT_FIELD_WRAPPER = "\""
@@ -147,8 +148,7 @@ class FileOutputStage(base.BaseStage):
         self.format_pkt = packets.DataFormatPacket(
             field_terminator=kwargs.get("field_terminator", self.DEFAULT_FIELD_TERMINATOR),
             line_terminator=kwargs.get("line_terminator", self.DEFAULT_LINE_TERMINATOR),
-            field_wrapper=kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER),
-            date_format=kwargs.get("date_format", self.DEFAULT_DATE_FORMAT))
+            field_wrapper=kwargs.get("field_wrapper", self.DEFAULT_FIELD_WRAPPER))
 
     def _get_filename(self, table, chunk):
         """ Generates a filename for the given chunk of a table """
